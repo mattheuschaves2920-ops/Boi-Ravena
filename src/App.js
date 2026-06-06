@@ -1070,7 +1070,7 @@ export default function App() {
               <button style={{...S.btnRed,flex:1}} onClick={async()=>{
                 if(!newUser.name||!newUser.email||!newUser.password) return showToast('Preencha todos os campos','err')
                 if(newUser.password.length<6) return showToast('Senha deve ter mínimo 6 caracteres','err')
-                const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,password:newUser.password,role:newUser.role})
+                const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,senha:newUser.password,role:newUser.role})
                 if(error) return showToast('Erro ao cadastrar. Verifique se a tabela usuarios existe.','err')
                 setDbUsers(prev=>[...prev,newUser])
                 setNewUser({name:'',email:'',password:'',role:'operador'})
