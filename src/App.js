@@ -257,47 +257,154 @@ export default function App() {
       <div style={{padding:16,maxWidth:1100,margin:'0 auto',animation:'fadeUp 0.3s ease'}} key={tab}>
 
         {/* DASHBOARD */}
-        {tab==='dashboard'&&<>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12,marginBottom:16}}>
-            {[
-              {label:'Valor em Estoque',val:fmtCur(totalCost),icon:'💰',color:C.red,bg:C.redLight,sub:`${products.length} produtos`},
-              {label:'Alertas',val:lowStock.length+expiring.length,icon:'⚠️',color:C.orange,bg:'#FFF8F0',sub:`${lowStock.length} baixo · ${expiring.length} vencendo`},
-              {label:'Entradas Hoje',val:`+${todayMov.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)}`,icon:'📥',color:C.green,bg:'#F0FFF6',sub:`${todayMov.filter(m=>m.type==='entrada').length} movimentos`},
-              {label:'Saídas Hoje',val:`-${todayMov.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)}`,icon:'📤',color:'#E53935',bg:C.redLight,sub:`${todayMov.filter(m=>m.type==='saida').length} movimentos`},
-            ].map(c=>(
-              <div key={c.label} style={{...styles.card,background:c.bg,border:`1.5px solid ${c.color}22`}}>
-                <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:6,letterSpacing:0.5}}>{c.icon} {c.label.toUpperCase()}</div>
-                <div style={{fontFamily:"'Nunito'",fontWeight:900,fontSize:28,color:c.color,lineHeight:1}}>{c.val}</div>
-                <div style={{fontSize:11,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+        {tab==='dashboard'&&(()=>{
+          const custoDia = todayMov.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+          const topProdutos = [...products].map(p=>({...p, totalSaida: movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0)})).sort((a,b)=>b.totalSaida-a.totalSaida).slice(0,5)
+          const semEstoque = products.filter(p=>p.quantity===0)
+          const ultimosMov = movements.slice(0,6)
+          const custoSemanal = last7.map(d=>({...d, custo: movements.filter(m=>m.created_at?.startsWith(last7.find(x=>x.date===d.date)?.fullDate||'')).reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)}))
+          return <>
+            {/* SAUDAÇÃO */}
+            <div style={{background:`linear-gradient(135deg,${C.red},#ff4757)`,borderRadius:16,padding:'18px 20px',marginBottom:16,color:C.white,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <p style={{fontSize:13,opacity:0.85,fontWeight:600}}>Bem-vindo de volta,</p>
+                <p style={{fontWeight:900,fontSize:20}}>{user.name} 👋</p>
+                <p style={{fontSize:11,opacity:0.75,marginTop:4}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</p>
               </div>
-            ))}
-          </div>
+              <div style={{textAlign:'right'}}>
+                <p style={{fontSize:11,opacity:0.75}}>Valor em estoque</p>
+                <p style={{fontWeight:900,fontSize:24}}>{fmtCur(totalCost)}</p>
+                <p style={{fontSize:11,opacity:0.75}}>{products.length} produtos cadastrados</p>
+              </div>
+            </div>
 
-          <div style={{...styles.card,marginBottom:16}}>
-            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:12,letterSpacing:0.5}}>📈 MOVIMENTOS — ÚLTIMOS 7 DIAS</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={last7} barCategoryGap="30%">
-                <XAxis dataKey="date" tick={{fill:C.grayDark,fontSize:10,fontFamily:"'Nunito'"}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill:C.grayDark,fontSize:10}} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:10,fontSize:12,fontFamily:"'Nunito'"}} />
-                <Bar dataKey="entradas" fill={C.green} radius={[6,6,0,0]} name="Entradas" />
-                <Bar dataKey="saidas" fill={C.red} radius={[6,6,0,0]} name="Saídas" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {lowStock.length>0&&(
-            <div style={{...styles.card,border:`1.5px solid ${C.orange}`,background:'#FFF8F0'}}>
-              <p style={{fontSize:12,fontWeight:800,color:C.orange,marginBottom:10}}>⚠️ ESTOQUE BAIXO</p>
-              {lowStock.map(p=>(
-                <div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:`1px solid ${C.grayMid}`,fontSize:13}}>
-                  <span style={{fontWeight:700}}>{p.name}</span>
-                  <span style={{color:C.orange,fontWeight:800}}>{p.quantity}/{p.min_stock} {p.unit}</span>
+            {/* CARDS PRINCIPAIS — 4 colunas */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10,marginBottom:14}}>
+              {[
+                {label:'Custo do Dia',val:fmtCur(custoDia),icon:'💸',color:'#6f42c1',bg:'#F5F0FF',sub:`${todayMov.filter(m=>m.type==='saida').length} saídas registradas`},
+                {label:'Itens Críticos',val:lowStock.length+semEstoque.length,icon:'🚨',color:C.red,bg:C.redLight,sub:`${semEstoque.length} zerados · ${lowStock.length} baixo`},
+                {label:'Entradas Hoje',val:`+${todayMov.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)}`,icon:'📥',color:C.green,bg:'#F0FFF6',sub:`${todayMov.filter(m=>m.type==='entrada').length} movimentos`},
+                {label:'Vencendo em Breve',val:expiring.length,icon:'📅',color:C.orange,bg:'#FFF8F0',sub:'próximos 7 dias'},
+              ].map(c=>(
+                <div key={c.label} style={{...styles.card,background:c.bg,border:`1.5px solid ${c.color}33`,padding:14}}>
+                  <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:6,letterSpacing:0.5}}>{c.icon} {c.label.toUpperCase()}</div>
+                  <div style={{fontWeight:900,fontSize:26,color:c.color,lineHeight:1}}>{c.val}</div>
+                  <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
                 </div>
               ))}
             </div>
-          )}
-        </>}
+
+            {/* ALERTAS CRÍTICOS */}
+            {(lowStock.length>0||expiring.length>0||semEstoque.length>0)&&(
+              <div style={{...styles.card,border:`1.5px solid ${C.red}`,background:C.redLight,marginBottom:14,padding:14}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.red,marginBottom:10}}>🚨 ALERTAS QUE PRECISAM DE ATENÇÃO</p>
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {semEstoque.map(p=>(
+                    <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.white,borderRadius:8,padding:'8px 12px'}}>
+                      <span style={{fontWeight:700,fontSize:13}}>{p.name}</span>
+                      <span style={{background:C.red,color:C.white,fontSize:10,padding:'2px 10px',borderRadius:20,fontWeight:800}}>ZERADO</span>
+                    </div>
+                  ))}
+                  {lowStock.filter(p=>p.quantity>0).map(p=>(
+                    <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.white,borderRadius:8,padding:'8px 12px'}}>
+                      <span style={{fontWeight:700,fontSize:13}}>{p.name}</span>
+                      <span style={{color:C.orange,fontWeight:800,fontSize:12}}>{p.quantity}/{p.min_stock} {p.unit}</span>
+                    </div>
+                  ))}
+                  {expiring.map(p=>(
+                    <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.white,borderRadius:8,padding:'8px 12px'}}>
+                      <span style={{fontWeight:700,fontSize:13}}>{p.name}</span>
+                      <span style={{color:C.orange,fontWeight:800,fontSize:12}}>⏰ Vence {fmtDate(p.expiry)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* GRÁFICO + TOP PRODUTOS */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+              <div style={{...styles.card}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:12}}>📈 ENTRADAS × SAÍDAS — 7 DIAS</p>
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={last7} barCategoryGap="30%">
+                    <XAxis dataKey="date" tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
+                    <YAxis tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:10,fontSize:11}} />
+                    <Bar dataKey="entradas" fill={C.green} radius={[5,5,0,0]} name="Entradas" />
+                    <Bar dataKey="saidas" fill={C.red} radius={[5,5,0,0]} name="Saídas" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{...styles.card}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 MAIS CONSUMIDOS</p>
+                {topProdutos.length===0
+                  ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem movimentos ainda</p>
+                  : topProdutos.map((p,i)=>{
+                    const maxVal=topProdutos[0].totalSaida||1
+                    return(
+                      <div key={p.id} style={{marginBottom:8}}>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                          <span style={{fontSize:12,fontWeight:700,color:C.text}}>{i+1}. {p.name}</span>
+                          <span style={{fontSize:11,fontWeight:800,color:C.red}}>{p.totalSaida} {p.unit}</span>
+                        </div>
+                        <div style={{background:C.grayMid,borderRadius:4,height:5,overflow:'hidden'}}>
+                          <div style={{width:`${(p.totalSaida/maxVal)*100}%`,height:'100%',background:C.red,borderRadius:4}} />
+                        </div>
+                      </div>
+                    )
+                  })
+                }
+              </div>
+            </div>
+
+            {/* VALOR POR CATEGORIA + ÚLTIMOS MOVIMENTOS */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <div style={{...styles.card}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🥧 VALOR POR CATEGORIA</p>
+                {catData.length===0
+                  ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem produtos ainda</p>
+                  : catData.sort((a,b)=>b.value-a.value).map((c,i)=>(
+                    <div key={c.name} style={{marginBottom:8}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                        <span style={{fontSize:12,fontWeight:700}}>{c.name}</span>
+                        <span style={{fontSize:11,fontWeight:800,color:PIE_COLORS[i%PIE_COLORS.length]}}>{fmtCur(c.value)}</span>
+                      </div>
+                      <div style={{background:C.grayMid,borderRadius:4,height:5,overflow:'hidden'}}>
+                        <div style={{width:`${(c.value/(catData[0]?.value||1))*100}%`,height:'100%',background:PIE_COLORS[i%PIE_COLORS.length],borderRadius:4}} />
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+
+              <div style={{...styles.card}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>⏱ ÚLTIMOS MOVIMENTOS</p>
+                {ultimosMov.length===0
+                  ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem movimentos ainda</p>
+                  : ultimosMov.map(m=>{
+                    const p=products.find(x=>x.id===m.product_id)
+                    return(
+                      <div key={m.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
+                        <div style={{width:32,height:32,borderRadius:10,background:m.type==='entrada'?'#F0FFF6':C.redLight,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>
+                          {m.type==='entrada'?'📥':'📤'}
+                        </div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <p style={{fontWeight:700,fontSize:12,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p?.name||'—'}</p>
+                          <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{m.user_name} · {new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                        </div>
+                        <span style={{fontWeight:900,fontSize:13,color:m.type==='entrada'?C.green:C.red,flexShrink:0}}>
+                          {m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}
+                        </span>
+                      </div>
+                    )
+                  })
+                }
+                {movements.length>6&&<button onClick={()=>setTab('movimentos')} style={{...styles.btnGray,width:'100%',marginTop:10,fontSize:12}}>Ver todos →</button>}
+              </div>
+            </div>
+          </>
+        })()}
 
         {/* ESTOQUE */}
         {tab==='estoque'&&<>
