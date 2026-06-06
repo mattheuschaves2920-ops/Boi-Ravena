@@ -8,15 +8,16 @@ const USERS = [
   { id:3, name:'Gerente',      email:'gerente@restaurante.com', password:'1234', role:'gerente',  avatar:'G' },
 ]
 const CATS    = ['Carnes','Laticínios','Hortifruti','Bebidas','Grãos/Cereais','Temperos','Descartáveis','Limpeza']
-const SETORES = ['Cozinha','Lanchonete','Salão']
+const SETORES = ['Cozinha','Lanchonete','Salão','Churrasco']
 const TURNOS  = [
   { id:'T1', label:'Turno 1', sub:'07:00 – 15:00', icon:'🌅', start:7,  end:15 },
   { id:'T2', label:'Turno 2', sub:'15:00 – 23:00', icon:'🌆', start:15, end:23 },
 ]
+const TURNO_SEGUINTE = { T1:'T2', T2:'T1' }
 const ROLE_LABELS = { admin:'Administrador', gerente:'Gerente', operador:'Operador' }
 const PIE_COLORS  = ['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14','#FF6B6B','#FFB347']
-const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑' }
-const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773' }
+const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑', 'Churrasco':'🔥' }
+const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773', 'Churrasco':'#8B4513' }
 
 const todayStr  = () => new Date().toISOString().split('T')[0]
 const fmtDate   = d  => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'
@@ -104,7 +105,10 @@ export default function App() {
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
   const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
+  const [separacoes,setSeparacoes] = useState([]) // carnes separadas para turno seguinte
+  const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'',dataDestino:'',obs:''})
   const [dashSetor,setDashSetor] = useState('todos')
+  const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''})
 
   useEffect(()=>{
     if(!user) return
@@ -177,6 +181,11 @@ export default function App() {
     [...products].map(p=>({...p,totalSaida:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0)})).sort((a,b)=>b.totalSaida-a.totalSaida).slice(0,5)
   ,[products,movements])
 
+  // Carnes separadas pendentes para o turno atual ou dia seguinte
+  const separacoesPendentes = useMemo(()=>
+    movements.filter(m=>m.type==='separacao'&&m.para_turno===getTurnoAtual()&&(m.para_data===todayStr()||!m.para_data))
+  ,[movements])
+
   const custoDia  = todayMov.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const custoMes  = movements.filter(m=>{ const d=new Date(m.created_at); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()&&m.type==='saida' }).reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
 
@@ -194,6 +203,33 @@ export default function App() {
     if(e1||e2) return showToast('Erro ao salvar','err')
     setMovForm(f=>({...f,productId:'',qty:'',note:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
+  }
+
+  const handleSeparacao=async()=>{
+    const pid=sepForm.productId; const qty=parseFloat(sepForm.qty)
+    if(!pid||!qty||qty<=0||!sepForm.turnoDestino) return showToast('Preencha todos os campos','err')
+    const product=products.find(p=>p.id===pid)
+    if(!product) return
+    if(product.quantity<qty) return showToast(,'err')
+    const{error}=await supabase.from('movimentos').insert({product_id:pid,type:'separacao',quantity:qty,note:,user_name:user.name,cost_unit:product.cost,setor:'Churrasco',turno:getTurnoAtual(),para_turno:sepForm.turnoDestino,para_data:sepForm.dataDestino||null})
+    if(error) return showToast('Erro ao salvar','err')
+    setSepForm({productId:'',qty:'',turnoDestino:'',dataDestino:'',obs:''}); setModal(null)
+    showToast()
+  }
+
+  const handleSeparacao=async()=>{
+    const pid=sepForm.productId; const qty=parseFloat(sepForm.qty)
+    if(!pid||!qty||qty<=0) return showToast('Preencha produto e quantidade','err')
+    const product=products.find(p=>p.id===pid)
+    if(!product) return
+    if(product.quantity<qty) return showToast('Estoque insuficiente!','err')
+    const tDest=TURNOS.find(t=>t.id===sepForm.turnoDestino)
+    const dataLabel=sepForm.dataDestino?new Date(sepForm.dataDestino+'T12:00:00').toLocaleDateString('pt-BR'):'próximo turno'
+    const nota='Separado para '+tDest?.label+' ('+dataLabel+')'+(sepForm.obs?' - '+sepForm.obs:'')
+    const{error}=await supabase.from('movimentos').insert({product_id:pid,type:'separacao',quantity:qty,note:nota,user_name:user.name,cost_unit:product.cost,setor:'Churrasco',turno:getTurnoAtual(),para_turno:sepForm.turnoDestino,para_data:sepForm.dataDestino||null})
+    if(error) return showToast('Erro ao salvar','err')
+    setSepForm({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''}); setModal(null)
+    showToast('Carnes separadas com sucesso! 🥩')
   }
 
   const handleSaveProd=async()=>{
@@ -274,8 +310,30 @@ export default function App() {
               <button onClick={()=>openMov('entrada')} style={{background:'rgba(255,255,255,0.25)',border:'1px solid rgba(255,255,255,0.4)',borderRadius:10,padding:'7px 14px',color:C.white,fontSize:12,fontWeight:800,cursor:'pointer',fontFamily:"'Nunito'"}}>+ Entrada</button>
               <button onClick={()=>openMov('saida')} style={{background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',color:C.white,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'Nunito'"}}>− Saída</button>
               {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',color:C.white,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'Nunito'"}}>+ Produto</button>}
+              <button onClick={()=>setModal('separacao')} style={{background:'rgba(139,69,19,0.4)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'7px 14px',color:C.white,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'Nunito'"}}>🥩 Separar Carnes</button>
             </div>
           </div>
+
+          {/* ALERTA CARNES SEPARADAS */}
+          {separacoesPendentes.length>0&&(
+            <div style={{...S.card,border:'2px solid #8B4513',background:'#FFF5EE',marginBottom:14,padding:14}}>
+              <p style={{fontSize:12,fontWeight:800,color:'#8B4513',marginBottom:10}}>🥩 CARNES SEPARADAS PARA ESTE TURNO</p>
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {separacoesPendentes.map(m=>{
+                  const p=products.find(x=>x.id===m.product_id)
+                  return(
+                    <div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:C.white,borderRadius:10,padding:'9px 12px',border:'1px solid #8B451333'}}>
+                      <div>
+                        <p style={{fontWeight:800,fontSize:13}}>{p?.name||'—'}</p>
+                        <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{m.note} · por {m.user_name}</p>
+                      </div>
+                      <span style={{color:'#8B4513',fontWeight:900,fontSize:14}}>{m.quantity} {p?.unit}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* FILTROS TURNO + SETOR */}
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
@@ -694,6 +752,53 @@ export default function App() {
             </div>
             <div style={{display:'flex',gap:8}}>
               <button style={{...S.btnRed,flex:1,background:movForm.type==='entrada'?C.green:C.red}} onClick={handleMovement}>Confirmar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL SEPARAÇÃO CARNES */}
+      {modal==='separacao'&&(
+        <Overlay onClose={()=>setModal(null)}>
+          <MHead title="🥩 Separar Carnes para Próximo Turno" color="#8B4513" onClose={()=>setModal(null)} />
+          <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#FFF5EE',border:'1px solid #8B451333',borderRadius:12,padding:12}}>
+              <p style={{fontSize:12,fontWeight:700,color:'#8B4513'}}>🔥 Turno atual: {TURNOS.find(t=>t.id===getTurnoAtual())?.icon} {TURNOS.find(t=>t.id===getTurnoAtual())?.label} ({TURNOS.find(t=>t.id===getTurnoAtual())?.sub})</p>
+              <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>As carnes separadas aparecerão como alerta no turno de destino.</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PRODUTO (CARNE)</label>
+              <select value={sepForm.productId} onChange={e=>setSepForm(f=>({...f,productId:e.target.value}))} style={S.input}>
+                <option value="">Selecione a carne...</option>
+                {products.filter(p=>p.category==='Carnes'||p.setor==='Churrasco').map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
+                <optgroup label="── Outros produtos ──">
+                {products.filter(p=>p.category!=='Carnes'&&p.setor!=='Churrasco').map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QUANTIDADE</label>
+              <input type="number" min="0.001" step="0.001" placeholder="0" value={sepForm.qty} onChange={e=>setSepForm(f=>({...f,qty:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TURNO DE DESTINO</label>
+                <select value={sepForm.turnoDestino} onChange={e=>setSepForm(f=>({...f,turnoDestino:e.target.value}))} style={S.input}>
+                  {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label} ({t.sub})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DATA (opcional)</label>
+                <input type="date" value={sepForm.dataDestino} onChange={e=>setSepForm(f=>({...f,dataDestino:e.target.value}))} style={S.input} />
+              </div>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO</label>
+              <input placeholder="Ex: Temperar antes de usar..." value={sepForm.obs} onChange={e=>setSepForm(f=>({...f,obs:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1,background:'#8B4513'}} onClick={handleSeparacao}>🥩 Confirmar Separação</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
             </div>
           </div>
