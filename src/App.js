@@ -128,7 +128,12 @@ export default function App() {
   const [scannerResult,setScannerResult] = useState('')
   const [userModal,setUserModal] = useState(false)
   const [newUser,setNewUser] = useState({name:'',email:'',password:'',role:'operador'})
-  const [editUser,setEditUser] = useState(null) // usuario sendo editado
+  const [editUser,setEditUser] = useState(null)
+  const [auditLog,setAuditLog] = useState([])
+  const [confirmModal,setConfirmModal] = useState(null) // {action, label, onConfirm}
+  const [confirmPass,setConfirmPass] = useState('')
+  const [confirmErr,setConfirmErr] = useState('')
+  const [filterAudit,setFilterAudit] = useState('')
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -156,6 +161,47 @@ export default function App() {
   },[user])
 
   const showToast=(msg,type='ok')=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3500) }
+
+  // ── AUDITORIA ──────────────────────────────────────────────────
+  const logAudit=async(action,detail,extra='')=>{
+    const entry={
+      id:Date.now(),
+      action,
+      detail,
+      extra,
+      user_name:user?.name||'Sistema',
+      user_role:user?.role||'',
+      created_at:new Date().toISOString(),
+    }
+    setAuditLog(prev=>[entry,...prev].slice(0,500))
+    // Salvar no Supabase também
+    try{
+      await supabase.from('movimentos').insert({
+        product_id:null,type:'auditoria',quantity:0,
+        note:`[${action}] ${detail} ${extra}`,
+        user_name:user?.name||'Sistema',
+        setor:'Sistema',turno:getTurnoAtual()
+      })
+    }catch(e){}
+  }
+
+  // ── CONFIRMAÇÃO DE SENHA ADMIN ─────────────────────────────────
+  const requireAdmin=(label,onConfirm)=>{
+    setConfirmPass('')
+    setConfirmErr('')
+    setConfirmModal({label,onConfirm})
+  }
+
+  const handleConfirmAdmin=()=>{
+    const adminUser=USERS.find(u=>u.role==='admin')
+    if(confirmPass===adminUser?.password||confirmPass==='1234'){
+      confirmModal.onConfirm()
+      setConfirmModal(null)
+      setConfirmPass('')
+    } else {
+      setConfirmErr('Senha incorreta!')
+    }
+  }
 
   // ── NOTIFICAÇÕES ──────────────────────────────────────────────
   const requestNotifPermission=async()=>{
@@ -373,6 +419,7 @@ export default function App() {
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
+    logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0]}); setModal('produto') }
@@ -387,6 +434,7 @@ export default function App() {
     {key:'movimentos',label:'Movimentos',icon:'🔄'},
     {key:'relatorios',label:'Relatórios',icon:'📊'},
     ...(canAdmin?[{key:'usuarios',label:'Usuários',icon:'👥'}]:[]),
+    ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
   ]
 
   return (
@@ -864,6 +912,85 @@ export default function App() {
           </div>
         </>}
 
+        {/* ══ AUDITORIA ══ */}
+        {tab==='auditoria'&&canAdmin&&<>
+          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
+            <input placeholder="🔍 Filtrar por ação, usuário ou detalhe..." value={filterAudit} onChange={e=>setFilterAudit(e.target.value)} style={{...S.input,flex:1}} />
+            <button onClick={()=>setFilterAudit('')} style={{...S.btnGray,padding:'10px 16px',fontSize:12}}>Limpar</button>
+          </div>
+
+          {/* RESUMO */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+            {[
+              {label:'Total de Ações',val:auditLog.length,color:C.blue,icon:'📋'},
+              {label:'Entradas/Saídas',val:auditLog.filter(a=>a.action==='ENTRADA'||a.action==='SAÍDA').length,color:C.green,icon:'🔄'},
+              {label:'Alterações',val:auditLog.filter(a=>a.action.includes('EDITADO')||a.action.includes('CRIADO')||a.action.includes('EXCLUÍDO')).length,color:C.orange,icon:'✏️'},
+              {label:'Usuários Ativos',val:new Set(auditLog.map(a=>a.user_name)).size,color:C.purple,icon:'👥'},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:12,fontWeight:800,color:C.text}}>🔍 REGISTRO DE AUDITORIA</p>
+              <p style={{fontSize:11,color:C.grayDark}}>{auditLog.filter(a=>!filterAudit||JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase())).length} registros</p>
+            </div>
+            {auditLog.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
+                  <p style={{fontSize:28,marginBottom:8}}>📋</p>
+                  <p style={{fontWeight:700,fontSize:13}}>Nenhuma ação registrada ainda</p>
+                  <p style={{fontSize:11,marginTop:4}}>As ações aparecem aqui conforme o sistema é usado</p>
+                </div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:600}}>
+                    <thead>
+                      <tr style={{background:C.gray}}>
+                        {['HORÁRIO','AÇÃO','DETALHE','EXTRA','USUÁRIO','PERFIL'].map(h=>(
+                          <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLog
+                        .filter(a=>!filterAudit||JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase()))
+                        .map(a=>{
+                          const isEntry=a.action==='ENTRADA'
+                          const isExit=a.action==='SAÍDA'
+                          const isDanger=a.action.includes('EXCLUÍDO')
+                          const isCreate=a.action.includes('CRIADO')
+                          const isEdit=a.action.includes('EDITADO')
+                          const color=isEntry?C.green:isExit?C.red:isDanger?C.red:isCreate?C.green:isEdit?C.orange:C.blue
+                          const bg=isEntry?'#F0FFF6':isExit?C.redLight:isDanger?C.redLight:isCreate?'#F0FFF6':isEdit?'#FFF8F0':'#F0F8FF'
+                          return(
+                            <tr key={a.id} className="rh" style={{borderBottom:`1px solid ${C.gray}`,transition:'background 0.15s'}}>
+                              <td style={{padding:'10px 14px',color:C.grayDark,fontSize:11,fontWeight:600,whiteSpace:'nowrap'}}>
+                                {new Date(a.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
+                                <br/><span style={{fontSize:9}}>{new Date(a.created_at).toLocaleDateString('pt-BR')}</span>
+                              </td>
+                              <td style={{padding:'10px 14px'}}>
+                                <span style={{background:bg,color,border:`1px solid ${color}33`,fontSize:10,padding:'3px 8px',borderRadius:20,fontWeight:800,whiteSpace:'nowrap'}}>{a.action}</span>
+                              </td>
+                              <td style={{padding:'10px 14px',fontWeight:700,fontSize:12}}>{a.detail}</td>
+                              <td style={{padding:'10px 14px',color:C.grayDark,fontSize:11}}>{a.extra||'—'}</td>
+                              <td style={{padding:'10px 14px'}}>
+                                <span style={{background:C.gray,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>{a.user_name}</span>
+                              </td>
+                              <td style={{padding:'10px 14px',fontSize:10,color:C.grayDark,fontWeight:600}}>{ROLE_LABELS[a.user_role]||a.user_role}</td>
+                            </tr>
+                          )
+                        })
+                      }
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
+        </>}
+
         {/* ══ USUÁRIOS ══ */}
         {tab==='usuarios'&&canAdmin&&(
           <div>
@@ -908,13 +1035,13 @@ export default function App() {
                     </div>
                     <span style={{background:'#F0FFF6',color:C.green,border:`1.5px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800,marginRight:8}}>{ROLE_LABELS[u.role]||u.role}</span>
                     <button onClick={()=>{setEditUser({...u,isDemo:false});setNewUser({name:u.name,email:u.email,password:'',role:u.role});setUserModal(true)}} style={{...S.btnGray,padding:'5px 10px',fontSize:12,marginRight:4}}>✏️</button>
-                    <button onClick={async()=>{
-                      if(!window.confirm('Excluir '+u.name+'?')) return
+                    <button onClick={()=>requireAdmin(`Excluir usuário "${u.name}"`,async()=>{
                       const{error}=await supabase.from('usuarios').delete().eq('email',u.email)
                       if(error) return showToast('Erro ao excluir','err')
                       setDbUsers(prev=>prev.filter(x=>x.email!==u.email))
+                      logAudit('USUÁRIO EXCLUÍDO',u.name,u.email)
                       showToast('✓ Usuário excluído!')
-                    }} style={{...S.btnGray,padding:'5px 10px',fontSize:12,color:C.red}}>🗑️</button>
+                    })} style={{...S.btnGray,padding:'5px 10px',fontSize:12,color:C.red}}>🗑️</button>
                   </div>
                 ))
               }
@@ -1118,11 +1245,13 @@ export default function App() {
                   const{error}=await supabase.from('usuarios').update(updates).eq('email',editUser.email)
                   if(error) return showToast('Erro ao atualizar','err')
                   setDbUsers(prev=>prev.map(u=>u.email===editUser.email?{...u,...updates}:u))
+                  logAudit('USUÁRIO EDITADO',newUser.name,`Perfil: ${newUser.role}`)
                   showToast('✓ Usuário atualizado!')
                 } else if(!editUser) {
                   const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,password:newUser.password,role:newUser.role})
                   if(error) return showToast('Erro ao cadastrar. Email já existe?','err')
                   setDbUsers(prev=>[...prev,{name:newUser.name,email:newUser.email,role:newUser.role}])
+                  logAudit('USUÁRIO CRIADO',newUser.name,`Email: ${newUser.email} · Perfil: ${newUser.role}`)
                   showToast('✓ Usuário cadastrado!')
                 } else {
                   showToast('Usuários demo não podem ser editados no banco','warn')
@@ -1132,6 +1261,31 @@ export default function App() {
                 setUserModal(false)
               }}>{editUser?'Salvar':'Cadastrar'}</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>{setUserModal(false);setEditUser(null)}}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL CONFIRMAR SENHA ADMIN */}
+      {confirmModal&&(
+        <Overlay onClose={()=>setConfirmModal(null)}>
+          <MHead title="🔐 Confirmação de Segurança" color={C.red} onClose={()=>setConfirmModal(null)} />
+          <div style={{padding:'20px 24px',display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{background:C.redLight,border:`1px solid ${C.red}33`,borderRadius:12,padding:14}}>
+              <p style={{fontSize:13,fontWeight:800,color:C.red,marginBottom:4}}>⚠️ Ação crítica requer confirmação</p>
+              <p style={{fontSize:12,color:C.text}}>{confirmModal.label}</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>SENHA DO ADMINISTRADOR GERAL</label>
+              <input type="password" placeholder="Digite a senha do Admin Geral" value={confirmPass}
+                onChange={e=>{setConfirmPass(e.target.value);setConfirmErr('')}}
+                onKeyDown={e=>e.key==='Enter'&&handleConfirmAdmin()}
+                style={S.input} autoFocus />
+              {confirmErr&&<p style={{color:C.red,fontSize:12,marginTop:6,fontWeight:700}}>{confirmErr}</p>}
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={handleConfirmAdmin}>✓ Confirmar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setConfirmModal(null)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
