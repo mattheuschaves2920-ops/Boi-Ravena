@@ -60,7 +60,20 @@ function Toast({ msg, type }) {
 
 function Login({ onLogin }) {
   const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState('')
-  const go=()=>{ const u=USERS.find(u=>u.email===email&&u.password===pass); if(u) onLogin(u); else setErr('E-mail ou senha incorretos.') }
+  const go=async()=>{
+    // Primeiro verifica usuarios demo
+    const demo=USERS.find(u=>u.email===email&&u.password===pass)
+    if(demo){ onLogin(demo); return }
+    // Depois verifica banco de dados
+    try{
+      const{data,error}=await supabase.from('usuarios').select('*').eq('email',email).eq('password',pass).single()
+      if(data&&!error){
+        onLogin({id:data.id,name:data.name,email:data.email,role:data.role,avatar:data.name?.[0]?.toUpperCase()||'U'})
+      } else {
+        setErr('E-mail ou senha incorretos.')
+      }
+    }catch(e){ setErr('E-mail ou senha incorretos.') }
+  }
   return (
     <div style={{minHeight:'100vh',background:C.gray,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Nunito',sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}input:focus,select:focus{border-color:${C.red}!important;outline:none}`}</style>
@@ -124,12 +137,14 @@ export default function App() {
     if(!user) return
     const load=async()=>{
       setLoading(true)
-      const [{data:prods},{data:movs}]=await Promise.all([
+      const [{data:prods},{data:movs},{data:usrs}]=await Promise.all([
         supabase.from('produtos').select('*').order('name'),
         supabase.from('movimentos').select('*').order('created_at',{ascending:false}).limit(500),
+        supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
       if(movs)  setMovements(movs)
+      if(usrs)  setDbUsers(usrs)
       setLoading(false)
     }
     load()
