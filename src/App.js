@@ -115,6 +115,7 @@ export default function App() {
   const [scannerResult,setScannerResult] = useState('')
   const [userModal,setUserModal] = useState(false)
   const [newUser,setNewUser] = useState({name:'',email:'',password:'',role:'operador'})
+  const [editUser,setEditUser] = useState(null) // usuario sendo editado
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -853,37 +854,60 @@ export default function App() {
           <div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
               <p style={{fontWeight:800,fontSize:14}}>👥 Usuários do Sistema</p>
-              <button onClick={()=>setUserModal(true)} style={{...S.btnRed,padding:'8px 16px',fontSize:13}}>+ Novo Usuário</button>
+              <button onClick={()=>{setEditUser(null);setNewUser({name:'',email:'',password:'',role:'operador'});setUserModal(true)}} style={{...S.btnRed,padding:'8px 16px',fontSize:13}}>+ Novo Usuário</button>
             </div>
+
+            {/* USUÁRIOS DEMO */}
             <div style={{...S.card,padding:0,overflow:'hidden',marginBottom:14}}>
-              <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`}}>
-                <p style={{fontSize:11,fontWeight:800,color:C.grayDark}}>USUÁRIOS DEMO (fixos no sistema)</p>
+              <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.grayDark}}>USUÁRIOS DEMO</p>
+                <p style={{fontSize:10,color:C.grayDark}}>Clique em ✏️ para editar</p>
               </div>
               {USERS.map(u=>(
-                <div key={u.id} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${C.gray}`}}>
-                  <div style={{width:40,height:40,background:C.red,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:16}}>{u.avatar}</div>
-                  <div style={{flex:1}}><p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p><p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p></div>
-                  <span style={{background:C.redLight,color:C.red,border:`1.5px solid ${C.red}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>{ROLE_LABELS[u.role].toUpperCase()}</span>
+                <div key={u.id} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',borderBottom:`1px solid ${C.gray}`}}>
+                  <div style={{width:38,height:38,background:C.red,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:15}}>{u.avatar}</div>
+                  <div style={{flex:1}}>
+                    <p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p>
+                    <p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p>
+                  </div>
+                  <span style={{background:C.redLight,color:C.red,border:`1.5px solid ${C.red}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800,marginRight:8}}>{ROLE_LABELS[u.role].toUpperCase()}</span>
+                  <button onClick={()=>{setEditUser({...u,isDemo:true});setNewUser({name:u.name,email:u.email,password:u.password,role:u.role});setUserModal(true)}} style={{...S.btnGray,padding:'5px 10px',fontSize:12}}>✏️</button>
                 </div>
               ))}
             </div>
-            {dbUsers.length>0&&(
-              <div style={{...S.card,padding:0,overflow:'hidden'}}>
-                <div style={{padding:'12px 18px',background:'#F0FFF6',borderBottom:`1px solid ${C.grayMid}`}}>
-                  <p style={{fontSize:11,fontWeight:800,color:C.green}}>USUÁRIOS CADASTRADOS NO BANCO</p>
-                </div>
-                {dbUsers.map((u,i)=>(
-                  <div key={i} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${C.gray}`}}>
-                    <div style={{width:40,height:40,background:C.green,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:16}}>{u.name?.[0]?.toUpperCase()||'U'}</div>
-                    <div style={{flex:1}}><p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p><p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p></div>
-                    <span style={{background:'#F0FFF6',color:C.green,border:`1.5px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>{(u.role||'operador').toUpperCase()}</span>
-                  </div>
-                ))}
+
+            {/* USUÁRIOS DO BANCO */}
+            <div style={{...S.card,padding:0,overflow:'hidden',marginBottom:14}}>
+              <div style={{padding:'12px 18px',background:'#F0FFF6',borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.green}}>USUÁRIOS CADASTRADOS</p>
+                <p style={{fontSize:10,color:C.grayDark}}>{dbUsers.length} usuário{dbUsers.length!==1?'s':''}</p>
               </div>
-            )}
-            <div style={{...S.card,marginTop:14,background:'#FFF8F0',border:`1.5px solid ${C.orange}33`}}>
-              <p style={{fontSize:12,fontWeight:800,color:C.orange,marginBottom:6}}>ℹ️ Sobre permissões</p>
-              <p style={{fontSize:12,color:C.grayDark}}>Admin = acesso total · Gerente = gerencia produtos e relatórios · Operador = apenas movimentos</p>
+              {dbUsers.length===0
+                ? <p style={{padding:'20px',textAlign:'center',color:C.grayDark,fontSize:12}}>Nenhum usuário cadastrado ainda</p>
+                : dbUsers.map((u,i)=>(
+                  <div key={i} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',borderBottom:`1px solid ${C.gray}`}}>
+                    <div style={{width:38,height:38,background:C.green,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:15}}>{u.name?.[0]?.toUpperCase()||'U'}</div>
+                    <div style={{flex:1}}>
+                      <p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p>
+                      <p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p>
+                    </div>
+                    <span style={{background:'#F0FFF6',color:C.green,border:`1.5px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800,marginRight:8}}>{ROLE_LABELS[u.role]||u.role}</span>
+                    <button onClick={()=>{setEditUser({...u,isDemo:false});setNewUser({name:u.name,email:u.email,password:'',role:u.role});setUserModal(true)}} style={{...S.btnGray,padding:'5px 10px',fontSize:12,marginRight:4}}>✏️</button>
+                    <button onClick={async()=>{
+                      if(!window.confirm('Excluir '+u.name+'?')) return
+                      const{error}=await supabase.from('usuarios').delete().eq('email',u.email)
+                      if(error) return showToast('Erro ao excluir','err')
+                      setDbUsers(prev=>prev.filter(x=>x.email!==u.email))
+                      showToast('✓ Usuário excluído!')
+                    }} style={{...S.btnGray,padding:'5px 10px',fontSize:12,color:C.red}}>🗑️</button>
+                  </div>
+                ))
+              }
+            </div>
+
+            <div style={{...S.card,background:'#FFF8F0',border:`1.5px solid ${C.orange}33`}}>
+              <p style={{fontSize:12,fontWeight:800,color:C.orange,marginBottom:6}}>ℹ️ Permissões</p>
+              <p style={{fontSize:12,color:C.grayDark}}>Admin = acesso total · Gerente = produtos e relatórios · Operador = apenas movimentos</p>
             </div>
           </div>
         )}
@@ -1040,18 +1064,20 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL NOVO USUÁRIO */}
+      {/* MODAL USUÁRIO (criar/editar) */}
       {userModal&&canAdmin&&(
         <Overlay onClose={()=>setUserModal(false)}>
-          <MHead title="👤 Novo Usuário" onClose={()=>setUserModal(false)} />
+          <MHead title={editUser?'✏️ Editar Usuário':'👤 Novo Usuário'} onClose={()=>setUserModal(false)} />
           <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:12}}>
-              <p style={{fontSize:12,color:C.orange,fontWeight:700}}>ℹ️ Os usuários cadastrados aqui ficam salvos no banco de dados e podem fazer login no sistema.</p>
-            </div>
+            {editUser?.isDemo&&(
+              <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:12}}>
+                <p style={{fontSize:12,color:C.orange,fontWeight:700}}>⚠️ Editando usuário demo — as alterações ficam salvas apenas nesta sessão.</p>
+              </div>
+            )}
             {[
               {label:'NOME COMPLETO',key:'name',type:'text',ph:'Ex: João Silva'},
               {label:'E-MAIL',key:'email',type:'email',ph:'joao@restaurante.com'},
-              {label:'SENHA',key:'password',type:'password',ph:'Mínimo 6 caracteres'},
+              {label:editUser?'NOVA SENHA (deixe em branco para manter)':'SENHA',key:'password',type:'password',ph:'Mínimo 6 caracteres'},
             ].map(f=>(
               <div key={f.key}>
                 <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>{f.label}</label>
@@ -1068,16 +1094,29 @@ export default function App() {
             </div>
             <div style={{display:'flex',gap:8,marginTop:4}}>
               <button style={{...S.btnRed,flex:1}} onClick={async()=>{
-                if(!newUser.name||!newUser.email||!newUser.password) return showToast('Preencha todos os campos','err')
-                if(newUser.password.length<6) return showToast('Senha deve ter mínimo 6 caracteres','err')
-                const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,password:newUser.password,role:newUser.role})
-                if(error) return showToast('Erro ao cadastrar. Verifique se a tabela usuarios existe.','err')
-                setDbUsers(prev=>[...prev,newUser])
+                if(!newUser.name||!newUser.email) return showToast('Nome e e-mail obrigatórios','err')
+                if(!editUser&&!newUser.password) return showToast('Senha obrigatória','err')
+                if(newUser.password&&newUser.password.length<6) return showToast('Senha mínimo 6 caracteres','err')
+                if(editUser&&!editUser.isDemo){
+                  const updates={name:newUser.name,role:newUser.role}
+                  if(newUser.password) updates.password=newUser.password
+                  const{error}=await supabase.from('usuarios').update(updates).eq('email',editUser.email)
+                  if(error) return showToast('Erro ao atualizar','err')
+                  setDbUsers(prev=>prev.map(u=>u.email===editUser.email?{...u,...updates}:u))
+                  showToast('✓ Usuário atualizado!')
+                } else if(!editUser) {
+                  const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,password:newUser.password,role:newUser.role})
+                  if(error) return showToast('Erro ao cadastrar. Email já existe?','err')
+                  setDbUsers(prev=>[...prev,{name:newUser.name,email:newUser.email,role:newUser.role}])
+                  showToast('✓ Usuário cadastrado!')
+                } else {
+                  showToast('Usuários demo não podem ser editados no banco','warn')
+                }
                 setNewUser({name:'',email:'',password:'',role:'operador'})
+                setEditUser(null)
                 setUserModal(false)
-                showToast('✓ Usuário cadastrado com sucesso!')
-              }}>Cadastrar</button>
-              <button style={{...S.btnGray,flex:1}} onClick={()=>setUserModal(false)}>Cancelar</button>
+              }}>{editUser?'Salvar':'Cadastrar'}</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>{setUserModal(false);setEditUser(null)}}>Cancelar</button>
             </div>
           </div>
         </Overlay>
