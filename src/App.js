@@ -134,6 +134,9 @@ export default function App() {
   const [confirmPass,setConfirmPass] = useState('')
   const [confirmErr,setConfirmErr] = useState('')
   const [filterAudit,setFilterAudit] = useState('')
+  const [filterCat,setFilterCat] = useState('todas')
+  const [sortBy,setSortBy] = useState('nome')
+  const [scanForProduct,setScanForProduct] = useState(false)
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -313,6 +316,14 @@ export default function App() {
   }
 
   const handleBarcodeInput=(code)=>{
+    if(scanForProduct){
+      // Modo cadastro de produto - preenche o campo barcode
+      setProdForm(f=>({...f,barcode:code.trim()}))
+      stopScanner()
+      setScanForProduct(false)
+      showToast('✓ Código '+code.trim()+' preenchido!')
+      return
+    }
     const p=products.find(x=>x.barcode===code.trim())
     if(p){
       setMovForm(f=>({...f,productId:p.id}))
@@ -320,7 +331,8 @@ export default function App() {
       setModal('movimento')
       showToast('✓ Produto encontrado: '+p.name)
     } else {
-      showToast('Código não encontrado no estoque','warn')
+      showToast('Código não encontrado. Cadastre o produto primeiro.','warn')
+      stopScanner()
     }
   }
   const canManage = user&&(user.role==='admin'||user.role==='gerente')
@@ -1179,7 +1191,16 @@ export default function App() {
                 <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
               </div>
             </div>
-            <div style={{display:'flex',gap:8,marginTop:14}}>
+            {/* SCANNER BOTÃO */}
+            <div style={{background:C.gray,borderRadius:12,padding:12,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{fontSize:24}}>📷</div>
+              <div style={{flex:1}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.text}}>Escanear código de barras</p>
+                <p style={{fontSize:11,color:C.grayDark}}>Use a câmera para preencher o código automaticamente</p>
+              </div>
+              <button onClick={()=>{setScanForProduct(true);startScanner()}} style={{...S.btnGray,padding:'8px 14px',fontSize:12,color:C.red,fontWeight:700}}>📷 Abrir câmera</button>
+            </div>
+            <div style={{display:'flex',gap:8,marginTop:4}}>
               <button style={{...S.btnRed,flex:1}} onClick={handleSaveProd}>{editProd?'Salvar':'Cadastrar'}</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
             </div>
