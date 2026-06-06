@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from './supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -107,6 +107,17 @@ export default function App() {
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
   const [dashSetor,setDashSetor] = useState('todos')
   const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''})
+  const [notifPermission,setNotifPermission] = useState(Notification.permission)
+  const [compareDate,setCompareDate] = useState('')
+  const [turnNote,setTurnNote] = useState('')
+  const [turnNotes,setTurnNotes] = useState([])
+  const [scannerOpen,setScannerOpen] = useState(false)
+  const [scannerResult,setScannerResult] = useState('')
+  const [userModal,setUserModal] = useState(false)
+  const [newUser,setNewUser] = useState({name:'',email:'',password:'',role:'operador'})
+  const [dbUsers,setDbUsers] = useState([])
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
 
   useEffect(()=>{
     if(!user) return
@@ -129,6 +140,127 @@ export default function App() {
   },[user])
 
   const showToast=(msg,type='ok')=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3500) }
+
+  // ── NOTIFICAÇÕES ──────────────────────────────────────────────
+  const requestNotifPermission=async()=>{
+    if(!('Notification' in window)) return showToast('Seu dispositivo não suporta notificações','warn')
+    const p=await Notification.requestPermission()
+    setNotifPermission(p)
+    if(p==='granted') showToast('✓ Notificações ativadas!')
+    else showToast('Notificações bloqueadas no navegador','warn')
+  }
+
+  const sendNotif=(title,body)=>{
+    if(Notification.permission==='granted'){
+      new Notification(title,{body,icon:'/favicon.ico',badge:'/favicon.ico'})
+    }
+  }
+
+  // Verificar estoque baixo e notificar
+  useEffect(()=>{
+    if(!user||!products.length) return
+    const critical=products.filter(p=>p.quantity<=p.min_stock)
+    if(critical.length>0 && Notification.permission==='granted'){
+      sendNotif('⚠ Estoque Baixo - Boi de Minas', critical.map(p=>p.name+': '+p.quantity+' '+p.unit).join(', '))
+    }
+  },[products])
+
+  // ── IMPRIMIR RELATÓRIO ─────────────────────────────────────────
+  const printReport=()=>{
+    const turnoInfo=TURNOS.find(t=>t.id===dashTurno)||{label:'Todos os Turnos',sub:''}
+    const setorInfo=dashSetor==='todos'?'Todos os Setores':dashSetor
+    const movs=movFiltrados
+    const entradas=movs.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
+    const saidas=movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
+    const custo=movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+    const w=window.open('','_blank')
+    w.document.write(`
+      <html><head><title>Relatório ${turnoInfo.label} - Boi de Minas</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;color:#333}
+        h1{color:#8B0000;border-bottom:3px solid #8B0000;padding-bottom:8px}
+        h2{color:#555;font-size:14px;margin-top:0}
+        .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:20px 0}
+        .card{border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}
+        .card .val{font-size:24px;font-weight:900;color:#8B0000}
+        .card .lbl{font-size:11px;color:#888;margin-top:4px}
+        table{width:100%;border-collapse:collapse;margin-top:16px}
+        th{background:#8B0000;color:white;padding:10px;text-align:left;font-size:12px}
+        td{padding:9px 10px;border-bottom:1px solid #eee;font-size:13px}
+        tr:nth-child(even){background:#f9f9f9}
+        .entrada{color:green;font-weight:700}
+        .saida{color:red;font-weight:700}
+        .footer{margin-top:24px;font-size:11px;color:#aaa;text-align:center}
+        @media print{button{display:none}}
+      </style></head><body>
+      <button onclick="window.print()" style="background:#8B0000;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;margin-bottom:16px;font-size:14px">🖨️ Imprimir</button>
+      <h1>🐂 Boi de Minas Churrascaria</h1>
+      <h2>Relatório de Estoque — ${turnoInfo.label} ${turnoInfo.sub} · ${setorInfo} · ${new Date().toLocaleDateString('pt-BR')}</h2>
+      <div class="cards">
+        <div class="card"><div class="val">+${entradas}</div><div class="lbl">ENTRADAS</div></div>
+        <div class="card"><div class="val">-${saidas}</div><div class="lbl">SAÍDAS</div></div>
+        <div class="card"><div class="val">R$ ${custo.toFixed(2).replace('.',',')}</div><div class="lbl">CUSTO DO PERÍODO</div></div>
+      </div>
+      <table>
+        <tr><th>HORÁRIO</th><th>PRODUTO</th><th>TIPO</th><th>QTD</th><th>SETOR</th><th>TURNO</th><th>USUÁRIO</th><th>OBSERVAÇÃO</th></tr>
+        ${movs.map(m=>{
+          const p=products.find(x=>x.id===m.product_id)
+          const t=TURNOS.find(x=>x.id===getTurnoFromDate(m.created_at))
+          return '<tr><td>'+new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</td><td>'+
+            (p?.name||'—')+'</td><td class="'+(m.type==='entrada'?'entrada':'saida')+'">'+
+            (m.type==='entrada'?'Entrada':'Saída')+'</td><td class="'+(m.type==='entrada'?'entrada':'saida')+'">'+
+            (m.type==='entrada'?'+':'-')+m.quantity+' '+(p?.unit||'')+'</td><td>'+(m.setor||'—')+'</td><td>'+(t?.label||'—')+'</td><td>'+
+            (m.user_name||'—')+'</td><td>'+(m.note||'—')+'</td></tr>'
+        }).join('')}
+      </table>
+      <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} — Boi de Minas Churrascaria</div>
+      </body></html>
+    `)
+    w.document.close()
+  }
+
+  // ── NOTAS DO TURNO ─────────────────────────────────────────────
+  const saveTurnNote=async()=>{
+    if(!turnNote.trim()) return
+    const{error}=await supabase.from('movimentos').insert({product_id:null,type:'nota',quantity:0,note:turnNote,user_name:user.name,setor:dashSetor==='todos'?'Geral':dashSetor,turno:getTurnoAtual()})
+    if(error) return showToast('Erro ao salvar nota','err')
+    setTurnNote('')
+    showToast('✓ Observação registrada!')
+  }
+
+  // ── SCANNER CÓDIGO DE BARRAS ───────────────────────────────────
+  const startScanner=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+      streamRef.current=stream
+      setScannerOpen(true)
+      setTimeout(()=>{
+        if(videoRef.current){
+          videoRef.current.srcObject=stream
+          videoRef.current.play()
+        }
+      },100)
+    }catch(e){
+      showToast('Não foi possível acessar a câmera','err')
+    }
+  }
+
+  const stopScanner=()=>{
+    if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop())
+    setScannerOpen(false)
+  }
+
+  const handleBarcodeInput=(code)=>{
+    const p=products.find(x=>x.barcode===code.trim())
+    if(p){
+      setMovForm(f=>({...f,productId:p.id}))
+      stopScanner()
+      setModal('movimento')
+      showToast('✓ Produto encontrado: '+p.name)
+    } else {
+      showToast('Código não encontrado no estoque','warn')
+    }
+  }
   const canManage = user&&(user.role==='admin'||user.role==='gerente')
   const canAdmin  = user&&user.role==='admin'
 
@@ -452,6 +584,32 @@ export default function App() {
             }
           </div>
 
+          {/* NOTAS DO TURNO */}
+          <div style={{...S.card,marginBottom:14,padding:14}}>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📝 OBSERVAÇÕES DO TURNO</p>
+            <div style={{display:'flex',gap:8,marginBottom:10}}>
+              <input value={turnNote} onChange={e=>setTurnNote(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&saveTurnNote()}
+                placeholder="Registrar observação do turno... (Enter para salvar)"
+                style={{...S.input,flex:1}} />
+              <button onClick={saveTurnNote} style={{...S.btnRed,padding:'10px 16px',fontSize:13}}>Salvar</button>
+            </div>
+            {movements.filter(m=>m.type==='nota'&&m.created_at?.startsWith(todayStr())).length===0
+              ? <p style={{fontSize:12,color:C.grayDark,textAlign:'center',padding:'10px 0'}}>Nenhuma observação registrada hoje</p>
+              : movements.filter(m=>m.type==='nota'&&m.created_at?.startsWith(todayStr())).map(m=>{
+                  const t=TURNOS.find(x=>x.id===getTurnoFromDate(m.created_at))
+                  return(
+                    <div key={m.id} style={{background:C.gray,borderRadius:10,padding:'10px 12px',marginBottom:6,display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+                      <div style={{flex:1}}>
+                        <p style={{fontSize:13,fontWeight:700,color:C.text}}>{m.note}</p>
+                        <p style={{fontSize:10,color:C.grayDark,marginTop:3}}>{m.user_name} · {new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {t?.icon} {t?.label} · {m.setor}</p>
+                      </div>
+                    </div>
+                  )
+                })
+            }
+          </div>
+
           {/* GRÁFICO + MAIS CONSUMIDOS */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div style={S.card}>
@@ -544,8 +702,13 @@ export default function App() {
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
+            <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
             {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
+            <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
+              style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
+              {notifPermission==='granted'?'🔔 Ativo':'🔔 Ativar Alertas'}
+            </button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
             <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{...S.input,width:'auto',flex:'none'}} />
@@ -591,6 +754,13 @@ export default function App() {
 
         {/* ══ RELATÓRIOS ══ */}
         {tab==='relatorios'&&<>
+          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
+            <button onClick={printReport} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>🖨️ Imprimir Relatório do Turno</button>
+            <div style={{display:'flex',gap:6,alignItems:'center',marginLeft:'auto'}}>
+              <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>Comparar com:</span>
+              <input type="date" value={compareDate} onChange={e=>setCompareDate(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'8px 12px'}} />
+            </div>
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
             {[{label:'Valor Total',val:fmtCur(totalCost),color:C.red,icon:'💰'},{label:'Custo do Mês',val:fmtCur(custoMes),color:C.purple,icon:'📅'},{label:'Custo do Dia',val:fmtCur(custoDia),color:C.orange,icon:'💸'}].map(c=>(
               <div key={c.label} style={{...S.card,textAlign:'center',border:`1.5px solid ${c.color}33`}}>
@@ -680,15 +850,41 @@ export default function App() {
 
         {/* ══ USUÁRIOS ══ */}
         {tab==='usuarios'&&canAdmin&&(
-          <div style={{...S.card,padding:0,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.grayMid}`}}><p style={{fontSize:13,fontWeight:800}}>👥 Usuários do Sistema</p></div>
-            {USERS.map(u=>(
-              <div key={u.id} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'14px 18px',borderBottom:`1px solid ${C.gray}`}}>
-                <div style={{width:42,height:42,background:C.red,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:17}}>{u.avatar}</div>
-                <div style={{flex:1}}><p style={{fontWeight:800,fontSize:14,marginBottom:2}}>{u.name}</p><p style={{color:C.grayDark,fontSize:12,fontWeight:600}}>{u.email}</p></div>
-                <span style={{background:C.redLight,color:C.red,border:`1.5px solid ${C.red}33`,fontSize:10,padding:'4px 12px',borderRadius:20,fontWeight:800}}>{ROLE_LABELS[u.role].toUpperCase()}</span>
+          <div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <p style={{fontWeight:800,fontSize:14}}>👥 Usuários do Sistema</p>
+              <button onClick={()=>setUserModal(true)} style={{...S.btnRed,padding:'8px 16px',fontSize:13}}>+ Novo Usuário</button>
+            </div>
+            <div style={{...S.card,padding:0,overflow:'hidden',marginBottom:14}}>
+              <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.grayDark}}>USUÁRIOS DEMO (fixos no sistema)</p>
               </div>
-            ))}
+              {USERS.map(u=>(
+                <div key={u.id} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${C.gray}`}}>
+                  <div style={{width:40,height:40,background:C.red,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:16}}>{u.avatar}</div>
+                  <div style={{flex:1}}><p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p><p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p></div>
+                  <span style={{background:C.redLight,color:C.red,border:`1.5px solid ${C.red}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>{ROLE_LABELS[u.role].toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+            {dbUsers.length>0&&(
+              <div style={{...S.card,padding:0,overflow:'hidden'}}>
+                <div style={{padding:'12px 18px',background:'#F0FFF6',borderBottom:`1px solid ${C.grayMid}`}}>
+                  <p style={{fontSize:11,fontWeight:800,color:C.green}}>USUÁRIOS CADASTRADOS NO BANCO</p>
+                </div>
+                {dbUsers.map((u,i)=>(
+                  <div key={i} className="rh" style={{display:'flex',alignItems:'center',gap:12,padding:'13px 18px',borderBottom:`1px solid ${C.gray}`}}>
+                    <div style={{width:40,height:40,background:C.green,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:16}}>{u.name?.[0]?.toUpperCase()||'U'}</div>
+                    <div style={{flex:1}}><p style={{fontWeight:800,fontSize:13,marginBottom:1}}>{u.name}</p><p style={{color:C.grayDark,fontSize:11,fontWeight:600}}>{u.email}</p></div>
+                    <span style={{background:'#F0FFF6',color:C.green,border:`1.5px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>{(u.role||'operador').toUpperCase()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{...S.card,marginTop:14,background:'#FFF8F0',border:`1.5px solid ${C.orange}33`}}>
+              <p style={{fontSize:12,fontWeight:800,color:C.orange,marginBottom:6}}>ℹ️ Sobre permissões</p>
+              <p style={{fontSize:12,color:C.grayDark}}>Admin = acesso total · Gerente = gerencia produtos e relatórios · Operador = apenas movimentos</p>
+            </div>
           </div>
         )}
       </div>
@@ -820,6 +1016,68 @@ export default function App() {
             <div style={{display:'flex',gap:8,marginTop:14}}>
               <button style={{...S.btnRed,flex:1}} onClick={handleSaveProd}>{editProd?'Salvar':'Cadastrar'}</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL SCANNER */}
+      {scannerOpen&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',zIndex:2000,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+          <p style={{color:C.white,fontWeight:800,fontSize:16}}>📷 Aponte para o código de barras</p>
+          <video ref={videoRef} style={{width:'100%',maxWidth:400,borderRadius:12,background:'#000'}} autoPlay playsInline />
+          <div style={{display:'flex',gap:10,flexDirection:'column',alignItems:'center',width:'100%',maxWidth:400}}>
+            <p style={{color:'rgba(255,255,255,0.7)',fontSize:12}}>Ou digite o código manualmente:</p>
+            <div style={{display:'flex',gap:8,width:'100%'}}>
+              <input value={scannerResult} onChange={e=>setScannerResult(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&handleBarcodeInput(scannerResult)}
+                placeholder="Código de barras..."
+                style={{...S.input,flex:1,background:'#222',color:C.white,borderColor:'#444'}} />
+              <button onClick={()=>handleBarcodeInput(scannerResult)} style={{...S.btnRed,padding:'10px 16px'}}>Buscar</button>
+            </div>
+          </div>
+          <button onClick={stopScanner} style={{...S.btnGray,padding:'12px 32px',fontSize:14}}>✕ Fechar</button>
+        </div>
+      )}
+
+      {/* MODAL NOVO USUÁRIO */}
+      {userModal&&canAdmin&&(
+        <Overlay onClose={()=>setUserModal(false)}>
+          <MHead title="👤 Novo Usuário" onClose={()=>setUserModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:C.orange,fontWeight:700}}>ℹ️ Os usuários cadastrados aqui ficam salvos no banco de dados e podem fazer login no sistema.</p>
+            </div>
+            {[
+              {label:'NOME COMPLETO',key:'name',type:'text',ph:'Ex: João Silva'},
+              {label:'E-MAIL',key:'email',type:'email',ph:'joao@restaurante.com'},
+              {label:'SENHA',key:'password',type:'password',ph:'Mínimo 6 caracteres'},
+            ].map(f=>(
+              <div key={f.key}>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>{f.label}</label>
+                <input type={f.type} placeholder={f.ph} value={newUser[f.key]} onChange={e=>setNewUser(u=>({...u,[f.key]:e.target.value}))} style={S.input} />
+              </div>
+            ))}
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PERFIL DE ACESSO</label>
+              <select value={newUser.role} onChange={e=>setNewUser(u=>({...u,role:e.target.value}))} style={S.input}>
+                <option value="operador">Operador — apenas movimentos</option>
+                <option value="gerente">Gerente — produtos e relatórios</option>
+                <option value="admin">Administrador — acesso total</option>
+              </select>
+            </div>
+            <div style={{display:'flex',gap:8,marginTop:4}}>
+              <button style={{...S.btnRed,flex:1}} onClick={async()=>{
+                if(!newUser.name||!newUser.email||!newUser.password) return showToast('Preencha todos os campos','err')
+                if(newUser.password.length<6) return showToast('Senha deve ter mínimo 6 caracteres','err')
+                const{error}=await supabase.from('usuarios').insert({name:newUser.name,email:newUser.email,password:newUser.password,role:newUser.role})
+                if(error) return showToast('Erro ao cadastrar. Verifique se a tabela usuarios existe.','err')
+                setDbUsers(prev=>[...prev,newUser])
+                setNewUser({name:'',email:'',password:'',role:'operador'})
+                setUserModal(false)
+                showToast('✓ Usuário cadastrado com sucesso!')
+              }}>Cadastrar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setUserModal(false)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
