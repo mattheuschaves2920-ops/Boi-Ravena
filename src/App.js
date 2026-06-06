@@ -105,8 +105,6 @@ export default function App() {
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
   const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
-  const [separacoes,setSeparacoes] = useState([]) // carnes separadas para turno seguinte
-  const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'',dataDestino:'',obs:''})
   const [dashSetor,setDashSetor] = useState('todos')
   const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''})
 
@@ -203,18 +201,6 @@ export default function App() {
     if(e1||e2) return showToast('Erro ao salvar','err')
     setMovForm(f=>({...f,productId:'',qty:'',note:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
-  }
-
-  const handleSeparacao=async()=>{
-    const pid=sepForm.productId; const qty=parseFloat(sepForm.qty)
-    if(!pid||!qty||qty<=0||!sepForm.turnoDestino) return showToast('Preencha todos os campos','err')
-    const product=products.find(p=>p.id===pid)
-    if(!product) return
-    if(product.quantity<qty) return showToast(,'err')
-    const{error}=await supabase.from('movimentos').insert({product_id:pid,type:'separacao',quantity:qty,note:,user_name:user.name,cost_unit:product.cost,setor:'Churrasco',turno:getTurnoAtual(),para_turno:sepForm.turnoDestino,para_data:sepForm.dataDestino||null})
-    if(error) return showToast('Erro ao salvar','err')
-    setSepForm({productId:'',qty:'',turnoDestino:'',dataDestino:'',obs:''}); setModal(null)
-    showToast()
   }
 
   const handleSeparacao=async()=>{
