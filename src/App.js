@@ -143,6 +143,14 @@ export default function App() {
   const [cardapioModal,setCardapioModal] = useState(false)
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
   const [relPeriodo,setRelPeriodo] = useState('dia')
+  const [desperdicioModal,setDesperdicioModal] = useState(false)
+  const [desperdicioForm,setDesperdicioForm] = useState({productId:'',qty:'',motivo:'',motivo_detail:'',setor:SETORES[0],turno:''})
+  const [desperdicioFoto,setDesperdicioFoto] = useState(null) // base64
+  const [desperdicioFotoStream,setDesperdicioFotoStream] = useState(null)
+  const [desperdicioFotoStep,setDesperdicioFotoStep] = useState('form') // form | camera | preview | done
+  const [desperdicioList,setDesperdicioList] = useState([])
+  const desperdicioVideoRef = useRef(null)
+  const desperdicioCanvasRef = useRef(null)
   const [relTurno,setRelTurno] = useState('todos')
   const [relSetor,setRelSetor] = useState('todos')
   const [relDataInicio,setRelDataInicio] = useState('')
@@ -269,6 +277,129 @@ export default function App() {
     setConfirmErr('')
     setConfirmModal({label,onConfirm})
   }
+
+  // ── DESPERDÍCIO ────────────────────────────────────────────────
+  const loadDesperdicioList=()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem('boi_desperdicio')||'[]')
+      // Filter out entries older than 7 days
+      const cutoff=Date.now()-7*24*60*60*1000
+      const valid=saved.filter(d=>new Date(d.created_at).getTime()>cutoff)
+      // Save back cleaned list
+      localStorage.setItem('boi_desperdicio',JSON.stringify(valid))
+      setDesperdicioList(valid)
+    }catch(e){setDesperdicioList([])}
+  }
+
+  useEffect(()=>{ loadDesperdicioList() },[])
+
+  const startDesperdicioCamera=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})
+      setDesperdicioFotoStream(stream)
+      setDesperdicioFotoStep('camera')
+      setTimeout(()=>{
+        if(desperdicioVideoRef.current){
+          desperdicioVideoRef.current.srcObject=stream
+          desperdicioVideoRef.current.play()
+        }
+      },200)
+    }catch(e){
+      showToast('Não foi possível acessar a câmera','err')
+    }
+  }
+
+  const stopDesperdicioCamera=()=>{
+    if(desperdicioFotoStream){
+      desperdicioFotoStream.getTracks().forEach(t=>t.stop())
+      setDesperdicioFotoStream(null)
+    }
+  }
+
+  const captureDesperdicioFoto=()=>{
+    const video=desperdicioVideoRef.current
+    const canvas=desperdicioCanvasRef.current
+    if(!video||!canvas) return
+    canvas.width=video.videoWidth
+    canvas.height=video.videoHeight
+    canvas.getContext('2d').drawImage(video,0,0)
+    const foto=canvas.toDataURL('image/jpeg',0.7)
+    setDesperdicioFoto(foto)
+    stopDesperdicioCamera()
+    setDesperdicioFotoStep('preview')
+  }
+
+  const saveDesperdicioRegistro=async()=>{
+    if(!desperdicioForm.productId||!desperdicioForm.qty||!desperdicioForm.motivo){
+      showToast('Preencha produto, quantidade e motivo','err'); return
+    }
+    if(!desperdicioFoto){
+      showToast('Foto é obrigatória para registrar descarte','err'); return
+    }
+    const product=products.find(p=>p.id===desperdicioForm.productId)
+    if(!product) return
+    const qty=parseFloat(desperdicioForm.qty)
+    const custo=qty*product.cost
+    const turnoAtual=getTurnoAtual()
+
+    const registro={
+      id:Date.now(),
+      product_id:product.id,
+      product_name:product.name,
+      product_unit:product.unit,
+      qty,
+      custo,
+      motivo:desperdicioForm.motivo,
+      motivo_detail:desperdicioForm.motivo_detail,
+      setor:desperdicioForm.setor,
+      turno:desperdicioForm.turno||turnoAtual,
+      user_name:user?.name||'Sistema',
+      foto:desperdicioFoto,
+      created_at:new Date().toISOString(),
+      foto_expira:new Date(Date.now()+7*24*60*60*1000).toISOString(),
+    }
+
+    // Save to localStorage
+    try{
+      const existing=JSON.parse(localStorage.getItem('boi_desperdicio')||'[]')
+      const updated=[registro,...existing]
+      localStorage.setItem('boi_desperdicio',JSON.stringify(updated))
+      setDesperdicioList(updated)
+    }catch(e){
+      showToast('Erro ao salvar registro','err'); return
+    }
+
+    // Also register as movement in Supabase (saida)
+    await supabase.from('movimentos').insert({
+      product_id:product.id,
+      type:'saida',
+      quantity:qty,
+      note:`[DESPERDÍCIO] ${desperdicioForm.motivo} — ${desperdicioForm.motivo_detail}`,
+      user_name:user?.name||'Sistema',
+      setor:desperdicioForm.setor,
+      turno:desperdicioForm.turno||turnoAtual,
+      cost_unit:product.cost,
+    })
+
+    logAudit('DESPERDÍCIO REGISTRADO',product.name,`${qty} ${product.unit} · ${desperdicioForm.motivo} · ${fmtCur(custo)}`)
+
+    // Update product stock
+    const newQty=Math.max(0,product.quantity-qty)
+    await supabase.from('produtos').update({quantity:newQty}).eq('id',product.id)
+    setProducts(prev=>prev.map(p=>p.id===product.id?{...p,quantity:newQty}:p))
+
+    // Reset form
+    setDesperdicioForm({productId:'',qty:'',motivo:'',motivo_detail:'',setor:SETORES[0],turno:''})
+    setDesperdicioFoto(null)
+    setDesperdicioFotoStep('form')
+    setDesperdicioModal(false)
+    showToast('✓ Desperdício registrado com sucesso!')
+  }
+
+  const MOTIVOS_DESPERDICIO=[
+    'Vencimento/Validade','Contaminação','Preparo incorreto','Sobra de produção',
+    'Queda/Acidente','Armazenamento inadequado','Erro de porcionamento','Outro'
+  ]
 
   const handleConfirmAdmin=()=>{
     const adminUser=USERS.find(u=>u.role==='admin')
@@ -613,6 +744,7 @@ export default function App() {
     ...(canManage?[{key:'cardapio',label:'Cardápio',icon:'🍽️'}]:[]),
     ...(canAdmin?[{key:'usuarios',label:'Usuários',icon:'👥'}]:[]),
     ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
+    {key:'desperdicio',label:'Desperdício',icon:'🗑️'},
   ]
 
   return (
@@ -1549,6 +1681,120 @@ export default function App() {
           </>
         })() : null}
 
+        {/* ══ DESPERDÍCIO ══ */}
+        {tab==='desperdicio'&&<>
+          {/* HEADER */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🗑️ Controle de Desperdício</p>
+            <button onClick={()=>{setDesperdicioFotoStep('form');setDesperdicioFoto(null);setDesperdicioModal(true)}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Registrar Descarte</button>
+          </div>
+
+          {/* RESUMO */}
+          {(()=>{
+            const hoje=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+            const semana=desperdicioList.filter(d=>(new Date()-new Date(d.created_at))/86400000<=7)
+            const custoHoje=hoje.reduce((s,d)=>s+d.custo,0)
+            const custoSemana=semana.reduce((s,d)=>s+d.custo,0)
+            const porSetor={}
+            semana.forEach(d=>{if(!porSetor[d.setor])porSetor[d.setor]=0;porSetor[d.setor]+=d.custo})
+            const setorMaisDesperd=Object.entries(porSetor).sort((a,b)=>b[1]-a[1])[0]
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Descartes Hoje',val:hoje.length,color:C.red,icon:'🗑️',sub:fmtCur(custoHoje)+' perdidos'},
+                  {label:'Custo Hoje',val:fmtCur(custoHoje),color:C.orange,icon:'💸',sub:`${hoje.length} registros`},
+                  {label:'Custo 7 dias',val:fmtCur(custoSemana),color:'#6f42c1',icon:'📅',sub:`${semana.length} registros`},
+                  {label:'Setor Crítico',val:setorMaisDesperd?setorMaisDesperd[0]:'—',color:C.red,icon:'🏢',sub:setorMaisDesperd?fmtCur(setorMaisDesperd[1]):'Sem dados'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:18,color:c.color,lineHeight:1}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* CUSTO POR SETOR */}
+          {(()=>{
+            const semana=desperdicioList.filter(d=>(new Date()-new Date(d.created_at))/86400000<=7)
+            const porSetor={}
+            SETORES.forEach(s=>{porSetor[s]=semana.filter(d=>d.setor===s).reduce((sum,d)=>sum+d.custo,0)})
+            const maxVal=Math.max(...Object.values(porSetor),1)
+            return(
+              <div style={{...S.card,marginBottom:14,padding:16}}>
+                <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO DE DESPERDÍCIO POR SETOR (7 dias)</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10}}>
+                  {SETORES.map(s=>{
+                    const val=porSetor[s]||0
+                    const qtd=semana.filter(d=>d.setor===s).length
+                    return(
+                      <div key={s} style={{background:SETOR_COLORS[s]+'11',border:`1px solid ${SETOR_COLORS[s]}33`,borderRadius:12,padding:14}}>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                          <p style={{fontWeight:800,fontSize:13,color:SETOR_COLORS[s]}}>{SETOR_ICONS[s]} {s}</p>
+                          <p style={{fontWeight:900,fontSize:13,color:SETOR_COLORS[s]}}>{fmtCur(val)}</p>
+                        </div>
+                        <div style={{background:C.grayMid,borderRadius:6,height:8,overflow:'hidden',marginBottom:6}}>
+                          <div style={{width:`${(val/maxVal)*100}%`,height:'100%',background:SETOR_COLORS[s],borderRadius:6,transition:'width 0.5s'}} />
+                        </div>
+                        <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{qtd} registro{qtd!==1?'s':''}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* LISTA DE REGISTROS */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:12,fontWeight:800}}>📋 REGISTROS DE DESPERDÍCIO (últimos 7 dias)</p>
+              <p style={{fontSize:11,color:C.grayDark}}>{desperdicioList.length} registro{desperdicioList.length!==1?'s':''} · Fotos expiram em 7 dias</p>
+            </div>
+            {desperdicioList.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
+                  <p style={{fontSize:28,marginBottom:8}}>✅</p>
+                  <p style={{fontWeight:700,fontSize:13}}>Nenhum descarte registrado!</p>
+                  <p style={{fontSize:11,marginTop:4}}>Registros ficam salvos por 7 dias</p>
+                </div>
+              : desperdicioList.map(d=>{
+                  const diasRestantes=Math.ceil((new Date(d.foto_expira)-new Date())/86400000)
+                  return(
+                    <div key={d.id} style={{display:'flex',gap:12,padding:'14px 18px',borderBottom:`1px solid ${C.gray}`,alignItems:'flex-start'}}>
+                      {/* FOTO */}
+                      <div style={{flexShrink:0}}>
+                        {d.foto
+                          ? <img src={d.foto} alt="descarte" style={{width:72,height:72,borderRadius:10,objectFit:'cover',border:`2px solid ${C.grayMid}`,cursor:'pointer'}} onClick={()=>window.open(d.foto)} />
+                          : <div style={{width:72,height:72,background:C.gray,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}>📷</div>
+                        }
+                        <p style={{fontSize:8,color:C.grayDark,textAlign:'center',marginTop:3}}>Foto: {diasRestantes}d restantes</p>
+                      </div>
+                      {/* INFO */}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                          <p style={{fontWeight:800,fontSize:13}}>{d.product_name}</p>
+                          <span style={{fontWeight:900,fontSize:13,color:C.red,flexShrink:0}}>{fmtCur(d.custo)}</span>
+                        </div>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:6}}>
+                          <span style={{background:C.redLight,color:C.red,fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{d.motivo}</span>
+                          <span style={{background:SETOR_COLORS[d.setor]+'22',color:SETOR_COLORS[d.setor],fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[d.setor]} {d.setor}</span>
+                          <span style={{background:C.gray,fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:600,color:C.grayDark}}>{d.qty} {d.product_unit}</span>
+                        </div>
+                        {d.motivo_detail&&<p style={{fontSize:11,color:C.grayDark,marginBottom:4}}>"{d.motivo_detail}"</p>}
+                        <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{d.user_name} · {new Date(d.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · {TURNOS.find(t=>t.id===d.turno)?.label||d.turno}</p>
+                      </div>
+                    </div>
+                  )
+                })
+            }
+          </div>
+
+          {/* CANVAS HIDDEN */}
+          <canvas ref={desperdicioCanvasRef} style={{display:'none'}} />
+        </>}
+
         {/* ══ AUDITORIA ══ */}
         {tab==='auditoria'&&canAdmin&&<>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
@@ -1977,6 +2223,105 @@ export default function App() {
               <button style={{...S.btnGray,flex:1}} onClick={()=>setCardapioModal(false)}>Cancelar</button>
             </div>
           </div>
+        </Overlay>
+      )}
+
+      {/* MODAL DESPERDÍCIO */}
+      {desperdicioModal&&(
+        <Overlay onClose={()=>{stopDesperdicioCamera();setDesperdicioModal(false);setDesperdicioFotoStep('form');setDesperdicioFoto(null)}}>
+          <MHead title="🗑️ Registrar Descarte" onClose={()=>{stopDesperdicioCamera();setDesperdicioModal(false);setDesperdicioFotoStep('form');setDesperdicioFoto(null)}} />
+
+          {/* STEP: FORMULÁRIO */}
+          {desperdicioFotoStep==='form'&&(
+            <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:10}}>
+                <p style={{fontSize:12,color:C.orange,fontWeight:700}}>📷 Uma foto do descarte é obrigatória para salvar o registro.</p>
+              </div>
+
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PRODUTO DESCARTADO</label>
+                <select value={desperdicioForm.productId} onChange={e=>setDesperdicioForm(f=>({...f,productId:e.target.value}))} style={S.input}>
+                  <option value="">Selecione o produto...</option>
+                  {[...products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>(
+                    <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit} em estoque)</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div>
+                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QUANTIDADE</label>
+                  <input type="number" step="0.1" placeholder="0" value={desperdicioForm.qty} onChange={e=>setDesperdicioForm(f=>({...f,qty:e.target.value}))} style={S.input} />
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
+                  <select value={desperdicioForm.setor} onChange={e=>setDesperdicioForm(f=>({...f,setor:e.target.value}))} style={S.input}>
+                    {SETORES.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>MOTIVO DO DESCARTE</label>
+                <select value={desperdicioForm.motivo} onChange={e=>setDesperdicioForm(f=>({...f,motivo:e.target.value}))} style={S.input}>
+                  <option value="">Selecione o motivo...</option>
+                  {MOTIVOS_DESPERDICIO.map(m=><option key={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DESCRIÇÃO DETALHADA (opcional)</label>
+                <input placeholder="Ex: Carne ficou fora da geladeira por 2 horas..." value={desperdicioForm.motivo_detail} onChange={e=>setDesperdicioForm(f=>({...f,motivo_detail:e.target.value}))} style={S.input} />
+              </div>
+
+              {/* CUSTO ESTIMADO */}
+              {desperdicioForm.productId&&desperdicioForm.qty&&(()=>{
+                const p=products.find(x=>x.id===desperdicioForm.productId)
+                const custo=parseFloat(desperdicioForm.qty||0)*(p?.cost||0)
+                return <div style={{background:C.redLight,border:`1px solid ${C.red}33`,borderRadius:10,padding:12,display:'flex',justifyContent:'space-between'}}>
+                  <span style={{fontSize:13,fontWeight:700,color:C.red}}>Custo do descarte:</span>
+                  <span style={{fontSize:16,fontWeight:900,color:C.red}}>{fmtCur(custo)}</span>
+                </div>
+              })()}
+
+              <button onClick={()=>{
+                if(!desperdicioForm.productId||!desperdicioForm.qty||!desperdicioForm.motivo){
+                  showToast('Preencha produto, quantidade e motivo antes de tirar a foto','err'); return
+                }
+                startDesperdicioCamera()
+              }} style={{...S.btnRed,padding:'14px',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+                📷 Tirar Foto do Descarte
+              </button>
+            </div>
+          )}
+
+          {/* STEP: CÂMERA */}
+          {desperdicioFotoStep==='camera'&&(
+            <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12,alignItems:'center'}}>
+              <p style={{fontSize:13,fontWeight:700,color:C.grayDark,textAlign:'center'}}>Aponte a câmera para o material a ser descartado</p>
+              <video ref={desperdicioVideoRef} style={{width:'100%',maxWidth:380,borderRadius:12,background:'#000',aspectRatio:'4/3',objectFit:'cover'}} autoPlay playsInline muted />
+              <div style={{display:'flex',gap:10,width:'100%'}}>
+                <button onClick={captureDesperdicioFoto} style={{...S.btnRed,flex:2,padding:'14px',fontSize:14}}>📸 Capturar Foto</button>
+                <button onClick={()=>{stopDesperdicioCamera();setDesperdicioFotoStep('form')}} style={{...S.btnGray,flex:1,padding:'14px',fontSize:13}}>Voltar</button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP: PREVIEW */}
+          {desperdicioFotoStep==='preview'&&(
+            <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12,alignItems:'center'}}>
+              <p style={{fontSize:13,fontWeight:700,color:C.text,textAlign:'center'}}>✅ Foto capturada! Confirme para salvar o registro.</p>
+              {desperdicioFoto&&<img src={desperdicioFoto} alt="descarte" style={{width:'100%',maxWidth:380,borderRadius:12,objectFit:'cover',border:`2px solid ${C.green}`}} />}
+              <div style={{background:'#F0FFF6',border:`1px solid ${C.green}33`,borderRadius:10,padding:10,width:'100%'}}>
+                <p style={{fontSize:11,color:C.green,fontWeight:700,textAlign:'center'}}>📅 Esta foto ficará salva por 7 dias e será deletada automaticamente.</p>
+              </div>
+              <div style={{display:'flex',gap:10,width:'100%'}}>
+                <button onClick={saveDesperdicioRegistro} style={{...S.btnRed,flex:2,padding:'14px',fontSize:14,fontWeight:800}}>✓ Confirmar e Salvar</button>
+                <button onClick={()=>{setDesperdicioFoto(null);startDesperdicioCamera()}} style={{...S.btnGray,flex:1,padding:'14px',fontSize:12}}>🔄 Refazer</button>
+              </div>
+              <button onClick={()=>{setDesperdicioFotoStep('form');setDesperdicioFoto(null)}} style={{...S.btnGray,width:'100%',padding:'10px',fontSize:12,color:C.grayDark}}>← Voltar ao formulário</button>
+            </div>
+          )}
         </Overlay>
       )}
 
