@@ -144,6 +144,14 @@ export default function App() {
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
   const [relPeriodo,setRelPeriodo] = useState('dia')
   const [desperdicioModal,setDesperdicioModal] = useState(false)
+  const [pdvPontos,setPdvPontos] = useState([]) // pontos de venda cadastrados
+  const [pdvAberturas,setPdvAberturas] = useState([]) // aberturas do dia
+  const [pdvContagens,setPdvContagens] = useState([]) // contagens registradas
+  const [pdvModal,setPdvModal] = useState(null) // 'ponto'|'abertura'|'contagem'
+  const [pdvPontoForm,setPdvPontoForm] = useState({name:'',setor:SETORES[0],descricao:''})
+  const [pdvAbertura,setPdvAbertura] = useState({pontoId:'',items:[]})
+  const [pdvContagem,setPdvContagem] = useState({pontoId:'',items:[]})
+  const [pdvEditPonto,setPdvEditPonto] = useState(null)
   const [desperdicioForm,setDesperdicioForm] = useState({productId:'',qty:'',motivo:'',motivo_detail:'',setor:SETORES[0],turno:''})
   const [desperdicioFoto,setDesperdicioFoto] = useState(null) // base64
   const [desperdicioFotoStream,setDesperdicioFotoStream] = useState(null)
@@ -400,6 +408,154 @@ export default function App() {
     'Vencimento/Validade','Contaminação','Preparo incorreto','Sobra de produção',
     'Queda/Acidente','Armazenamento inadequado','Erro de porcionamento','Outro'
   ]
+
+  // ── PDV / VITRINE ─────────────────────────────────────────────
+  const loadPDV=()=>{
+    try{
+      const pontos=JSON.parse(localStorage.getItem('boi_pdv_pontos')||'[]')
+      const aberturas=JSON.parse(localStorage.getItem('boi_pdv_aberturas')||'[]')
+      const contagens=JSON.parse(localStorage.getItem('boi_pdv_contagens')||'[]')
+      setPdvPontos(pontos)
+      // Filter today's aberturas and contagens
+      const hoje=aberturas.filter(a=>a.created_at?.startsWith(todayStr()))
+      const contagensHoje=contagens.filter(c=>c.created_at?.startsWith(todayStr()))
+      setPdvAberturas(hoje)
+      setPdvContagens(contagensHoje)
+    }catch(e){}
+  }
+
+  useEffect(()=>{ loadPDV() },[])
+
+  const savePdvPonto=()=>{
+    if(!pdvPontoForm.name) return showToast('Nome obrigatório','err')
+    let updated
+    if(pdvEditPonto!==null){
+      updated=pdvPontos.map((p,i)=>i===pdvEditPonto?{...p,...pdvPontoForm}:p)
+      logAudit('PDV EDITADO',pdvPontoForm.name,'')
+    } else {
+      const novo={...pdvPontoForm,id:Date.now(),items:[]}
+      updated=[...pdvPontos,novo]
+      logAudit('PDV CRIADO',pdvPontoForm.name,pdvPontoForm.setor)
+    }
+    setPdvPontos(updated)
+    localStorage.setItem('boi_pdv_pontos',JSON.stringify(updated))
+    setPdvPontoForm({name:'',setor:SETORES[0],descricao:''})
+    setPdvEditPonto(null)
+    setPdvModal(null)
+    showToast('✓ Ponto de venda salvo!')
+  }
+
+  const initAbertura=(pontoId)=>{
+    const ponto=pdvPontos.find(p=>p.id===pontoId)
+    if(!ponto) return
+    // Pre-fill with products from this setor
+    const produtosSetor=products.filter(p=>p.setor===ponto.setor)
+    const items=produtosSetor.map(p=>({
+      productId:p.id,
+      productName:p.name,
+      unit:p.unit,
+      qtdColocada:0,
+      custo:p.cost,
+    }))
+    setPdvAbertura({pontoId,items})
+    setPdvModal('abertura')
+  }
+
+  const saveAbertura=async()=>{
+    const itensValidos=pdvAbertura.items.filter(i=>i.qtdColocada>0)
+    if(!itensValidos.length) return showToast('Informe pelo menos um produto','err')
+    
+    const abertura={
+      id:Date.now(),
+      pontoId:pdvAbertura.pontoId,
+      pontoName:pdvPontos.find(p=>p.id===pdvAbertura.pontoId)?.name||'',
+      items:itensValidos,
+      turno:getTurnoAtual(),
+      user_name:user?.name||'Sistema',
+      created_at:new Date().toISOString(),
+    }
+
+    // Save locally
+    const existing=JSON.parse(localStorage.getItem('boi_pdv_aberturas')||'[]')
+    const updated=[abertura,...existing]
+    localStorage.setItem('boi_pdv_aberturas',JSON.stringify(updated))
+    setPdvAberturas(prev=>[abertura,...prev])
+
+    // Register as saida in estoque for each item
+    for(const item of itensValidos){
+      const product=products.find(p=>p.id===item.productId)
+      if(!product) continue
+      const newQty=Math.max(0,product.quantity-item.qtdColocada)
+      await supabase.from('movimentos').insert({
+        product_id:item.productId,
+        type:'saida',
+        quantity:item.qtdColocada,
+        note:`[PDV ABERTURA] ${abertura.pontoName}`,
+        user_name:user?.name||'Sistema',
+        setor:pdvPontos.find(p=>p.id===pdvAbertura.pontoId)?.setor||'',
+        turno:getTurnoAtual(),
+        cost_unit:product.cost,
+      })
+      await supabase.from('produtos').update({quantity:newQty}).eq('id',item.productId)
+      setProducts(prev=>prev.map(p=>p.id===item.productId?{...p,quantity:newQty}:p))
+    }
+
+    logAudit('PDV ABERTURA',abertura.pontoName,`${itensValidos.length} produtos`)
+    setPdvModal(null)
+    showToast('✓ Abertura registrada! Estoque atualizado.')
+  }
+
+  const initContagem=(pontoId)=>{
+    // Find last abertura for this ponto today
+    const abertura=pdvAberturas.find(a=>a.pontoId===pontoId)
+    if(!abertura) return showToast('Faça a abertura primeiro!','warn')
+    const items=abertura.items.map(i=>({...i,qtdSobrou:0}))
+    setPdvContagem({pontoId,items,aberturaId:abertura.id})
+    setPdvModal('contagem')
+  }
+
+  const saveContagem=()=>{
+    const ponto=pdvPontos.find(p=>p.id===pdvContagem.pontoId)
+    const abertura=pdvAberturas.find(a=>a.pontoId===pdvContagem.pontoId)
+    if(!abertura) return
+
+    const contagem={
+      id:Date.now(),
+      pontoId:pdvContagem.pontoId,
+      pontoName:ponto?.name||'',
+      aberturaId:abertura.id,
+      items:pdvContagem.items.map(i=>{
+        const colocado=i.qtdColocada
+        const sobrou=parseFloat(i.qtdSobrou)||0
+        const vendido=Math.max(0,colocado-sobrou)
+        // Find movements registered for this product today
+        const movsHoje=movements.filter(m=>
+          m.product_id===i.productId&&
+          m.type==='saida'&&
+          m.created_at?.startsWith(todayStr())&&
+          !m.note?.includes('[PDV')
+        )
+        const registrado=movsHoje.reduce((s,m)=>s+m.quantity,0)
+        const diferenca=vendido-registrado
+        const reposicao=Math.max(0,colocado-sobrou)
+        return{...i,sobrou,vendido,registrado,diferenca,reposicao,custo:i.custo||0}
+      }),
+      turno:getTurnoAtual(),
+      user_name:user?.name||'Sistema',
+      created_at:new Date().toISOString(),
+    }
+
+    const existing=JSON.parse(localStorage.getItem('boi_pdv_contagens')||'[]')
+    const updated=[contagem,...existing]
+    localStorage.setItem('boi_pdv_contagens',JSON.stringify(updated))
+    setPdvContagens(prev=>[contagem,...prev])
+
+    const diferencas=contagem.items.filter(i=>i.diferenca!==0)
+    logAudit('PDV CONTAGEM',ponto?.name||'',`${diferencas.length} diferença(s) encontrada(s)`)
+
+    setPdvModal(null)
+    showToast(diferencas.length>0?`⚠️ ${diferencas.length} diferença(s) encontrada(s)!`:'✓ Contagem OK! Sem diferenças.')
+  }
 
   const handleConfirmAdmin=()=>{
     const adminUser=USERS.find(u=>u.role==='admin')
@@ -745,6 +901,7 @@ export default function App() {
     ...(canAdmin?[{key:'usuarios',label:'Usuários',icon:'👥'}]:[]),
     ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
     {key:'desperdicio',label:'Desperdício',icon:'🗑️'},
+    {key:'pdv',label:'Vitrine/PDV',icon:'🏪'},
   ]
 
   return (
@@ -1681,6 +1838,154 @@ export default function App() {
           </>
         })() : null}
 
+        {/* ══ PDV / VITRINE ══ */}
+        {tab==='pdv'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🏪 Controle de Vitrine / PDV</p>
+            <button onClick={()=>{setPdvEditPonto(null);setPdvPontoForm({name:'',setor:SETORES[0],descricao:''});setPdvModal('ponto')}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Novo Ponto de Venda</button>
+          </div>
+
+          {/* RESUMO DO DIA */}
+          {(()=>{
+            const totalVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido,0),0)
+            const totalDiferenca=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+Math.abs(i.diferenca),0),0)
+            const custoVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido*(i.custo||0),0),0)
+            const totalReposicao=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.reposicao,0),0)
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Vendido Hoje',val:totalVendido+' itens',color:C.green,icon:'✅',sub:fmtCur(custoVendido)+' em custo'},
+                  {label:'Diferenças',val:totalDiferenca,color:totalDiferenca>0?C.red:C.green,icon:totalDiferenca>0?'🚨':'✅',sub:totalDiferenca>0?'Verificar urgente':'Tudo conferido'},
+                  {label:'Pontos Ativos',val:pdvPontos.length,color:C.blue,icon:'🏪',sub:pdvAberturas.length+' aberturas hoje'},
+                  {label:'A Repor',val:totalReposicao+' itens',color:C.orange,icon:'🔄',sub:'Baseado nas contagens'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* PONTOS DE VENDA */}
+          {pdvPontos.length===0
+            ? <div style={{...S.card,textAlign:'center',padding:40,border:`2px dashed ${C.grayMid}`}}>
+                <p style={{fontSize:32,marginBottom:8}}>🏪</p>
+                <p style={{fontWeight:800,fontSize:14,marginBottom:6}}>Nenhum ponto de venda cadastrado</p>
+                <p style={{fontSize:12,color:C.grayDark,marginBottom:16}}>Crie pontos como "Vitrine Lanchonete", "Geladeira Bebidas", etc.</p>
+                <button onClick={()=>{setPdvEditPonto(null);setPdvPontoForm({name:'',setor:SETORES[0],descricao:''});setPdvModal('ponto')}} style={{...S.btnRed,padding:'12px 24px'}}>+ Criar Primeiro Ponto</button>
+              </div>
+            : <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                {pdvPontos.map((ponto,idx)=>{
+                  const abertura=pdvAberturas.find(a=>a.pontoId===ponto.id)
+                  const contagem=pdvContagens.find(c=>c.pontoId===ponto.id)
+                  const temDiferenca=contagem?.items.some(i=>i.diferenca!==0)
+                  const totalVendidoPonto=contagem?.items.reduce((s,i)=>s+i.vendido,0)||0
+                  const custoVendidoPonto=contagem?.items.reduce((s,i)=>s+i.vendido*(i.custo||0),0)||0
+
+                  return(
+                    <div key={ponto.id} style={{...S.card,border:`2px solid ${temDiferenca?C.red:abertura?C.green:C.grayMid}`,padding:0,overflow:'hidden'}}>
+                      {/* HEADER DO PONTO */}
+                      <div style={{padding:'14px 18px',background:temDiferenca?C.redLight:abertura?'#F0FFF6':C.gray,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:40,height:40,background:SETOR_COLORS[ponto.setor]||C.red,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>{SETOR_ICONS[ponto.setor]||'🏪'}</div>
+                          <div>
+                            <p style={{fontWeight:800,fontSize:14}}>{ponto.name}</p>
+                            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                              <span style={{fontSize:10,background:SETOR_COLORS[ponto.setor]+'22',color:SETOR_COLORS[ponto.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{ponto.setor}</span>
+                              {ponto.descricao&&<span style={{fontSize:10,color:C.grayDark}}>{ponto.descricao}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                          {temDiferenca&&<span style={{background:C.red,color:C.white,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>⚠️ DIFERENÇA</span>}
+                          {!abertura&&<span style={{background:C.grayMid,color:C.grayDark,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>Sem abertura hoje</span>}
+                          {abertura&&!contagem&&<span style={{background:'#FFF8F0',color:C.orange,border:`1px solid ${C.orange}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>Aguardando contagem</span>}
+                          {contagem&&<span style={{background:'#F0FFF6',color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>✓ Contagem feita</span>}
+                        </div>
+                      </div>
+
+                      {/* AÇÕES */}
+                      <div style={{padding:'12px 18px',display:'flex',gap:8,flexWrap:'wrap',borderBottom:`1px solid ${C.gray}`}}>
+                        {!abertura
+                          ? <button onClick={()=>initAbertura(ponto.id)} style={{...S.btnRed,padding:'8px 16px',fontSize:12}}>📋 Registrar Abertura</button>
+                          : <>
+                              <button onClick={()=>initContagem(ponto.id)} style={{...S.btnRed,background:contagem?C.grayDark:C.red,padding:'8px 16px',fontSize:12}}>
+                                {contagem?'🔄 Nova Contagem':'🔢 Fazer Contagem'}
+                              </button>
+                              {contagem&&(
+                                <button onClick={()=>{
+                                  const itensRepor=contagem.items.filter(i=>i.reposicao>0)
+                                  if(!itensRepor.length){showToast('Nenhum item para repor!','warn');return}
+                                  const w=window.open('','_blank')
+                                  w.document.write('<html><head><title>Reposição PDV</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                                  w.document.write('<button onclick="window.print()">Imprimir</button>')
+                                  w.document.write('<h2>🔄 Lista de Reposição — '+ponto.name+'</h2>')
+                                  w.document.write('<p>Data: '+new Date().toLocaleDateString('pt-BR')+' · Turno: '+(TURNOS.find(t=>t.id===getTurnoAtual())?.label||'')+'</p>')
+                                  w.document.write('<table><tr><th>Produto</th><th>Colocou</th><th>Sobrou</th><th>Vendido</th><th>REPOR</th></tr>')
+                                  itensRepor.forEach(i=>{w.document.write('<tr><td>'+i.productName+'</td><td>'+i.qtdColocada+' '+i.unit+'</td><td>'+i.sobrou+' '+i.unit+'</td><td>'+i.vendido+' '+i.unit+'</td><td><strong>'+i.reposicao+' '+i.unit+'</strong></td></tr>')})
+                                  w.document.write('</table></body></html>')
+                                  w.document.close()
+                                }} style={{...S.btnGray,padding:'8px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>🖨️ Lista de Reposição</button>
+                              )}
+                            </>
+                        }
+                        <button onClick={()=>{setPdvEditPonto(idx);setPdvPontoForm({name:ponto.name,setor:ponto.setor,descricao:ponto.descricao||''});setPdvModal('ponto')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✏️</button>
+                        <button onClick={()=>{if(window.confirm('Excluir '+ponto.name+'?')){const upd=pdvPontos.filter((_,i)=>i!==idx);setPdvPontos(upd);localStorage.setItem('boi_pdv_pontos',JSON.stringify(upd));showToast('✓ Ponto excluído!')}}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,color:C.red}}>🗑️</button>
+                      </div>
+
+                      {/* RESULTADO DA CONTAGEM */}
+                      {contagem&&(
+                        <div style={{padding:'14px 18px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                            <p style={{fontSize:12,fontWeight:800,color:C.grayDark}}>📊 RESULTADO DA CONTAGEM</p>
+                            <div style={{display:'flex',gap:12,fontSize:12}}>
+                              <span style={{color:C.green,fontWeight:800}}>Vendido: {totalVendidoPonto} itens</span>
+                              <span style={{color:'#6f42c1',fontWeight:800}}>Custo: {fmtCur(custoVendidoPonto)}</span>
+                            </div>
+                          </div>
+                          <div style={{overflowX:'auto'}}>
+                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                              <thead>
+                                <tr style={{background:C.gray}}>
+                                  {['Produto','Colocou','Sobrou','Vendido','Registrado','Diferença','Repor'].map(h=>(
+                                    <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {contagem.items.map((item,i)=>(
+                                  <tr key={i} style={{borderBottom:`1px solid ${C.gray}`,background:item.diferenca!==0?C.redLight:'transparent'}}>
+                                    <td style={{padding:'7px 10px',fontWeight:700}}>{item.productName}</td>
+                                    <td style={{padding:'7px 10px'}}>{item.qtdColocada} {item.unit}</td>
+                                    <td style={{padding:'7px 10px'}}>{item.sobrou} {item.unit}</td>
+                                    <td style={{padding:'7px 10px',color:C.green,fontWeight:800}}>{item.vendido} {item.unit}</td>
+                                    <td style={{padding:'7px 10px',color:C.grayDark}}>{item.registrado} {item.unit}</td>
+                                    <td style={{padding:'7px 10px'}}>
+                                      <span style={{fontWeight:900,color:item.diferenca===0?C.green:C.red,fontSize:13}}>
+                                        {item.diferenca===0?'✅':item.diferenca>0?`+${item.diferenca}`:`${item.diferenca}`} {item.diferenca!==0?item.unit:''}
+                                      </span>
+                                    </td>
+                                    <td style={{padding:'7px 10px',color:item.reposicao>0?C.orange:C.grayDark,fontWeight:item.reposicao>0?800:400}}>
+                                      {item.reposicao>0?`⚡ ${item.reposicao} ${item.unit}`:'—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p style={{fontSize:10,color:C.grayDark,marginTop:8}}>Contagem feita por {contagem.user_name} às {new Date(contagem.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+          }
+        </>}
+
         {/* ══ DESPERDÍCIO ══ */}
         {tab==='desperdicio'&&<>
           {/* HEADER */}
@@ -2221,6 +2526,114 @@ export default function App() {
             <div style={{display:'flex',gap:8,marginTop:4}}>
               <button style={{...S.btnRed,flex:1}} onClick={handleSaveCardapioItem}>{editCardapio!==null?'Salvar':'Cadastrar'}</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setCardapioModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL PDV - PONTO DE VENDA */}
+      {pdvModal==='ponto'&&(
+        <Overlay onClose={()=>setPdvModal(null)}>
+          <MHead title={pdvEditPonto!==null?'✏️ Editar Ponto':'🏪 Novo Ponto de Venda'} onClose={()=>setPdvModal(null)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOME DO PONTO</label>
+              <input placeholder="Ex: Vitrine Lanchonete, Geladeira Bebidas..." value={pdvPontoForm.name} onChange={e=>setPdvPontoForm(f=>({...f,name:e.target.value}))} style={S.input} autoFocus />
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
+              <select value={pdvPontoForm.setor} onChange={e=>setPdvPontoForm(f=>({...f,setor:e.target.value}))} style={S.input}>
+                {SETORES.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DESCRIÇÃO (opcional)</label>
+              <input placeholder="Ex: Vitrine principal da entrada..." value={pdvPontoForm.descricao} onChange={e=>setPdvPontoForm(f=>({...f,descricao:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{background:'#F0F8FF',border:`1px solid ${C.blue}33`,borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:C.blue,fontWeight:700}}>ℹ️ Os produtos disponíveis na abertura serão os do setor selecionado.</p>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={savePdvPonto}>Salvar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL PDV - ABERTURA */}
+      {pdvModal==='abertura'&&(
+        <Overlay onClose={()=>setPdvModal(null)}>
+          <MHead title="📋 Abertura do Ponto de Venda" onClose={()=>setPdvModal(null)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#F0FFF6',border:`1px solid ${C.green}33`,borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:C.green,fontWeight:700}}>📦 Informe a quantidade de cada produto que está colocando na vitrine/geladeira agora.</p>
+            </div>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark}}>Ponto: {pdvPontos.find(p=>p.id===pdvAbertura.pontoId)?.name}</p>
+            {pdvAbertura.items.length===0
+              ? <p style={{color:C.grayDark,textAlign:'center',padding:'20px 0',fontSize:12}}>Nenhum produto cadastrado neste setor. Cadastre produtos primeiro na aba Estoque.</p>
+              : pdvAbertura.items.map((item,i)=>(
+                  <div key={item.productId} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:`1px solid ${C.gray}`}}>
+                    <div>
+                      <p style={{fontWeight:700,fontSize:13}}>{item.productName}</p>
+                      <p style={{fontSize:11,color:C.grayDark}}>{fmtCur(item.custo)}/{item.unit}</p>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <button onClick={()=>{const upd=[...pdvAbertura.items];upd[i]={...upd[i],qtdColocada:Math.max(0,(upd[i].qtdColocada||0)-1)};setPdvAbertura(f=>({...f,items:upd}))}} style={{...S.btnGray,padding:'6px 12px',fontSize:16,fontWeight:900}}>−</button>
+                      <input type="number" min="0" value={item.qtdColocada||0} onChange={e=>{const upd=[...pdvAbertura.items];upd[i]={...upd[i],qtdColocada:parseFloat(e.target.value)||0};setPdvAbertura(f=>({...f,items:upd}))}} style={{...S.input,width:70,textAlign:'center',fontWeight:800,fontSize:16,padding:'6px'}} />
+                      <button onClick={()=>{const upd=[...pdvAbertura.items];upd[i]={...upd[i],qtdColocada:(upd[i].qtdColocada||0)+1};setPdvAbertura(f=>({...f,items:upd}))}} style={{...S.btnRed,padding:'6px 12px',fontSize:16,fontWeight:900}}>+</button>
+                      <span style={{fontSize:11,color:C.grayDark,width:30}}>{item.unit}</span>
+                    </div>
+                  </div>
+                ))
+            }
+            {pdvAbertura.items.length>0&&(
+              <div style={{background:C.gray,borderRadius:10,padding:12,display:'flex',justifyContent:'space-between'}}>
+                <span style={{fontSize:13,fontWeight:700}}>Custo total a colocar:</span>
+                <span style={{fontSize:14,fontWeight:900,color:C.red}}>{fmtCur(pdvAbertura.items.reduce((s,i)=>s+i.qtdColocada*(i.custo||0),0))}</span>
+              </div>
+            )}
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={saveAbertura}>✓ Confirmar Abertura</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL PDV - CONTAGEM */}
+      {pdvModal==='contagem'&&(
+        <Overlay onClose={()=>setPdvModal(null)}>
+          <MHead title="🔢 Contagem da Vitrine" onClose={()=>setPdvModal(null)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:C.orange,fontWeight:700}}>🔢 Conte o que sobrou na vitrine e informe abaixo. O sistema calculará o que foi vendido e qualquer diferença.</p>
+            </div>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark}}>Ponto: {pdvPontos.find(p=>p.id===pdvContagem.pontoId)?.name}</p>
+            {pdvContagem.items.map((item,i)=>(
+              <div key={item.productId} style={{padding:'10px 0',borderBottom:`1px solid ${C.gray}`}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                  <div>
+                    <p style={{fontWeight:700,fontSize:13}}>{item.productName}</p>
+                    <p style={{fontSize:11,color:C.grayDark}}>Colocou: {item.qtdColocada} {item.unit}</p>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>Sobrou:</span>
+                    <button onClick={()=>{const upd=[...pdvContagem.items];upd[i]={...upd[i],qtdSobrou:Math.max(0,(parseFloat(upd[i].qtdSobrou)||0)-1)};setPdvContagem(f=>({...f,items:upd}))}} style={{...S.btnGray,padding:'6px 12px',fontSize:16,fontWeight:900}}>−</button>
+                    <input type="number" min="0" max={item.qtdColocada} value={item.qtdSobrou||0} onChange={e=>{const upd=[...pdvContagem.items];upd[i]={...upd[i],qtdSobrou:parseFloat(e.target.value)||0};setPdvContagem(f=>({...f,items:upd}))}} style={{...S.input,width:70,textAlign:'center',fontWeight:800,fontSize:16,padding:'6px'}} />
+                    <button onClick={()=>{const upd=[...pdvContagem.items];upd[i]={...upd[i],qtdSobrou:Math.min(item.qtdColocada,(parseFloat(upd[i].qtdSobrou)||0)+1)};setPdvContagem(f=>({...f,items:upd}))}} style={{...S.btnRed,padding:'6px 12px',fontSize:16,fontWeight:900}}>+</button>
+                    <span style={{fontSize:11,color:C.grayDark,width:30}}>{item.unit}</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:12,fontSize:11,background:C.gray,borderRadius:8,padding:'6px 10px'}}>
+                  <span style={{color:C.green,fontWeight:700}}>Vendido: {Math.max(0,item.qtdColocada-(parseFloat(item.qtdSobrou)||0))} {item.unit}</span>
+                  <span style={{color:'#6f42c1',fontWeight:700}}>Custo: {fmtCur(Math.max(0,item.qtdColocada-(parseFloat(item.qtdSobrou)||0))*(item.custo||0))}</span>
+                </div>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:8,marginTop:4}}>
+              <button style={{...S.btnRed,flex:1}} onClick={saveContagem}>✓ Confirmar Contagem</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
