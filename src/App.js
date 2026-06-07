@@ -142,6 +142,11 @@ export default function App() {
   const [editCardapio,setEditCardapio] = useState(null)
   const [cardapioModal,setCardapioModal] = useState(false)
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
+  const [relPeriodo,setRelPeriodo] = useState('dia')
+  const [relTurno,setRelTurno] = useState('todos')
+  const [relSetor,setRelSetor] = useState('todos')
+  const [relDataInicio,setRelDataInicio] = useState('')
+  const [relDataFim,setRelDataFim] = useState('')
   const [cmvMeta,setCmvMeta] = useState(40)
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
@@ -514,8 +519,8 @@ export default function App() {
   const movsPorHora = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&m.created_at?.startsWith(todayStr())).length}))
   const horaPico = movsPorHora.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
   // TOP PRODUTOS
-  const topProds = [...products].map(p=>({...p,totalSaida:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
-  const prodParados = products.filter(p=>{const last=movements.find(m=>m.product_id===p.id&&m.type==='saida');return !last||(new Date()-new Date(last.created_at))/86400000>7})
+  const topProdsRel = [...products].map(p=>({...p,totalSaida:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
+  const prodParadosRel = products.filter(p=>{const last=movements.find(m=>m.product_id===p.id&&m.type==='saida');return !last||(new Date()-new Date(last.created_at))/86400000>7})
   // CUSTO POR CATEGORIA
   const custoCat={}; movements.filter(m=>m.type==='saida').forEach(m=>{const p=products.find(x=>x.id===m.product_id);const cat=p?.category||'Outros';if(!custoCat[cat])custoCat[cat]=0;custoCat[cat]+=m.quantity*(m.cost_unit||0)})
   const custoCatArr=Object.entries(custoCat).sort((a,b)=>b[1]-a[1])
@@ -543,6 +548,61 @@ export default function App() {
   URL.revokeObjectURL(url)
   showToast('CSV exportado!')
   }
+
+  // RELATÓRIO FILTRADO
+  const relMovsFiltrados = movements.filter(m=>{
+    const d = new Date(m.created_at)
+    const now = new Date()
+    if(relPeriodo==='dia') { if(!m.created_at?.startsWith(todayStr())) return false }
+    else if(relPeriodo==='semana') { if((now-d)/86400000>7) return false }
+    else if(relPeriodo==='mes') { if(d.getMonth()!==now.getMonth()||d.getFullYear()!==now.getFullYear()) return false }
+    else if(relPeriodo==='custom') {
+      if(relDataInicio&&m.created_at?.split('T')[0]<relDataInicio) return false
+      if(relDataFim&&m.created_at?.split('T')[0]>relDataFim) return false
+    }
+    if(relTurno!=='todos'&&getTurnoFromDate(m.created_at)!==relTurno) return false
+    if(relSetor!=='todos'&&m.setor!==relSetor) return false
+    return true
+  })
+  const custoRel = relMovsFiltrados.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+  const ontemStr2 = (()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
+  const custoOntem2 = movements.filter(m=>m.created_at?.startsWith(ontemStr2)&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+  const varCustoRel = custoOntem2>0?((custoRel-custoOntem2)/custoOntem2*100):0
+  const movsPorHoraRel = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&m.created_at?.startsWith(todayStr())).length}))
+  const horaPicoRel = movsPorHoraRel.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
+  const topProds = [...products].map(p=>({...p,totalSaida:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
+  const prodParados = products.filter(p=>{const last=movements.find(m=>m.product_id===p.id&&m.type==='saida');return !last||(new Date()-new Date(last.created_at))/86400000>7})
+  const custoCat3={}; relMovsFiltrados.filter(m=>m.type==='saida').forEach(m=>{const p=products.find(x=>x.id===m.product_id);const cat=p?.category||'Outros';if(!custoCat3[cat])custoCat2[cat]=0;custoCat2[cat]+=m.quantity*(m.cost_unit||0)})
+  const custoCatArrRel = Object.entries(custoCat2).sort((a,b)=>b[1]-a[1])
+  const maxCustoCatRel = custoCatArrRel[0]?.[1]||1
+  const giroEstoqueRel = [...products].map(p=>{
+    const entradasMes=movements.filter(m=>m.product_id===p.id&&m.type==='entrada'&&new Date(m.created_at).getMonth()===new Date().getMonth())
+    const reposicoes=entradasMes.length
+    const giro=p.max_stock>0?(entradasMes.reduce((s,m)=>s+m.quantity,0)/p.max_stock):0
+    return {...p,reposicoes,giro}
+  }).filter(p=>p.giro>0).sort((a,b)=>b.giro-a.giro)
+  const variacaoCustoRel = products.map(p=>{
+    const movs=movements.filter(m=>m.product_id===p.id&&m.cost_unit>0).slice(0,10)
+    if(movs.length<2) return null
+    const first=movs[movs.length-1].cost_unit
+    const last=movs[0].cost_unit
+    const varP=first>0?((last-first)/first*100):0
+    return {...p,custoAtual:last,custoAnterior:first,var:varP}
+  }).filter(Boolean).filter(p=>p.var!==0).sort((a,b)=>Math.abs(b.var)-Math.abs(a.var))
+  const comparativoMesesRel = Array(3).fill(0).map((_,i)=>{
+    const d=new Date();d.setMonth(d.getMonth()-i)
+    const m=d.getMonth();const y=d.getFullYear()
+    const movsMes=movements.filter(mv=>{const md=new Date(mv.created_at);return md.getMonth()===m&&md.getFullYear()===y})
+    const entradas=movsMes.filter(mv=>mv.type==='entrada').length
+    const saidas=movsMes.filter(mv=>mv.type==='saida').length
+    const custo=movsMes.filter(mv=>mv.type==='saida').reduce((s,mv)=>s+mv.quantity*(mv.cost_unit||0),0)
+    // Dia mais caro
+    const diasCusto={}
+    movsMes.filter(mv=>mv.type==='saida').forEach(mv=>{const dia=mv.created_at?.split('T')[0]||'';if(!diasCusto[dia])diasCusto[dia]=0;diasCusto[dia]+=mv.quantity*(mv.cost_unit||0)})
+    const diaMaisCaro=Object.entries(diasCusto).sort((a,b)=>b[1]-a[1])[0]
+    const label=d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})
+    return {label,entradas,saidas,custo,diaMaisCaro:diaMaisCaro?new Date(diaMaisCaro[0]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—'}
+  })
 
   const TABS=[
     {key:'dashboard',label:'Painel',icon:'🏠'},
@@ -936,168 +996,318 @@ export default function App() {
 
         {/* ══ RELATÓRIOS ══ */}
         {tab==='relatorios'&&<>
-
-            {/* AÇÕES */}
-            <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
-              <button onClick={printReport} style={{...S.btnRed,padding:'10px 16px',fontSize:12}}>🖨️ Imprimir Relatório</button>
-              <button onClick={exportCSV} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.green,fontWeight:700}}>📊 Exportar Excel (CSV)</button>
-              <div style={{display:'flex',gap:6,alignItems:'center',marginLeft:'auto'}}>
-                <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>Comparar com:</span>
-                <input type="date" value={compareDate} onChange={e=>setCompareDate(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'8px 12px'}} />
+          {/* FILTROS DO RELATÓRIO */}
+          <div style={{...S.card,marginBottom:14,padding:14}}>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔍 FILTROS DO RELATÓRIO</p>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+              <div style={{display:'flex',gap:6,background:C.gray,borderRadius:10,padding:4}}>
+                {[['dia','Hoje'],['semana','7 dias'],['mes','Este mês'],['custom','Personalizado']].map(([k,l])=>(
+                  <button key={k} onClick={()=>setRelPeriodo(k)} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:relPeriodo===k?C.red:C.gray,color:relPeriodo===k?C.white:C.grayDark,borderRadius:8,fontWeight:relPeriodo===k?800:600}}>{l}</button>
+                ))}
+              </div>
+              {relPeriodo==='custom'&&<>
+                <input type="date" value={relDataInicio} onChange={e=>setRelDataInicio(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}} />
+                <span style={{fontSize:12,color:C.grayDark}}>até</span>
+                <input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}} />
+              </>}
+              <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}}>
+                <option value="todos">Todos os Turnos</option>
+                {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+              </select>
+              <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}}>
+                <option value="todos">Todos os Setores</option>
+                {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+              </select>
+              <div style={{display:'flex',gap:6,marginLeft:'auto'}}>
+                <button onClick={printReport} style={{...S.btnRed,padding:'8px 14px',fontSize:12}}>🖨️ Imprimir</button>
+                <button onClick={exportCSV} style={{...S.btnGray,padding:'8px 14px',fontSize:12,color:C.green,fontWeight:700}}>📊 CSV</button>
               </div>
             </div>
+          </div>
 
-            {/* RESUMO EXECUTIVO */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
-              {[
-                {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:`${products.length} produtos`},
-                {label:'Custo do Dia',val:fmtCur(custoDia),color:C.orange,icon:'💸',sub:varCusto!==0?`${varCusto>0?'+':''}${varCusto.toFixed(0)}% vs ontem`:'Sem dados ontem'},
-                {label:'Custo do Mês',val:fmtCur(custoMes),color:'#6f42c1',icon:'📅',sub:`${movements.filter(m=>{const d=new Date(m.created_at);const n=new Date();return d.getMonth()===n.getMonth()&&m.type==='saida'}).length} saídas`},
-                {label:'Hora de Pico',val:horaPico.movs>0?horaPico.hora:'—',color:C.blue,icon:'⏰',sub:horaPico.movs>0?`${horaPico.movs} movimentos`:'Sem dados hoje'},
-              ].map(c=>(
-                <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
-                  <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:22,color:c.color,lineHeight:1}}>{c.val}</div>
-                  <div style={{fontSize:10,color:varCusto>0&&c.label==='Custo do Dia'?C.red:varCusto<0&&c.label==='Custo do Dia'?C.green:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+          {/* CARDS RESUMO */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+            {[
+              {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:`${products.length} produtos`},
+              {label:'Custo do Período',val:fmtCur(custoRel),color:C.orange,icon:'💸',sub:varCustoRel!==0?`${varCustoRel>0?'+':''}${varCustoRel.toFixed(0)}% vs anterior`:'Sem comparativo'},
+              {label:'Ticket Médio',val:relMovsFiltrados.filter(m=>m.type==='saida').length>0?fmtCur(custoRel/relMovsFiltrados.filter(m=>m.type==='saida').length):'R$ 0,00',color:'#6f42c1',icon:'🎫',sub:`${relMovsFiltrados.filter(m=>m.type==='saida').length} saídas`},
+              {label:'Hora de Pico',val:horaPicoRel.movs>0?horaPicoRel.hora:'—',color:C.blue,icon:'⏰',sub:horaPicoRel.movs>0?`${horaPicoRel.movs} movimentos`:'Sem dados'},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
+                <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* GRÁFICOS */}
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📈 MOVIMENTOS — ÚLTIMOS 7 DIAS</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={last7} barCategoryGap="30%">
+                  <XAxis dataKey="date" tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:10,fontSize:11}} />
+                  <Bar dataKey="entradas" fill={C.green} radius={[4,4,0,0]} name="Entradas" />
+                  <Bar dataKey="saidas" fill={C.red} radius={[4,4,0,0]} name="Saídas" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🥧 CUSTO POR CATEGORIA</p>
+              {custoCatArrRel.length===0
+                ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'30px 0'}}>Sem dados</p>
+                : custoCatArrRel.map(([cat,val],i)=>{
+                  const colors=['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14']
+                  return(
+                    <div key={cat} style={{marginBottom:8}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                        <span style={{fontSize:11,fontWeight:700}}>{cat}</span>
+                        <span style={{fontSize:11,fontWeight:800,color:colors[i%colors.length]}}>{fmtCur(val)}</span>
+                      </div>
+                      <div style={{background:C.grayMid,borderRadius:4,height:5,overflow:'hidden'}}>
+                        <div style={{width:`${(val/maxCustoCatRel)*100}%`,height:'100%',background:colors[i%colors.length],borderRadius:4}} />
+                      </div>
+                    </div>
+                  )
+                })
+              }
+            </div>
+          </div>
+
+          {/* COMPARATIVO TURNOS E SETORES */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🔄 POR TURNO</p>
+              {statsPorTurno.map(t=>(
+                <div key={t.id} style={{background:C.gray,borderRadius:10,padding:12,marginBottom:8}}>
+                  <p style={{fontWeight:800,fontSize:12,marginBottom:6}}>{t.icon} {t.label} · {t.sub}</p>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+                    {[{l:'Entradas',v:`+${t.entradas}`,c:C.green},{l:'Saídas',v:`-${t.saidas}`,c:C.red},{l:'Custo',v:fmtCur(t.custo).replace('R$ ','R$'),c:'#6f42c1'}].map(x=>(
+                      <div key={x.l} style={{background:C.white,borderRadius:6,padding:'6px 4px',textAlign:'center'}}>
+                        <p style={{fontWeight:900,fontSize:12,color:x.c}}>{x.v}</p>
+                        <p style={{fontSize:8,color:C.grayDark,fontWeight:700}}>{x.l.toUpperCase()}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
-
-            {/* GRÁFICOS LADO A LADO */}
-            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
-              <div style={S.card}>
-                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📈 MOVIMENTOS — ÚLTIMOS 7 DIAS</p>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={last7} barCategoryGap="30%">
-                    <XAxis dataKey="date" tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
-                    <YAxis tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:10,fontSize:11}} />
-                    <Bar dataKey="entradas" fill={C.green} radius={[4,4,0,0]} name="Entradas" />
-                    <Bar dataKey="saidas" fill={C.red} radius={[4,4,0,0]} name="Saídas" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div style={S.card}>
-                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🥧 CUSTO POR CATEGORIA</p>
-                {custoCatArr.length===0
-                  ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'30px 0'}}>Sem dados</p>
-                  : custoCatArr.map(([cat,val],i)=>{
-                    const colors=['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14']
-                    return(
-                      <div key={cat} style={{marginBottom:8}}>
-                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                          <span style={{fontSize:11,fontWeight:700}}>{cat}</span>
-                          <span style={{fontSize:11,fontWeight:800,color:colors[i%colors.length]}}>{fmtCur(val)}</span>
-                        </div>
-                        <div style={{background:C.grayMid,borderRadius:4,height:5,overflow:'hidden'}}>
-                          <div style={{width:`${(val/maxCustoCat)*100}%`,height:'100%',background:colors[i%colors.length],borderRadius:4}} />
-                        </div>
-                      </div>
-                    )
-                  })
-                }
-              </div>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🏢 POR SETOR</p>
+              {statsPorSetor.map(s=>(
+                <div key={s.setor} style={{background:SETOR_COLORS[s.setor]+'11',border:`1px solid ${SETOR_COLORS[s.setor]}22`,borderRadius:10,padding:12,marginBottom:8}}>
+                  <p style={{fontWeight:800,fontSize:12,marginBottom:6,color:SETOR_COLORS[s.setor]}}>{SETOR_ICONS[s.setor]} {s.setor}</p>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                    <span style={{color:C.green,fontWeight:700}}>+{s.entradas}</span>
+                    <span style={{color:C.red,fontWeight:700}}>-{s.saidas}</span>
+                    <span style={{color:'#6f42c1',fontWeight:800}}>{fmtCur(s.custo)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
 
-            {/* COMPARATIVO TURNOS E SETORES */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-              <div style={{...S.card,padding:16}}>
-                <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🔄 COMPARATIVO DE TURNOS</p>
-                {statsPorTurno.map(t=>(
-                  <div key={t.id} style={{background:C.gray,borderRadius:10,padding:12,marginBottom:8}}>
-                    <p style={{fontWeight:800,fontSize:12,marginBottom:6}}>{t.icon} {t.label} · {t.sub}</p>
-                    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-                      {[{l:'Entradas',v:`+${t.entradas}`,c:C.green},{l:'Saídas',v:`-${t.saidas}`,c:C.red},{l:'Custo',v:fmtCur(t.custo).replace('R$ ',''),c:'#6f42c1'}].map(x=>(
-                        <div key={x.l} style={{background:C.white,borderRadius:6,padding:'6px 4px',textAlign:'center'}}>
-                          <p style={{fontWeight:900,fontSize:12,color:x.c}}>{x.v}</p>
-                          <p style={{fontSize:8,color:C.grayDark,fontWeight:700}}>{x.l.toUpperCase()}</p>
-                        </div>
-                      ))}
+          {/* GIRO DE ESTOQUE + VARIAÇÃO DE PREÇO */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔄 GIRO DE ESTOQUE (MÊS)</p>
+              {giroEstoqueRel.slice(0,8).map((p,i)=>(
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:11,fontWeight:900,color:'#6f42c1',width:16}}>{i+1}</span>
+                    <div>
+                      <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
+                      <p style={{fontSize:10,color:C.grayDark}}>{p.reposicoes}x reposto</p>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div style={{...S.card,padding:16}}>
-                <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🏢 COMPARATIVO DE SETORES</p>
-                {statsPorSetor.map(s=>(
-                  <div key={s.setor} style={{background:SETOR_COLORS[s.setor]+'11',border:`1px solid ${SETOR_COLORS[s.setor]}22`,borderRadius:10,padding:12,marginBottom:8}}>
-                    <p style={{fontWeight:800,fontSize:12,marginBottom:6,color:SETOR_COLORS[s.setor]}}>{SETOR_ICONS[s.setor]} {s.setor}</p>
-                    <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
-                      <span style={{color:C.green,fontWeight:700}}>+{s.entradas}</span>
-                      <span style={{color:C.red,fontWeight:700}}>-{s.saidas}</span>
-                      <span style={{color:'#6f42c1',fontWeight:800}}>{fmtCur(s.custo)}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:'#6f42c1'}}>{p.giro.toFixed(1)}x</span>
+                </div>
+              ))}
+              {giroEstoque.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem dados suficientes</p>}
+            </div>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📊 VARIAÇÃO DE CUSTO</p>
+              {variacaoCustoRel.slice(0,8).map((p,i)=>(
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
+                  <div>
+                    <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
+                    <p style={{fontSize:10,color:C.grayDark}}>Atual: {fmtCur(p.custoAtual)}/{p.unit}</p>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:800,color:p.var>0?C.red:p.var<0?C.green:C.grayDark}}>
+                    {p.var>0?'↑':'↓'}{Math.abs(p.var).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+              {variacaoCusto.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem histórico disponível</p>}
+            </div>
+          </div>
+
+          {/* TOP 10 + PARADOS */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 TOP 10 — MAIOR CUSTO</p>
+              {topProdsRel.filter(p=>p.custoTotal>0).slice(0,10).map((p,i)=>(
+                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:11,fontWeight:900,color:C.red,width:16}}>{i+1}</span>
+                    <div>
+                      <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
+                      <p style={{fontSize:10,color:C.grayDark}}>{p.totalSaida} {p.unit} · Margem: {p.custoTotal>0&&p.preco_venda>0?((1-p.cost/p.preco_venda)*100).toFixed(0)+'%':'—'}</p>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <span style={{fontSize:12,fontWeight:800,color:C.red}}>{fmtCur(p.custoTotal)}</span>
+                </div>
+              ))}
+              {topProdsRel.filter(p=>p.custoTotal>0).length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem saídas no período</p>}
             </div>
-
-            {/* TOP 10 PRODUTOS + PRODUTOS PARADOS */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
-              <div style={S.card}>
-                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 TOP 10 — MAIOR CUSTO</p>
-                {topProds.filter(p=>p.custoTotal>0).slice(0,10).map((p,i)=>(
-                  <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{fontSize:11,fontWeight:900,color:C.red,width:16}}>{i+1}</span>
+            <div style={S.card}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>😴 PRODUTOS PARADOS (+7 dias)</p>
+              {prodParadosRel.length===0
+                ? <div style={{textAlign:'center',padding:'20px 0'}}>
+                    <p style={{fontSize:24,marginBottom:6}}>✅</p>
+                    <p style={{fontWeight:700,fontSize:12,color:C.green}}>Todos em uso!</p>
+                  </div>
+                : prodParadosRel.slice(0,8).map(p=>(
+                    <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
                       <div>
                         <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                        <p style={{fontSize:10,color:C.grayDark}}>{p.totalSaida} {p.unit} consumidos</p>
+                        <p style={{fontSize:10,color:C.grayDark}}>{p.category}</p>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <p style={{fontSize:12,fontWeight:800,color:C.orange}}>{p.quantity} {p.unit}</p>
+                        <p style={{fontSize:10,color:C.grayDark}}>{fmtCur(p.quantity*p.cost)}</p>
                       </div>
                     </div>
-                    <span style={{fontSize:12,fontWeight:800,color:C.red}}>{fmtCur(p.custoTotal)}</span>
+                  ))
+              }
+            </div>
+          </div>
+
+          {/* VENCIMENTOS */}
+          <div style={{...S.card,marginBottom:14,padding:16}}>
+            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📅 RELATÓRIO DE VENCIMENTOS</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+              {[
+                {label:'Vencendo em 7 dias',days:7,color:C.red,icon:'🚨'},
+                {label:'Vencendo em 15 dias',days:15,color:C.orange,icon:'⚠️'},
+                {label:'Vencendo em 30 dias',days:30,color:C.blue,icon:'📋'},
+              ].map(({label,days,color,icon})=>{
+                const prods=products.filter(p=>p.expiry&&((new Date(p.expiry)-new Date())/86400000)<=days&&((new Date(p.expiry)-new Date())/86400000)>0)
+                return(
+                  <div key={days} style={{background:color+'11',border:`1px solid ${color}33`,borderRadius:12,padding:12}}>
+                    <p style={{fontSize:11,fontWeight:800,color,marginBottom:8}}>{icon} {label.toUpperCase()}</p>
+                    {prods.length===0
+                      ? <p style={{fontSize:11,color:C.grayDark}}>Nenhum produto</p>
+                      : prods.map(p=>{
+                          const d=Math.ceil((new Date(p.expiry)-new Date())/86400000)
+                          return(
+                            <div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:`1px solid ${color}22`}}>
+                              <span style={{fontSize:11,fontWeight:700}}>{p.name}</span>
+                              <span style={{fontSize:11,color,fontWeight:800}}>{d}d</span>
+                            </div>
+                          )
+                        })
+                    }
                   </div>
-                ))}
-                {topProds.filter(p=>p.custoTotal>0).length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem saídas registradas</p>}
-              </div>
-              <div style={S.card}>
-                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>😴 PRODUTOS PARADOS (+7 dias)</p>
-                {prodParados.length===0
-                  ? <div style={{textAlign:'center',padding:'20px 0'}}>
-                      <p style={{fontSize:24,marginBottom:6}}>✅</p>
-                      <p style={{fontWeight:700,fontSize:12,color:C.green}}>Todos os produtos em uso!</p>
-                    </div>
-                  : prodParados.slice(0,8).map(p=>(
-                      <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                        <div>
-                          <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                          <p style={{fontSize:10,color:C.grayDark}}>{p.category}</p>
-                        </div>
-                        <div style={{textAlign:'right'}}>
-                          <p style={{fontSize:12,fontWeight:800,color:C.orange}}>{p.quantity} {p.unit}</p>
-                          <p style={{fontSize:10,color:C.grayDark}}>{fmtCur(p.quantity*p.cost)}</p>
-                        </div>
-                      </div>
-                    ))
-                }
-              </div>
+                )
+              })}
             </div>
+          </div>
 
-            {/* MOVIMENTOS POR HORA DO DIA */}
-            <div style={{...S.card,marginBottom:14}}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>⏰ MOVIMENTOS POR HORA — HOJE</p>
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={movsPorHora.filter((_,i)=>i>=6&&i<=23)} barCategoryGap="20%">
-                  <XAxis dataKey="hora" tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:8,fontSize:11}} />
-                  <Bar dataKey="movs" fill={C.red} radius={[3,3,0,0]} name="Movimentos" />
-                </BarChart>
-              </ResponsiveContainer>
-              <p style={{fontSize:11,color:C.grayDark,textAlign:'center',marginTop:4}}>Hora de pico: <strong style={{color:C.red}}>{horaPico.movs>0?`${horaPico.hora} (${horaPico.movs} movimentos)`:'Sem dados hoje'}</strong></p>
+          {/* LISTA DE COMPRAS SUGERIDA */}
+          <div style={{...S.card,marginBottom:14,padding:16}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <p style={{fontSize:12,fontWeight:800}}>🛒 LISTA DE COMPRAS SUGERIDA</p>
+              <button onClick={()=>{
+                const itens=products.filter(p=>p.quantity<=p.min_stock)
+                if(!itens.length){showToast('Nenhum produto abaixo do mínimo!','warn');return}
+                const w=window.open('','_blank')
+                w.document.write('<html><head><title>Lista de Compras</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                w.document.write('<button onclick="window.print()">Imprimir</button>')
+                w.document.write('<h2>🛒 Lista de Compras — Boi de Minas</h2>')
+                w.document.write('<p>Data: '+new Date().toLocaleDateString('pt-BR')+'</p>')
+                w.document.write('<table><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Comprar</th><th>Fornecedor</th></tr>')
+                itens.forEach(p=>{w.document.write('<tr><td>'+p.name+'</td><td>'+p.quantity+' '+p.unit+'</td><td>'+p.min_stock+' '+p.unit+'</td><td><strong>'+(p.max_stock-p.quantity)+' '+p.unit+'</strong></td><td>'+(p.supplier||'—')+'</td></tr>')})
+                w.document.write('</table></body></html>')
+                w.document.close()
+              }} style={{...S.btnRed,padding:'6px 14px',fontSize:12}}>🖨️ Imprimir Lista</button>
             </div>
+            {products.filter(p=>p.quantity<=p.min_stock).length===0
+              ? <div style={{textAlign:'center',padding:'16px 0',color:C.green}}>
+                  <p style={{fontSize:20,marginBottom:4}}>✅</p>
+                  <p style={{fontWeight:700,fontSize:12}}>Estoque OK! Nenhum produto abaixo do mínimo.</p>
+                </div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead><tr style={{background:C.gray}}>{['Produto','Estoque Atual','Mínimo','Qtd Sugerida','Custo Estimado','Fornecedor'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
+                    <tbody>
+                      {products.filter(p=>p.quantity<=p.min_stock).map(p=>(
+                        <tr key={p.id} style={{borderBottom:`1px solid ${C.gray}`,background:C.redLight}}>
+                          <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
+                          <td style={{padding:'8px 12px',color:C.red,fontWeight:800}}>{p.quantity} {p.unit}</td>
+                          <td style={{padding:'8px 12px',color:C.grayDark}}>{p.min_stock} {p.unit}</td>
+                          <td style={{padding:'8px 12px',color:C.green,fontWeight:900}}>{Math.max(0,p.max_stock-p.quantity)} {p.unit}</td>
+                          <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:700}}>{fmtCur(Math.max(0,p.max_stock-p.quantity)*p.cost)}</td>
+                          <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{p.supplier||'—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
 
-            {/* TABELA COMPLETA */}
-            <div style={{...S.card,padding:0,overflow:'hidden'}}>
-              <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <p style={{fontSize:13,fontWeight:800}}>📋 Resumo Completo do Estoque</p>
-                <p style={{fontSize:13,color:C.red,fontWeight:900}}>{fmtCur(totalCost)}</p>
-              </div>
-              <div style={{overflowX:'auto'}}>
-                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
-                  <thead><tr style={{background:C.gray}}>{['Produto','Categoria','Setor','Qtd','Custo','Total','Status'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
-                  <tbody>
-                    {[...products].sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map(p=>(
+          {/* HORA DE PICO */}
+          <div style={{...S.card,marginBottom:14}}>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>⏰ MOVIMENTOS POR HORA — HOJE</p>
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={movsPorHoraRel.filter((_,i)=>i>=6&&i<=23)} barCategoryGap="20%">
+                <XAxis dataKey="hora" tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
+                <YAxis tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:8,fontSize:11}} />
+                <Bar dataKey="movs" fill={C.red} radius={[3,3,0,0]} name="Movimentos" />
+              </BarChart>
+            </ResponsiveContainer>
+            <p style={{fontSize:11,color:C.grayDark,textAlign:'center',marginTop:4}}>Hora de pico: <strong style={{color:C.red}}>{horaPicoRel.movs>0?`${horaPicoRel.hora} (${horaPicoRel.movs} movimentos)`:'Sem dados hoje'}</strong></p>
+          </div>
+
+          {/* COMPARATIVO MÊS A MÊS */}
+          <div style={{...S.card,marginBottom:14,padding:16}}>
+            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📆 COMPARATIVO MÊS A MÊS</p>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
+                <thead><tr style={{background:C.gray}}>{['Mês','Entradas','Saídas','Custo Total','Dia Mais Caro'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
+                <tbody>
+                  {comparativoMesesRel.map((m,i)=>(
+                    <tr key={i} style={{borderBottom:`1px solid ${C.gray}`,background:i===0?'#FFF8F0':'transparent'}}>
+                      <td style={{padding:'8px 12px',fontWeight:i===0?800:600}}>{m.label}{i===0?' (atual)':''}</td>
+                      <td style={{padding:'8px 12px',color:C.green,fontWeight:700}}>+{m.entradas}</td>
+                      <td style={{padding:'8px 12px',color:C.red,fontWeight:700}}>-{m.saidas}</td>
+                      <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:800}}>{fmtCur(m.custo)}</td>
+                      <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{m.diaMaisCaro}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* TABELA COMPLETA */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:13,fontWeight:800}}>📋 Resumo Completo do Estoque</p>
+              <p style={{fontSize:13,color:C.red,fontWeight:900}}>{fmtCur(totalCost)}</p>
+            </div>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
+                <thead><tr style={{background:C.gray}}>{['Produto','Categoria','Setor','Qtd','Custo','Total','Giro','Status'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
+                <tbody>
+                  {[...products].sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map(p=>{
+                    const giro=giroEstoqueRel.find(g=>g.id===p.id)
+                    return(
                       <tr key={p.id} className="rh" style={{borderBottom:`1px solid ${C.gray}`}}>
                         <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
                         <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{p.category}</td>
@@ -1105,16 +1315,18 @@ export default function App() {
                         <td style={{padding:'8px 12px',fontWeight:800}}>{p.quantity} {p.unit}</td>
                         <td style={{padding:'8px 12px',color:C.grayDark}}>{fmtCur(p.cost)}</td>
                         <td style={{padding:'8px 12px',color:C.green,fontWeight:800}}>{fmtCur(p.quantity*p.cost)}</td>
+                        <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:700}}>{giro?giro.giro.toFixed(1)+'x':'—'}</td>
                         <td style={{padding:'8px 12px'}}><span style={{background:p.quantity<=p.min_stock?C.redLight:'#F0FFF6',color:p.quantity<=p.min_stock?C.red:C.green,fontSize:9,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{p.quantity<=p.min_stock?'Baixo':'OK'}</span></td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
+          </div>
         </>}
 
-        {tab==='cmv' ? (()=>{
+                {tab==='cmv' ? (()=>{
           const {custoTotal,categoriasTotais,movsFiltrados}=getCmvData(cmvPeriodo)
           const totalReceita=cardapio.reduce((s,c)=>{
             const movsC=movsFiltrados.filter(m=>{const p=products.find(x=>x.id===m.product_id);return p&&p.category===c.categoria})
