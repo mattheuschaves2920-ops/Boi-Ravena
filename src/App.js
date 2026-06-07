@@ -1126,7 +1126,7 @@ export default function App() {
                   <span style={{fontSize:12,fontWeight:800,color:'#6f42c1'}}>{p.giro.toFixed(1)}x</span>
                 </div>
               ))}
-              {giroEstoque.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem dados suficientes</p>}
+              {giroEstoqueRel.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem dados suficientes</p>}
             </div>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📊 VARIAÇÃO DE CUSTO</p>
@@ -1141,7 +1141,7 @@ export default function App() {
                   </span>
                 </div>
               ))}
-              {variacaoCusto.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem histórico disponível</p>}
+              {variacaoCustoRel.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem histórico disponível</p>}
             </div>
           </div>
 
