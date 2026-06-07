@@ -152,11 +152,13 @@ export default function App() {
   const [pdvAbertura,setPdvAbertura] = useState({pontoId:'',items:[]})
   const [pdvContagem,setPdvContagem] = useState({pontoId:'',items:[]})
   const [pdvEditPonto,setPdvEditPonto] = useState(null)
-  // INVENTÁRIO
   const [inventarioAtivo,setInventarioAtivo] = useState(null)
   const [inventarioContagem,setInventarioContagem] = useState({})
   const [inventarioHistorico,setInventarioHistorico] = useState([])
   const [inventarioFiltro,setInventarioFiltro] = useState('todos')
+  const [whatsappNum,setWhatsappNum] = useState(()=>{try{return localStorage.getItem('boi_whatsapp_num')||''}catch(e){return ''}})
+  const [whatsappModal,setWhatsappModal] = useState(false)
+  // INVENTÁRIO
   // BACKUP
   const [backupModal,setBackupModal] = useState(false)
   const [desperdicioForm,setDesperdicioForm] = useState({productId:'',qty:'',motivo:'',motivo_detail:'',setor:SETORES[0],turno:''})
@@ -572,117 +574,57 @@ export default function App() {
     }catch(e){}
   },[])
 
-  const iniciarInventario=()=>{
-    const inv={
-      id:Date.now(),
-      started_at:new Date().toISOString(),
-      user_name:user?.name||'Sistema',
-      status:'em_andamento',
-      contagem:{},
-    }
-    setInventarioAtivo(inv)
-    setInventarioContagem({})
+  const openWhatsapp=(msg)=>{
+    const num=whatsappNum.replace(/[^0-9]/g,'')
+    if(!num){setWhatsappModal(true);return}
+    window.open('https://wa.me/55'+num+'?text='+encodeURIComponent(msg),'_blank')
   }
-
-  const finalizarInventario=()=>{
-    const resultado=products.map(p=>{
-      const contado=parseFloat(inventarioContagem[p.id])||0
-      const esperado=p.quantity
-      const diferenca=contado-esperado
-      return{
-        productId:p.id,
-        name:p.name,
-        unit:p.unit,
-        category:p.category,
-        setor:p.setor,
-        esperado,
-        contado,
-        diferenca,
-        custo:p.cost,
-        custoDiferenca:diferenca*p.cost,
-      }
-    })
-    const inv={
-      ...inventarioAtivo,
-      finished_at:new Date().toISOString(),
-      status:'finalizado',
-      resultado,
-      totalDiferenca:resultado.reduce((s,p)=>s+Math.abs(p.diferenca),0),
-      custoDiferenca:resultado.reduce((s,p)=>s+Math.abs(p.custoDiferenca),0),
-    }
-    const hist=[inv,...inventarioHistorico].slice(0,10)
-    setInventarioHistorico(hist)
-    localStorage.setItem('boi_inventarios',JSON.stringify(hist))
-    logAudit('INVENTÁRIO FINALIZADO','Contagem física',`${resultado.filter(p=>p.diferenca!==0).length} diferenças · ${fmtCur(inv.custoDiferenca)}`)
-    setInventarioAtivo(null)
-    setInventarioContagem({})
-    showToast(`✓ Inventário finalizado! ${resultado.filter(p=>p.diferenca!==0).length} diferenças encontradas.`)
+  const enviarResumoDiario=()=>{
+    const nl=String.fromCharCode(10)
+    const hj=movements.filter(m=>m.created_at?.startsWith(todayStr()))
+    const ch=hj.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+    const en=hj.filter(m=>m.type==='entrada').length
+    const sa=hj.filter(m=>m.type==='saida').length
+    const al=products.filter(p=>p.quantity<=p.min_stock)
+    const dh=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+    const cd=dh.reduce((s,d)=>s+d.custo,0)
+    const pr=calcPrevisao().filter(p=>p.urgencia==='critico')
+    const lines=['🐂 *BOI DE MINAS CHURRASCARIA*',
+      '📅 '+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}),'',
+      '💰 *FINANCEIRO*','• Custo do dia: *'+fmtCur(ch)+'*','• Desperdício: *'+fmtCur(cd)+'*','• Estoque: *'+fmtCur(totalCost)+'*','',
+      '📦 *MOVIMENTOS*','• Entradas: '+en,'• Saídas: '+sa,'',
+    ]
+    if(al.length>0){lines.push('🚨 *ESTOQUE BAIXO ('+al.length+')*');al.slice(0,5).forEach(p=>lines.push('• '+p.name+': '+p.quantity+' '+p.unit));lines.push('')}
+    else{lines.push('✅ Estoque OK');lines.push('')}
+    if(pr.length>0){lines.push('🔮 *COMPRAR HOJE*');pr.slice(0,5).forEach(p=>lines.push('• '+p.name+': '+p.qtdSugerida+' '+p.unit));lines.push('')}
+    if(dh.length>0){lines.push('🗑️ *DESPERDÍCIO*');dh.slice(0,3).forEach(d=>lines.push('• '+d.product_name+': '+d.qty+' '+d.product_unit));lines.push('')}
+    lines.push('📊 _Sistema Boi de Minas_')
+    openWhatsapp(lines.join(nl))
   }
-
-  // ── BACKUP ───────────────────────────────────────────────────────
-  const exportBackup=()=>{
-    const backup={
-      versao:'1.0',
-      data:new Date().toISOString(),
-      restaurante:'Boi de Minas Churrascaria',
-      produtos:products,
-      movimentos:movements.slice(0,1000),
-      cardapio:cardapio,
-      pdvPontos,
-      inventarios:inventarioHistorico,
-      desperdicios:desperdicioList,
-    }
-    const json=JSON.stringify(backup,null,2)
-    const blob=new Blob([json],{type:'application/json'})
-    const url=URL.createObjectURL(blob)
-    const a=document.createElement('a')
-    a.href=url
-    a.download=`boi-minas-backup-${todayStr()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    logAudit('BACKUP EXPORTADO','Backup completo do sistema','')
-    showToast('✓ Backup exportado com sucesso!')
+  const enviarAlertaEstoque=()=>{
+    const nl=String.fromCharCode(10)
+    const al=products.filter(p=>p.quantity<=p.min_stock)
+    const vc=products.filter(p=>p.expiry&&(new Date(p.expiry)-new Date())/86400000<=7)
+    if(!al.length&&!vc.length){showToast('Estoque OK! Nenhum alerta.','warn');return}
+    const lines=['🚨 *ALERTA — BOI DE MINAS*',new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}),'']
+    if(al.length>0){lines.push('📦 *ESTOQUE BAIXO ('+al.length+')*');al.forEach(p=>lines.push('• '+p.name+': '+p.quantity+'/'+p.min_stock+' '+p.unit));lines.push('')}
+    if(vc.length>0){lines.push('⏰ *VENCENDO EM 7 DIAS*');vc.forEach(p=>{const d=Math.ceil((new Date(p.expiry)-new Date())/86400000);lines.push('• '+p.name+' — '+d+' dias')});lines.push('')}
+    lines.push('⚡ _Sistema Boi de Minas_')
+    openWhatsapp(lines.join(nl))
   }
-
-  // ── PWA ───────────────────────────────────────────────────────────
-  const [pwaPrompt,setPwaPrompt] = useState(null)
-  useEffect(()=>{
-    const handler=e=>{e.preventDefault();setPwaPrompt(e)}
-    window.addEventListener('beforeinstallprompt',handler)
-    return()=>window.removeEventListener('beforeinstallprompt',handler)
-  },[])
-
-  const installPWA=async()=>{
-    if(!pwaPrompt){showToast('Para instalar: use o menu do navegador → "Adicionar à tela inicial"','warn');return}
-    pwaPrompt.prompt()
-    const{outcome}=await pwaPrompt.userChoice
-    if(outcome==='accepted'){showToast('✓ App instalado na tela inicial!');setPwaPrompt(null)}
-  }
-
-  // ── PREVISÃO DE COMPRAS ──────────────────────────────────────────
-  const calcPrevisao=()=>{
-    const hoje=new Date()
-    const dias30=new Date(hoje-30*24*60*60*1000)
-    return products.map(p=>{
-      const movs30=movements.filter(m=>m.product_id===p.id&&m.type==='saida'&&new Date(m.created_at)>=dias30)
-      const consumo30=movs30.reduce((s,m)=>s+m.quantity,0)
-      const consumoDiario=consumo30/30
-      const diasRestantes=consumoDiario>0?Math.floor(p.quantity/consumoDiario):999
-      const previsaoSemana=consumoDiario*7
-      const precisaRepor=previsaoSemana>p.quantity
-      const qtdSugerida=Math.max(0,Math.ceil(previsaoSemana*1.2)-p.quantity) // 20% margem
-      return{
-        ...p,
-        consumo30,
-        consumoDiario:consumoDiario.toFixed(2),
-        diasRestantes,
-        previsaoSemana:previsaoSemana.toFixed(1),
-        precisaRepor,
-        qtdSugerida,
-        custoRepor:qtdSugerida*p.cost,
-        urgencia:diasRestantes<=3?'critico':diasRestantes<=7?'urgente':diasRestantes<=14?'atencao':'ok'
-      }
-    }).filter(p=>p.consumo30>0).sort((a,b)=>a.diasRestantes-b.diasRestantes)
+  const enviarListaCompras=()=>{
+    const nl=String.fromCharCode(10)
+    const pr=calcPrevisao().filter(p=>p.precisaRepor)
+    const al=products.filter(p=>p.quantity<=p.min_stock&&!pr.find(x=>x.id===p.id)).map(p=>({...p,qtdSugerida:p.max_stock-p.quantity,custoRepor:(p.max_stock-p.quantity)*p.cost}))
+    const todos=[...pr,...al]
+    if(!todos.length){showToast('Nenhum item para comprar!','warn');return}
+    const ct=todos.reduce((s,p)=>s+(p.custoRepor||0),0)
+    const lines=['🛒 *LISTA DE COMPRAS — BOI DE MINAS*','📅 '+new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'}),'']
+    todos.forEach(p=>lines.push('• '+p.name+': *'+p.qtdSugerida+' '+p.unit+'* ('+fmtCur(p.custoRepor||0)+')'))
+    lines.push('')
+    lines.push('💰 *Total: '+fmtCur(ct)+'*')
+    lines.push('📊 _Sistema Boi de Minas_')
+    openWhatsapp(lines.join(nl))
   }
 
   const handleConfirmAdmin=()=>{
@@ -1019,6 +961,18 @@ export default function App() {
     return {label,entradas,saidas,custo,diaMaisCaro:diaMaisCaro?new Date(diaMaisCaro[0]+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—'}
   })
 
+  // PREVISÃO + DONO computed vars (component level)
+  const previsaoComp=calcPrevisao()
+  const criticosComp=previsaoComp.filter(p=>p.urgencia==='critico')
+  const urgentesComp=previsaoComp.filter(p=>p.urgencia==='urgente')
+  const custoTotalReporComp=previsaoComp.filter(p=>p.precisaRepor).reduce((s,p)=>s+p.custoRepor,0)
+  const hojeMovsComp=movements.filter(m=>m.created_at?.startsWith(todayStr()))
+  const custoHojeComp=hojeMovsComp.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+  const alertasComp=products.filter(p=>p.quantity<=p.min_stock)
+  const vencendoComp=products.filter(p=>p.expiry&&(new Date(p.expiry)-new Date())/86400000<=3)
+  const despHojeComp=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+  const custoDesHojeComp=despHojeComp.reduce((s,d)=>s+d.custo,0)
+
   const TABS=[
     {key:'dashboard',label:'Painel',icon:'🏠'},
     {key:'estoque',label:'Estoque',icon:'📦'},
@@ -1030,6 +984,9 @@ export default function App() {
     ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
     {key:'desperdicio',label:'Desperdício',icon:'🗑️'},
     {key:'pdv',label:'Vitrine/PDV',icon:'🏪'},
+    {key:'inventario',label:'Inventário',icon:'📋'},
+    {key:'previsao',label:'Previsão',icon:'🔮'},
+    ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
     ...(canAdmin?[{key:'dono',label:'Painel Dono',icon:'👑'}]:[]),
@@ -2278,6 +2235,254 @@ export default function App() {
           </>
         })()}
 
+        {/* ══ INVENTÁRIO ══ */}
+        {tab==='inventario'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>📋 Inventário / Contagem Física</p>
+            {!inventarioAtivo
+              ? <button onClick={iniciarInventario} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>▶ Iniciar Inventário</button>
+              : <div style={{display:'flex',gap:8}}>
+                  <span style={{background:'#FFF8F0',color:C.orange,border:`1px solid ${C.orange}33`,borderRadius:20,padding:'6px 14px',fontSize:12,fontWeight:700}}>⏳ Em andamento</span>
+                  <button onClick={finalizarInventario} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>✓ Finalizar</button>
+                </div>
+            }
+          </div>
+          {inventarioAtivo&&<>
+            <div style={{...S.card,background:'#FFF8F0',border:`1.5px solid ${C.orange}33`,marginBottom:14,padding:14}}>
+              <p style={{fontSize:12,fontWeight:800,color:C.orange}}>⚠️ Conte os produtos fisicamente e informe as quantidades reais.</p>
+              <p style={{fontSize:11,color:C.grayDark}}>Iniciado por {inventarioAtivo.user_name}</p>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:12}}>
+              <select value={inventarioFiltro} onChange={e=>setInventarioFiltro(e.target.value)} style={{...S.input,width:'auto',fontSize:12}}>
+                <option value="todos">Todos os Setores</option>
+                {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+              </select>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {products.filter(p=>inventarioFiltro==='todos'||p.setor===inventarioFiltro).map(p=>{
+                const contado=inventarioContagem[p.id]
+                const diferenca=contado!==undefined?parseFloat(contado)-p.quantity:null
+                return(
+                  <div key={p.id} style={{...S.card,padding:14,border:`1.5px solid ${diferenca!==null&&diferenca!==0?C.red:diferenca===0?C.green:C.grayMid}`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+                      <div style={{flex:1}}>
+                        <p style={{fontWeight:800,fontSize:13}}>{p.name}</p>
+                        <p style={{fontSize:11,color:C.grayDark}}>Sistema: <strong>{p.quantity} {p.unit}</strong> · {p.category}</p>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <div style={{textAlign:'center'}}>
+                          <p style={{fontSize:10,color:C.grayDark,fontWeight:700,marginBottom:3}}>CONTADO</p>
+                          <input type="number" min="0" step="0.1" placeholder={p.quantity.toString()} value={inventarioContagem[p.id]??''} onChange={e=>setInventarioContagem(c=>({...c,[p.id]:e.target.value}))} style={{...S.input,width:80,textAlign:'center',fontWeight:800,fontSize:15,padding:'6px'}} />
+                        </div>
+                        {diferenca!==null&&<div style={{textAlign:'center',minWidth:60}}>
+                          <p style={{fontSize:10,color:C.grayDark,fontWeight:700,marginBottom:3}}>DIFER.</p>
+                          <p style={{fontWeight:900,fontSize:16,color:diferenca===0?C.green:C.red}}>{diferenca>0?'+':''}{diferenca.toFixed(1)}</p>
+                        </div>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>}
+          {!inventarioAtivo&&<div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`}}>
+              <p style={{fontSize:12,fontWeight:800}}>📅 HISTÓRICO</p>
+            </div>
+            {inventarioHistorico.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}><p style={{fontSize:28}}>📋</p><p style={{fontWeight:700,fontSize:13}}>Nenhum inventário realizado</p></div>
+              : inventarioHistorico.map(inv=>(
+                  <div key={inv.id} style={{padding:'14px 18px',borderBottom:`1px solid ${C.gray}`}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                      <div>
+                        <p style={{fontWeight:800,fontSize:13}}>{new Date(inv.finished_at).toLocaleDateString('pt-BR')}</p>
+                        <p style={{fontSize:11,color:C.grayDark}}>{inv.user_name}</p>
+                      </div>
+                      <p style={{fontWeight:900,fontSize:13,color:inv.totalDiferenca>0?C.red:C.green}}>{inv.totalDiferenca===0?'✅ Sem diferenças':'⚠️ '+inv.resultado?.filter(p=>p.diferenca!==0).length+' diferenças · '+fmtCur(inv.custoDiferenca)}</p>
+                    </div>
+                    {inv.resultado?.filter(p=>p.diferenca!==0).slice(0,3).map(p=>(
+                      <div key={p.productId} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:C.grayDark}}>
+                        <span>{p.name}</span>
+                        <span style={{color:p.diferenca<0?C.red:C.green,fontWeight:700}}>{p.diferenca>0?'+':''}{p.diferenca.toFixed(1)} {p.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))
+            }
+          </div>}
+        </>}
+
+        {/* ══ PREVISÃO ══ */}
+        {tab==='previsao'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🔮 Previsão de Compras</p>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={enviarListaCompras} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#25D366',fontWeight:700}}>💬 WhatsApp</button>
+              <button onClick={()=>{
+                const itens=previsaoComp.filter(p=>p.precisaRepor)
+                if(!itens.length){showToast('Nada para repor!','warn');return}
+                const w=window.open('','_blank')
+                w.document.write('<html><head><title>Previsão</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                w.document.write('<button onclick="window.print()">Imprimir</button><h2>🔮 Previsão — Boi de Minas</h2>')
+                w.document.write('<table><tr><th>Produto</th><th>Estoque</th><th>Cons/dia</th><th>Dias</th><th>COMPRAR</th><th>Custo</th></tr>')
+                itens.forEach(p=>{w.document.write('<tr><td>'+p.name+'</td><td>'+p.quantity+' '+p.unit+'</td><td>'+p.consumoDiario+'</td><td>'+p.diasRestantes+'</td><td><strong>'+p.qtdSugerida+' '+p.unit+'</strong></td><td>'+fmtCur(p.custoRepor)+'</td></tr>')})
+                w.document.write('</table></body></html>');w.document.close()
+              }} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>🖨️ Gerar Pedido</button>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+            {[
+              {label:'Crítico (≤3 dias)',val:criticosComp.length,color:C.red,icon:'🚨'},
+              {label:'Urgente (≤7 dias)',val:urgentesComp.length,color:C.orange,icon:'⚠️'},
+              {label:'Precisam Repor',val:previsaoComp.filter(p=>p.precisaRepor).length,color:'#6f42c1',icon:'🛒'},
+              {label:'Custo Estimado',val:fmtCur(custoTotalReporComp),color:C.green,icon:'💰'},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`}}>
+              <p style={{fontSize:12,fontWeight:800}}>📊 ANÁLISE (últimos 30 dias)</p>
+            </div>
+            {previsaoComp.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}><p style={{fontSize:28}}>🔮</p><p style={{fontWeight:700,fontSize:13}}>Registre movimentos por 7+ dias para previsões</p></div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:600}}>
+                    <thead><tr style={{background:C.gray}}>{['Produto','Estoque','Cons/dia','Dias Restantes','Comprar','Custo','Status'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
+                    <tbody>
+                      {previsaoComp.map(p=>{
+                        const cor=p.urgencia==='critico'?C.red:p.urgencia==='urgente'?C.orange:p.urgencia==='atencao'?C.blue:C.green
+                        return(
+                          <tr key={p.id} style={{borderBottom:`1px solid ${C.gray}`,background:p.urgencia==='critico'?C.redLight:p.urgencia==='urgente'?'#FFF8F0':'transparent'}}>
+                            <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
+                            <td style={{padding:'8px 12px'}}>{p.quantity} {p.unit}</td>
+                            <td style={{padding:'8px 12px',color:C.grayDark}}>{p.consumoDiario} {p.unit}</td>
+                            <td style={{padding:'8px 12px',fontWeight:800,color:cor}}>{p.diasRestantes>=999?'∞':p.diasRestantes+'d'}</td>
+                            <td style={{padding:'8px 12px',fontWeight:800,color:p.precisaRepor?'#6f42c1':C.grayDark}}>{p.precisaRepor?p.qtdSugerida+' '+p.unit:'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.green}}>{p.precisaRepor?fmtCur(p.custoRepor):'—'}</td>
+                            <td style={{padding:'8px 12px'}}><span style={{background:cor+'22',color:cor,fontSize:9,padding:'3px 8px',borderRadius:20,fontWeight:800}}>{p.urgencia==='critico'?'🚨 CRÍTICO':p.urgencia==='urgente'?'⚠️ URGENTE':p.urgencia==='atencao'?'📋 ATENÇÃO':'✅ OK'}</span></td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
+        </>}
+
+        {/* ══ PAINEL DO DONO ══ */}
+        {tab==='dono'&&canAdmin&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div>
+              <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
+              <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
+              <button onClick={installPWA} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.blue,fontWeight:700}}>📱 Instalar App</button>
+            </div>
+          </div>
+          {(alertasComp.length>0||vencendoComp.length>0||criticosComp.length>0||custoDesHojeComp>0)&&(
+            <div style={{...S.card,background:C.redLight,border:`2px solid ${C.red}`,marginBottom:14,padding:16}}>
+              <p style={{fontSize:13,fontWeight:900,color:C.red,marginBottom:10}}>🚨 ALERTAS CRÍTICOS</p>
+              {alertasComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>📦 {alertasComp.length} produto(s) com estoque baixo</p>}
+              {vencendoComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>⏰ {vencendoComp.length} produto(s) vencendo em 3 dias</p>}
+              {criticosComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>🔮 {criticosComp.length} produto(s) acabando em menos de 3 dias</p>}
+              {custoDesHojeComp>0&&<p style={{fontSize:12,fontWeight:700,color:C.red}}>🗑️ Desperdício hoje: {fmtCur(custoDesHojeComp)}</p>}
+            </div>
+          )}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:14}}>
+            {[
+              {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:products.length+' produtos'},
+              {label:'Custo do Dia',val:fmtCur(custoHojeComp),color:C.orange,icon:'💸',sub:hojeMovsComp.filter(m=>m.type==='saida').length+' saídas'},
+              {label:'Movimentos Hoje',val:hojeMovsComp.length,color:C.blue,icon:'🔄',sub:'+'+hojeMovsComp.filter(m=>m.type==='entrada').length+' entradas'},
+              {label:'Desperdício',val:fmtCur(custoDesHojeComp),color:custoDesHojeComp>0?C.red:C.green,icon:'🗑️',sub:despHojeComp.length+' registros'},
+              {label:'Em Alerta',val:alertasComp.length,color:alertasComp.length>0?C.red:C.green,icon:'⚠️',sub:alertasComp.length>0?'Verificar estoque':'Estoque OK'},
+              {label:'Precisam Repor',val:previsaoComp.filter(p=>p.precisaRepor).length,color:'#6f42c1',icon:'🛒',sub:fmtCur(custoTotalReporComp)},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:16}}>
+                <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:6}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:24,color:c.color,lineHeight:1,marginBottom:4}}>{c.val}</div>
+                <div style={{fontSize:11,color:C.grayDark,fontWeight:600}}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}}>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
+              {SETORES.map(s=>{
+                const custo=hojeMovsComp.filter(m=>m.type==='saida'&&m.setor===s).reduce((s2,m)=>s2+m.quantity*(m.cost_unit||0),0)
+                const pct=custoHojeComp>0?(custo/custoHojeComp)*100:0
+                return(<div key={s} style={{marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontSize:11,fontWeight:700}}>{SETOR_ICONS[s]} {s}</span>
+                    <span style={{fontSize:11,fontWeight:800,color:SETOR_COLORS[s]}}>{fmtCur(custo)}</span>
+                  </div>
+                  <div style={{background:C.grayMid,borderRadius:4,height:6,overflow:'hidden'}}>
+                    <div style={{width:`${pct}%`,height:'100%',background:SETOR_COLORS[s],borderRadius:4}} />
+                  </div>
+                </div>)
+              })}
+            </div>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>🔮 COMPRAR HOJE</p>
+              {criticosComp.length===0
+                ? <div style={{textAlign:'center',padding:'20px 0',color:C.green}}><p style={{fontSize:20}}>✅</p><p style={{fontWeight:700,fontSize:12,marginTop:6}}>Nenhum produto crítico!</p></div>
+                : criticosComp.slice(0,6).map(p=>(<div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.gray}`}}>
+                    <div><p style={{fontSize:12,fontWeight:700}}>{p.name}</p><p style={{fontSize:10,color:C.red,fontWeight:700}}>Acaba em {p.diasRestantes} dias</p></div>
+                    <span style={{fontSize:12,fontWeight:800,color:'#6f42c1'}}>{p.qtdSugerida} {p.unit}</span>
+                  </div>))
+              }
+            </div>
+          </div>
+          <div style={{...S.card,padding:16,border:`2px solid #25D36633`,background:'#F0FFF8',marginBottom:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:28}}>💬</span>
+                <div>
+                  <p style={{fontWeight:900,fontSize:14,color:'#128C7E'}}>WhatsApp</p>
+                  <p style={{fontSize:11,color:C.grayDark}}>Envie relatórios direto para o seu WhatsApp</p>
+                </div>
+              </div>
+              <button onClick={()=>setWhatsappModal(true)} style={{...S.btnGray,padding:'8px 14px',fontSize:12,color:'#128C7E',fontWeight:700}}>
+                {whatsappNum?'✓ '+whatsappNum:'⚙️ Configurar'}
+              </button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
+              {[
+                {label:'📊 Resumo Diário',sub:'KPIs, alertas e movimentos',action:enviarResumoDiario},
+                {label:'🚨 Alerta de Estoque',sub:'Produtos baixos e vencendo',action:enviarAlertaEstoque},
+                {label:'🛒 Lista de Compras',sub:'O que precisa comprar',action:enviarListaCompras},
+              ].map(b=>(<button key={b.label} onClick={b.action} style={{background:'#25D366',border:'none',borderRadius:12,padding:14,cursor:'pointer',textAlign:'left'}}>
+                <p style={{fontSize:13,fontWeight:800,color:'#fff',marginBottom:4}}>{b.label}</p>
+                <p style={{fontSize:10,color:'rgba(255,255,255,0.85)'}}>{b.sub}</p>
+              </button>))}
+            </div>
+          </div>
+          <div style={{...S.card,padding:16}}>
+            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>⚡ AÇÕES RÁPIDAS</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+              {[
+                {label:'Relatório',icon:'📊',action:()=>setTab('relatorios'),color:C.red},
+                {label:'Inventário',icon:'📋',action:()=>setTab('inventario'),color:C.orange},
+                {label:'Previsão',icon:'🔮',action:()=>setTab('previsao'),color:C.blue},
+                {label:'Desperdício',icon:'🗑️',action:()=>setTab('desperdicio'),color:'#6f42c1'},
+                {label:'Backup',icon:'💾',action:exportBackup,color:C.green},
+                {label:'Instalar App',icon:'📱',action:installPWA,color:C.blue},
+                {label:'Auditoria',icon:'🔍',action:()=>setTab('auditoria'),color:C.grayDark},
+                {label:'Usuários',icon:'👥',action:()=>setTab('usuarios'),color:C.grayDark},
+              ].map(a=>(<button key={a.label} onClick={a.action} style={{...S.card,border:`1.5px solid ${a.color}33`,padding:14,cursor:'pointer',textAlign:'center',background:C.white}}>
+                <p style={{fontSize:22,marginBottom:6}}>{a.icon}</p>
+                <p style={{fontSize:11,fontWeight:800,color:a.color}}>{a.label}</p>
+              </button>))}
+            </div>
+          </div>
+        </>}
+
         {/* ══ PDV / VITRINE ══ */}
         {tab==='pdv'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
@@ -3075,6 +3280,33 @@ export default function App() {
               <button style={{...S.btnRed,flex:1}} onClick={saveContagem}>✓ Confirmar Contagem</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
             </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL WHATSAPP */}
+      {whatsappModal&&(
+        <Overlay onClose={()=>setWhatsappModal(false)}>
+          <MHead title="💬 Configurar WhatsApp" onClose={()=>setWhatsappModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{background:'#F0FFF8',border:`1px solid #25D36633`,borderRadius:12,padding:14}}>
+              <p style={{fontSize:13,fontWeight:800,color:'#128C7E',marginBottom:6}}>💬 Como funciona</p>
+              <p style={{fontSize:12,color:C.grayDark}}>Ao clicar nos botões, o WhatsApp abrirá com a mensagem pronta. Você só clica em Enviar!</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SEU NÚMERO (com DDD, só números)</label>
+              <input type="tel" placeholder="Ex: 31999998888" value={whatsappNum}
+                onChange={e=>setWhatsappNum(e.target.value.replace(/[^0-9]/g,''))}
+                style={S.input} maxLength={11} />
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1,background:'#25D366'}} onClick={()=>{
+                try{localStorage.setItem('boi_whatsapp_num',whatsappNum)}catch(e){}
+                setWhatsappModal(false);showToast('✓ Número salvo!')
+              }}>💾 Salvar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setWhatsappModal(false)}>Cancelar</button>
+            </div>
+            {whatsappNum&&<button onClick={()=>window.open('https://wa.me/55'+whatsappNum+'?text='+encodeURIComponent('🐂 Teste — Sistema Boi de Minas funcionando! ✅'),'_blank')} style={{...S.btnGray,padding:'10px',fontSize:12,color:'#25D366',fontWeight:700,border:'1px solid #25D36644'}}>💬 Enviar mensagem de teste</button>}
           </div>
         </Overlay>
       )}
