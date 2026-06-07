@@ -574,6 +574,20 @@ export default function App() {
     }catch(e){}
   },[])
 
+  const calcPrevisao=()=>{
+    const d30=new Date(Date.now()-30*24*60*60*1000)
+    return products.map(p=>{
+      const s30=movements.filter(m=>m.product_id===p.id&&m.type==='saida'&&new Date(m.created_at)>=d30)
+      const c30=s30.reduce((s,m)=>s+m.quantity,0)
+      const cd=c30/30
+      const dr=cd>0?Math.floor(p.quantity/cd):999
+      const ps=cd*7
+      const rep=ps>p.quantity
+      const qs=Math.max(0,Math.ceil(ps*1.2)-p.quantity)
+      return{...p,consumo30:c30,consumoDiario:cd.toFixed(2),diasRestantes:dr,previsaoSemana:ps.toFixed(1),precisaRepor:rep,qtdSugerida:qs,custoRepor:qs*p.cost,urgencia:dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'}
+    }).filter(p=>p.consumo30>0).sort((a,b)=>a.diasRestantes-b.diasRestantes)
+  }
+
   const openWhatsapp=(msg)=>{
     const num=whatsappNum.replace(/[^0-9]/g,'')
     if(!num){setWhatsappModal(true);return}
