@@ -572,8 +572,8 @@ export default function App() {
   const horaPicoRel = movsPorHoraRel.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
   const topProds = [...products].map(p=>({...p,totalSaida:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
   const prodParados = products.filter(p=>{const last=movements.find(m=>m.product_id===p.id&&m.type==='saida');return !last||(new Date()-new Date(last.created_at))/86400000>7})
-  const custoCat3={}; relMovsFiltrados.filter(m=>m.type==='saida').forEach(m=>{const p=products.find(x=>x.id===m.product_id);const cat=p?.category||'Outros';if(!custoCat3[cat])custoCat2[cat]=0;custoCat2[cat]+=m.quantity*(m.cost_unit||0)})
-  const custoCatArrRel = Object.entries(custoCat2).sort((a,b)=>b[1]-a[1])
+  const custoCat3={}; relMovsFiltrados.filter(m=>m.type==='saida').forEach(m=>{const p=products.find(x=>x.id===m.product_id);const cat=p?.category||'Outros';if(!custoCat3[cat])custoCat3[cat]=0;custoCat3[cat]+=m.quantity*(m.cost_unit||0)})
+  const custoCatArrRel = Object.entries(custoCat3).sort((a,b)=>b[1]-a[1])
   const maxCustoCatRel = custoCatArrRel[0]?.[1]||1
   const giroEstoqueRel = [...products].map(p=>{
     const entradasMes=movements.filter(m=>m.product_id===p.id&&m.type==='entrada'&&new Date(m.created_at).getMonth()===new Date().getMonth())
