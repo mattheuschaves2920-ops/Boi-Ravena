@@ -137,6 +137,12 @@ export default function App() {
   const [filterCat,setFilterCat] = useState('todas')
   const [sortBy,setSortBy] = useState('nome')
   const [scanForProduct,setScanForProduct] = useState(false)
+  const [cardapio,setCardapio] = useState([])
+  const [cardapioForm,setCardapioForm] = useState({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
+  const [editCardapio,setEditCardapio] = useState(null)
+  const [cardapioModal,setCardapioModal] = useState(false)
+  const [cmvPeriodo,setCmvPeriodo] = useState('dia')
+  const [cmvMeta,setCmvMeta] = useState(40)
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -153,6 +159,13 @@ export default function App() {
       if(prods) setProducts(prods)
       if(movs)  setMovements(movs)
       if(usrs)  setDbUsers(usrs)
+      // Load cardapio from localStorage
+      try{
+        const saved=localStorage.getItem('boi_cardapio')
+        if(saved) setCardapio(JSON.parse(saved))
+        const savedMeta=localStorage.getItem('boi_cmv_meta')
+        if(savedMeta) setCmvMeta(parseFloat(savedMeta))
+      }catch(e){}
       setLoading(false)
     }
     load()
@@ -186,6 +199,63 @@ export default function App() {
         setor:'Sistema',turno:getTurnoAtual()
       })
     }catch(e){}
+  }
+
+  // ── CARDÁPIO ───────────────────────────────────────────────────
+  const saveCardapio=(items)=>{
+    setCardapio(items)
+    try{ localStorage.setItem('boi_cardapio',JSON.stringify(items)) }catch(e){}
+  }
+
+  const handleSaveCardapioItem=()=>{
+    if(!cardapioForm.name||!cardapioForm.preco_venda) return showToast('Nome e preço obrigatórios','err')
+    if(editCardapio!==null){
+      const updated=cardapio.map((c,i)=>i===editCardapio?{...cardapioForm}:c)
+      saveCardapio(updated)
+      showToast('✓ Item atualizado!')
+    } else {
+      saveCardapio([...cardapio,{...cardapioForm,id:Date.now()}])
+      showToast('✓ Item cadastrado!')
+    }
+    setCardapioForm({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
+    setEditCardapio(null)
+    setCardapioModal(false)
+  }
+
+  // CMV CALCULATIONS
+  const getCmvData=(periodo)=>{
+    const now=new Date()
+    const movsFiltrados=movements.filter(m=>{
+      if(m.type!=='saida') return false
+      const d=new Date(m.created_at)
+      if(periodo==='dia') return m.created_at?.startsWith(todayStr())
+      if(periodo==='semana'){ const diff=(now-d)/86400000; return diff<=7 }
+      if(periodo==='mes') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()
+      return true
+    })
+    const custoTotal=movsFiltrados.reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+    // CMV por categoria baseado nos produtos do cardápio
+    const catData={}
+    cardapio.forEach(item=>{
+      const movsItem=movsFiltrados.filter(m=>{
+        const p=products.find(x=>x.id===m.product_id)
+        return p&&p.category===item.categoria
+      })
+      const custo=movsItem.reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+      const receita=custo>0?(custo/((item.custo_estimado||1)/(item.preco_venda||1))):0
+      if(!catData[item.categoria]) catData[item.categoria]={custo:0,receita:0,meta:item.meta_cmv||40,items:[]}
+      catData[item.categoria].custo+=custo
+      catData[item.categoria].items.push(item)
+    })
+    // Also add uncategorized
+    const categoriasTotais={}
+    movsFiltrados.forEach(m=>{
+      const p=products.find(x=>x.id===m.product_id)
+      const cat=p?.category||'Outros'
+      if(!categoriasTotais[cat]) categoriasTotais[cat]=0
+      categoriasTotais[cat]+=m.quantity*(m.cost_unit||0)
+    })
+    return{custoTotal,catData,categoriasTotais,movsFiltrados}
   }
 
   // ── CONFIRMAÇÃO DE SENHA ADMIN ─────────────────────────────────
@@ -445,6 +515,8 @@ export default function App() {
     {key:'estoque',label:'Estoque',icon:'📦'},
     {key:'movimentos',label:'Movimentos',icon:'🔄'},
     {key:'relatorios',label:'Relatórios',icon:'📊'},
+    {key:'cmv',label:'CMV',icon:'📈'},
+    ...(canManage?[{key:'cardapio',label:'Cardápio',icon:'🍽️'}]:[]),
     ...(canAdmin?[{key:'usuarios',label:'Usuários',icon:'👥'}]:[]),
     ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
   ]
@@ -924,6 +996,230 @@ export default function App() {
           </div>
         </>}
 
+        {/* ══ CMV ══ */}
+        {tab==='cmv'&&(()=>{
+          const {custoTotal,categoriasTotais,movsFiltrados}=getCmvData(cmvPeriodo)
+          const totalReceita=cardapio.reduce((s,c)=>{
+            const movsC=movsFiltrados.filter(m=>{const p=products.find(x=>x.id===m.product_id);return p&&p.category===c.categoria})
+            const custoC=movsC.reduce((s2,m)=>s2+m.quantity*(m.cost_unit||0),0)
+            const recC=c.custo_estimado>0?(custoC/c.custo_estimado)*c.preco_venda:0
+            return s+recC
+          },0)
+          const cmvPct=totalReceita>0?(custoTotal/totalReceita)*100:0
+          const semaforo=cmvPct<=cmvMeta?C.green:cmvPct<=cmvMeta*1.1?C.orange:C.red
+          const catSorted=Object.entries(categoriasTotais).sort((a,b)=>b[1]-a[1])
+          const maxCat=catSorted[0]?.[1]||1
+          return <>
+            {/* PERÍODO + META */}
+            <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap',alignItems:'center'}}>
+              <div style={{display:'flex',gap:6,background:C.white,borderRadius:12,padding:6,boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>
+                {[['dia','Hoje'],['semana','7 dias'],['mes','Este mês']].map(([k,l])=>(
+                  <button key={k} onClick={()=>setCmvPeriodo(k)} style={{...S.btnGray,padding:'6px 14px',fontSize:12,background:cmvPeriodo===k?C.red:C.gray,color:cmvPeriodo===k?C.white:C.grayDark,borderRadius:8,fontWeight:cmvPeriodo===k?800:600}}>{l}</button>
+                ))}
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:8,background:C.white,borderRadius:12,padding:'8px 14px',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>
+                <span style={{fontSize:12,fontWeight:700,color:C.grayDark}}>Meta CMV:</span>
+                <input type="number" value={cmvMeta} onChange={e=>{setCmvMeta(+e.target.value);localStorage.setItem('boi_cmv_meta',e.target.value)}} style={{width:60,background:C.gray,border:'none',borderRadius:6,padding:'4px 8px',fontSize:13,fontWeight:800,color:C.text,textAlign:'center'}} />
+                <span style={{fontSize:12,fontWeight:700,color:C.grayDark}}>%</span>
+              </div>
+            </div>
+
+            {/* CARDS PRINCIPAIS */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:16}}>
+              {/* CMV % */}
+              <div style={{...S.card,border:`2px solid ${semaforo}`,background:semaforo+'11',gridColumn:'1/2'}}>
+                <p style={{fontSize:11,fontWeight:800,color:semaforo,marginBottom:8}}>📊 CMV DO PERÍODO</p>
+                <div style={{fontWeight:900,fontSize:48,color:semaforo,lineHeight:1}}>{cmvPct.toFixed(1)}<span style={{fontSize:20}}>%</span></div>
+                <div style={{background:'rgba(0,0,0,0.08)',borderRadius:6,height:8,marginTop:10,overflow:'hidden'}}>
+                  <div style={{width:`${Math.min(100,cmvPct)}%`,height:'100%',background:semaforo,borderRadius:6,transition:'width 0.5s'}} />
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+                  <span style={{fontSize:10,color:C.grayDark}}>0%</span>
+                  <span style={{fontSize:10,color:semaforo,fontWeight:800}}>Meta: {cmvMeta}%</span>
+                  <span style={{fontSize:10,color:C.grayDark}}>100%</span>
+                </div>
+                <div style={{marginTop:10,padding:'8px 10px',background:semaforo+'22',borderRadius:8,textAlign:'center'}}>
+                  <p style={{fontSize:12,fontWeight:800,color:semaforo}}>{cmvPct<=cmvMeta?'✅ Dentro da meta!':cmvPct<=cmvMeta*1.1?'⚠️ Próximo do limite':'🚨 Acima da meta!'}</p>
+                </div>
+              </div>
+
+              {/* CUSTO TOTAL */}
+              <div style={{...S.card,border:`1.5px solid ${C.red}33`}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.red,marginBottom:8}}>💸 CUSTO TOTAL</p>
+                <p style={{fontWeight:900,fontSize:28,color:C.red}}>{fmtCur(custoTotal)}</p>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:6}}>{movsFiltrados.length} saídas no período</p>
+                <div style={{marginTop:12,display:'flex',flexDirection:'column',gap:4}}>
+                  {catSorted.slice(0,3).map(([cat,val])=>(
+                    <div key={cat} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:11,color:C.text,fontWeight:600}}>{cat}</span>
+                      <span style={{fontSize:11,color:C.red,fontWeight:800}}>{fmtCur(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* RECEITA ESTIMADA */}
+              <div style={{...S.card,border:`1.5px solid ${C.green}33`}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.green,marginBottom:8}}>💰 RECEITA ESTIMADA</p>
+                <p style={{fontWeight:900,fontSize:28,color:C.green}}>{fmtCur(totalReceita)}</p>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:6}}>Baseado no cardápio</p>
+                <div style={{marginTop:12,padding:10,background:'#F0FFF6',borderRadius:8}}>
+                  <p style={{fontSize:11,color:C.green,fontWeight:700}}>Margem estimada</p>
+                  <p style={{fontSize:20,fontWeight:900,color:C.green}}>{totalReceita>0?((1-custoTotal/totalReceita)*100).toFixed(1):0}%</p>
+                </div>
+              </div>
+            </div>
+
+            {/* CMV POR CATEGORIA */}
+            <div style={{...S.card,marginBottom:14,padding:16}}>
+              <p style={{fontSize:13,fontWeight:800,marginBottom:14}}>📊 CMV POR CATEGORIA DE CUSTO</p>
+              {catSorted.length===0
+                ? <p style={{color:C.grayDark,textAlign:'center',padding:'20px 0',fontSize:13}}>Nenhuma saída registrada no período</p>
+                : catSorted.map(([cat,val],i)=>{
+                    const cardapioItem=cardapio.find(c=>c.categoria===cat)
+                    const meta=cardapioItem?.meta_cmv||cmvMeta
+                    const pct=(val/custoTotal)*100
+                    const colors=['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14','#FF6B6B','#FFB347']
+                    const cor=colors[i%colors.length]
+                    return(
+                      <div key={cat} style={{marginBottom:14}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:10,height:10,background:cor,borderRadius:'50%'}} />
+                            <span style={{fontSize:13,fontWeight:800}}>{cat}</span>
+                          </div>
+                          <div style={{display:'flex',gap:12,alignItems:'center'}}>
+                            <span style={{fontSize:12,color:C.grayDark}}>{pct.toFixed(1)}% do custo</span>
+                            <span style={{fontSize:13,fontWeight:900,color:cor}}>{fmtCur(val)}</span>
+                          </div>
+                        </div>
+                        <div style={{background:C.grayMid,borderRadius:6,height:8,overflow:'hidden'}}>
+                          <div style={{width:`${(val/maxCat)*100}%`,height:'100%',background:cor,borderRadius:6,transition:'width 0.5s'}} />
+                        </div>
+                      </div>
+                    )
+                  })
+              }
+            </div>
+
+            {/* CARDÁPIO E METAS */}
+            {cardapio.length>0&&(
+              <div style={{...S.card,padding:16}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
+                  <p style={{fontSize:13,fontWeight:800}}>🍽️ CMV POR ITEM DO CARDÁPIO</p>
+                  <button onClick={()=>setTab('cardapio')} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>Gerenciar cardápio →</button>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:10}}>
+                  {cardapio.filter(c=>c.ativo).map((item,i)=>{
+                    const movsItem=movsFiltrados.filter(m=>{const p=products.find(x=>x.id===m.product_id);return p&&p.category===item.categoria})
+                    const custoItem=movsItem.reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+                    const receitaItem=item.custo_estimado>0?(custoItem/item.custo_estimado)*item.preco_venda:0
+                    const cmvItem=receitaItem>0?(custoItem/receitaItem)*100:0
+                    const semItem=cmvItem<=item.meta_cmv?C.green:cmvItem<=item.meta_cmv*1.1?C.orange:C.red
+                    return(
+                      <div key={i} style={{background:C.gray,borderRadius:12,padding:14,border:`1.5px solid ${semItem}33`}}>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                          <p style={{fontWeight:800,fontSize:13}}>{item.name}</p>
+                          <span style={{fontSize:10,background:semItem+'22',color:semItem,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{cmvItem.toFixed(0)}%</span>
+                        </div>
+                        <p style={{fontSize:10,color:C.grayDark,marginBottom:8}}>{item.categoria} · Meta: {item.meta_cmv}%</p>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
+                          <span style={{color:C.red,fontWeight:700}}>Custo: {fmtCur(custoItem)}</span>
+                          <span style={{color:C.green,fontWeight:700}}>Rec: {fmtCur(receitaItem)}</span>
+                        </div>
+                        <div style={{background:C.grayMid,borderRadius:4,height:4,marginTop:8,overflow:'hidden'}}>
+                          <div style={{width:`${Math.min(100,cmvItem)}%`,height:'100%',background:semItem,borderRadius:4}} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {cardapio.length===0&&(
+              <div style={{...S.card,textAlign:'center',padding:32,border:`2px dashed ${C.grayMid}`}}>
+                <p style={{fontSize:28,marginBottom:8}}>🍽️</p>
+                <p style={{fontWeight:800,fontSize:14,marginBottom:6}}>Nenhum item no cardápio</p>
+                <p style={{fontSize:12,color:C.grayDark,marginBottom:14}}>Cadastre seus itens para calcular o CMV com precisão</p>
+                <button onClick={()=>setTab('cardapio')} style={{...S.btnRed,padding:'10px 20px'}}>+ Cadastrar Cardápio</button>
+              </div>
+            )}
+          </>
+        })()}
+
+        {/* ══ CARDÁPIO ══ */}
+        {tab==='cardapio'&&canManage&&(()=>{
+          const CATS_CARD=['Churrasco','Self Service','Marmitex Comum','Marmitex HG+','Self Service HG','Lanches/Salgados','Sucos','Sobremesas','Comida no Kg','Bebidas','Outros']
+          return <>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <p style={{fontWeight:800,fontSize:14}}>🍽️ Cardápio — Itens e Preços de Venda</p>
+              <button onClick={()=>{setEditCardapio(null);setCardapioForm({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true});setCardapioModal(true)}} style={{...S.btnRed,padding:'8px 16px',fontSize:13}}>+ Novo Item</button>
+            </div>
+
+            {/* RESUMO */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+              {[
+                {label:'Itens Cadastrados',val:cardapio.length,color:C.blue,icon:'📋'},
+                {label:'Ticket Médio Est.',val:fmtCur(cardapio.length?cardapio.reduce((s,c)=>s+c.preco_venda,0)/cardapio.length:0),color:C.green,icon:'💰'},
+                {label:'CMV Médio Meta',val:`${cardapio.length?(cardapio.reduce((s,c)=>s+c.meta_cmv,0)/cardapio.length).toFixed(0):0}%`,color:C.orange,icon:'🎯'},
+              ].map(c=>(
+                <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14,textAlign:'center'}}>
+                  <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
+                  <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* LISTA */}
+            <div style={{...S.card,padding:0,overflow:'hidden'}}>
+              {cardapio.length===0
+                ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
+                    <p style={{fontSize:28,marginBottom:8}}>🍽️</p>
+                    <p style={{fontWeight:700,fontSize:13}}>Nenhum item cadastrado</p>
+                    <p style={{fontSize:11,marginTop:4}}>Clique em "+ Novo Item" para começar</p>
+                  </div>
+                : <div style={{overflowX:'auto'}}>
+                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:13,minWidth:650}}>
+                      <thead>
+                        <tr style={{background:C.gray}}>
+                          {['Item','Categoria','Preço Venda','Custo Est.','CMV Meta','Margem','Status','Ações'].map(h=>(
+                            <th key={h} style={{padding:'11px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cardapio.map((item,i)=>{
+                          const margem=item.preco_venda>0?((1-item.custo_estimado/item.preco_venda)*100).toFixed(0):0
+                          return(
+                            <tr key={i} className="rh" style={{borderBottom:`1px solid ${C.gray}`}}>
+                              <td style={{padding:'10px 14px',fontWeight:800}}>{item.name}</td>
+                              <td style={{padding:'10px 14px',fontSize:11,color:C.grayDark}}>{item.categoria}</td>
+                              <td style={{padding:'10px 14px',fontWeight:800,color:C.green}}>{fmtCur(item.preco_venda)}</td>
+                              <td style={{padding:'10px 14px',color:C.red,fontWeight:700}}>{fmtCur(item.custo_estimado)}</td>
+                              <td style={{padding:'10px 14px'}}>
+                                <span style={{background:C.orange+'22',color:C.orange,fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{item.meta_cmv}%</span>
+                              </td>
+                              <td style={{padding:'10px 14px',fontWeight:800,color:margem>=50?C.green:margem>=30?C.orange:C.red}}>{margem}%</td>
+                              <td style={{padding:'10px 14px'}}>
+                                <span style={{background:item.ativo?'#F0FFF6':C.gray,color:item.ativo?C.green:C.grayDark,fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{item.ativo?'Ativo':'Inativo'}</span>
+                              </td>
+                              <td style={{padding:'10px 14px'}}>
+                                <div style={{display:'flex',gap:5}}>
+                                  <button onClick={()=>{setEditCardapio(i);setCardapioForm({...item});setCardapioModal(true)}} style={{...S.btnGray,padding:'4px 8px',fontSize:11}}>✏️</button>
+                                  <button onClick={()=>{if(window.confirm('Excluir '+item.name+'?')){saveCardapio(cardapio.filter((_,x)=>x!==i));showToast('✓ Item excluído!')}}} style={{...S.btnGray,padding:'4px 8px',fontSize:11,color:C.red}}>🗑️</button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+              }
+            </div>
+          </>
+        })()}
+
         {/* ══ AUDITORIA ══ */}
         {tab==='auditoria'&&canAdmin&&<>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
@@ -1282,6 +1578,74 @@ export default function App() {
                 setUserModal(false)
               }}>{editUser?'Salvar':'Cadastrar'}</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>{setUserModal(false);setEditUser(null)}}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL CARDÁPIO */}
+      {cardapioModal&&canManage&&(
+        <Overlay onClose={()=>setCardapioModal(false)}>
+          <MHead title={editCardapio!==null?'✏️ Editar Item':'🍽️ Novo Item do Cardápio'} onClose={()=>setCardapioModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div style={{gridColumn:'1/-1'}}>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOME DO ITEM</label>
+                <input placeholder="Ex: Churrasco kg, Marmitex HG+..." value={cardapioForm.name} onChange={e=>setCardapioForm(f=>({...f,name:e.target.value}))} style={S.input} />
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CATEGORIA</label>
+                <select value={cardapioForm.categoria} onChange={e=>setCardapioForm(f=>({...f,categoria:e.target.value}))} style={S.input}>
+                  {['Churrasco','Self Service','Marmitex Comum','Marmitex HG+','Self Service HG','Lanches/Salgados','Sucos','Sobremesas','Comida no Kg','Bebidas','Outros'].map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>UNIDADE</label>
+                <select value={cardapioForm.unidade} onChange={e=>setCardapioForm(f=>({...f,unidade:e.target.value}))} style={S.input}>
+                  {['kg','un','prato','copo','porção'].map(u=><option key={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PREÇO DE VENDA (R$)</label>
+                <input type="number" step="0.01" placeholder="0,00" value={cardapioForm.preco_venda} onChange={e=>setCardapioForm(f=>({...f,preco_venda:+e.target.value}))} style={S.input} />
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CUSTO ESTIMADO (R$)</label>
+                <input type="number" step="0.01" placeholder="0,00" value={cardapioForm.custo_estimado} onChange={e=>setCardapioForm(f=>({...f,custo_estimado:+e.target.value}))} style={S.input} />
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>META CMV (%)</label>
+                <input type="number" step="1" placeholder="40" value={cardapioForm.meta_cmv} onChange={e=>setCardapioForm(f=>({...f,meta_cmv:+e.target.value}))} style={S.input} />
+              </div>
+            </div>
+
+            {/* PREVIEW */}
+            {cardapioForm.preco_venda>0&&cardapioForm.custo_estimado>0&&(
+              <div style={{background:C.gray,borderRadius:12,padding:14}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:8}}>PRÉVIA DO CMV</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,textAlign:'center'}}>
+                  {[
+                    {label:'CMV',val:`${((cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:(cardapioForm.custo_estimado/cardapioForm.preco_venda)*100<=cardapioForm.meta_cmv?C.green:C.red},
+                    {label:'Margem',val:`${((1-cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:C.green},
+                    {label:'Lucro/item',val:fmtCur(cardapioForm.preco_venda-cardapioForm.custo_estimado),color:C.green},
+                  ].map(x=>(
+                    <div key={x.label} style={{background:C.white,borderRadius:8,padding:10}}>
+                      <p style={{fontWeight:900,fontSize:18,color:x.color}}>{x.val}</p>
+                      <p style={{fontSize:10,color:C.grayDark,fontWeight:700}}>{x.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <input type="checkbox" checked={cardapioForm.ativo} onChange={e=>setCardapioForm(f=>({...f,ativo:e.target.checked}))} id="ativo" />
+              <label htmlFor="ativo" style={{fontSize:13,fontWeight:700,cursor:'pointer'}}>Item ativo no cardápio</label>
+            </div>
+
+            <div style={{display:'flex',gap:8,marginTop:4}}>
+              <button style={{...S.btnRed,flex:1}} onClick={handleSaveCardapioItem}>{editCardapio!==null?'Salvar':'Cadastrar'}</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setCardapioModal(false)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
