@@ -7,8 +7,8 @@ const USERS = [
   { id:2, name:'Cozinheiro',   email:'cozinha@restaurante.com', password:'1234', role:'operador', avatar:'C' },
   { id:3, name:'Gerente',      email:'gerente@restaurante.com', password:'1234', role:'gerente',  avatar:'G' },
 ]
-const CATS    = ['Carnes','Laticínios','Hortifruti','Bebidas','Grãos/Cereais','Temperos','Descartáveis','Limpeza']
-const SETORES = ['Cozinha','Lanchonete','Salão','Churrasco']
+const CATS    = ['Carnes','Hortifruti','Laticínios','Grãos/Cereais','Temperos','Bebidas Alcoólicas','Bebidas Não Alcoólicas','Sucos/Refrescos','Descartáveis/Embalagens','Doces/Chocolates','Salgadinhos','Limpeza','Higiene','Outros']
+const SETORES = ['Cozinha','Lanchonete','Salão','Churrasco','Bebidas','Descartáveis','Bomboniere','Estoque Geral']
 const TURNOS  = [
   { id:'T1', label:'Turno 1', sub:'07:00 – 15:00', icon:'🌅', start:7,  end:15 },
   { id:'T2', label:'Turno 2', sub:'15:00 – 23:00', icon:'🌆', start:15, end:23 },
@@ -16,8 +16,8 @@ const TURNOS  = [
 const TURNO_SEGUINTE = { T1:'T2', T2:'T1' }
 const ROLE_LABELS = { admin:'Administrador', gerente:'Gerente', operador:'Operador' }
 const PIE_COLORS  = ['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14','#FF6B6B','#FFB347']
-const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑', 'Churrasco':'🔥' }
-const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773', 'Churrasco':'#8B4513' }
+const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑', 'Churrasco':'🔥', 'Bebidas':'🍺', 'Descartáveis':'🛍️', 'Bomboniere':'🍫', 'Estoque Geral':'📦' }
+const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773', 'Churrasco':'#8B4513', 'Bebidas':'#1565C0', 'Descartáveis':'#00897B', 'Bomboniere':'#E91E8C', 'Estoque Geral':'#546E7A' }
 
 const todayStr  = () => new Date().toISOString().split('T')[0]
 const fmtDate   = d  => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'
