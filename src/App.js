@@ -404,6 +404,11 @@ export default function App() {
   const [pontoPin,setPontoPin] = useState('')
   const [pontoFotoData,setPontoFotoData] = useState(null)
   const [pontoFotoStream,setPontoFotoStream] = useState(null)
+  const [pontoEditReg,setPontoEditReg] = useState(null) // editar registro
+  const [pontoAddManual,setPontoAddManual] = useState(null) // adicionar manual
+  const [pontoManualForm,setPontoManualForm] = useState({funcionarioId:'',tipo:'entrada',data:todayStr(),hora:'',obs:''})
+  const [pontoMesFunc,setPontoMesFunc] = useState(null) // espelho do mês
+  const [pontoMesData,setPontoMesData] = useState(new Date().toISOString().slice(0,7)) // YYYY-MM
 
   const [whatsappNum,setWhatsappNum] = useState(()=>{try{return localStorage.getItem('boi_whatsapp_num')||''}catch(e){return ''}})
   const [whatsappModal,setWhatsappModal] = useState(false)
@@ -1040,6 +1045,83 @@ export default function App() {
     const h=Math.floor(total/3600000)
     const m=Math.floor((total%3600000)/60000)
     return `${h}h${m.toString().padStart(2,'0')}m`
+  }
+
+  // ── PONTO — GERENCIAMENTO ────────────────────────────────────
+  const editarRegistroPonto=(reg)=>{
+    setPontoEditReg({...reg,hora:new Date(reg.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})})
+  }
+
+  const salvarEdicaoPonto=()=>{
+    if(!pontoEditReg.hora) return showToast('Informe o horário','err')
+    const [h,m]=pontoEditReg.hora.split(':')
+    const novaData=new Date(pontoEditReg.created_at)
+    novaData.setHours(parseInt(h),parseInt(m),0,0)
+    const updated=pontoRegistros.map(r=>r.id===pontoEditReg.id?{...r,tipo:pontoEditReg.tipo,created_at:novaData.toISOString(),obs:pontoEditReg.obs||'',editado:true,editadoPor:user?.name||'Admin'}:r)
+    savePontoRegistros(updated)
+    logAudit('PONTO EDITADO',pontoEditReg.funcionarioNome,pontoEditReg.tipo+' → '+pontoEditReg.hora)
+    setPontoEditReg(null)
+    showToast('✓ Registro atualizado!')
+  }
+
+  const excluirRegistroPonto=(reg)=>{
+    if(!window.confirm('Excluir este registro de '+reg.funcionarioNome+'?')) return
+    const updated=pontoRegistros.filter(r=>r.id!==reg.id)
+    savePontoRegistros(updated)
+    logAudit('PONTO EXCLUÍDO',reg.funcionarioNome,reg.tipo+' — '+new Date(reg.created_at).toLocaleTimeString('pt-BR'))
+    showToast('✓ Registro excluído!')
+  }
+
+  const adicionarPontoManual=()=>{
+    if(!pontoManualForm.funcionarioId) return showToast('Selecione o funcionário','err')
+    if(!pontoManualForm.hora) return showToast('Informe o horário','err')
+    const func=pontoFuncionarios.find(f=>f.id===parseInt(pontoManualForm.funcionarioId)||f.id===pontoManualForm.funcionarioId)
+    if(!func) return showToast('Funcionário não encontrado','err')
+    const [h,m]=pontoManualForm.hora.split(':')
+    const dt=new Date(pontoManualForm.data+'T00:00:00')
+    dt.setHours(parseInt(h),parseInt(m),0,0)
+    const reg={
+      id:Date.now(),
+      funcionarioId:func.id,
+      funcionarioNome:func.nome,
+      funcionarioCargo:func.cargo,
+      tipo:pontoManualForm.tipo,
+      created_at:dt.toISOString(),
+      validacao:'manual',
+      manual:true,
+      obs:pontoManualForm.obs||'',
+      criadoPor:user?.name||'Admin',
+    }
+    const updated=[reg,...pontoRegistros].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
+    savePontoRegistros(updated)
+    logAudit('PONTO MANUAL',func.nome,pontoManualForm.tipo+' — '+pontoManualForm.hora)
+    setPontoAddManual(false)
+    setPontoManualForm({funcionarioId:'',tipo:'entrada',data:todayStr(),hora:'',obs:''})
+    showToast('✓ Ponto manual adicionado!')
+  }
+
+  const getEspelhoMes=(funcId,mesAno)=>{
+    const [ano,mes]=mesAno.split('-').map(Number)
+    const diasNoMes=new Date(ano,mes,0).getDate()
+    const result=[]
+    for(let d=1;d<=diasNoMes;d++){
+      const dataStr=`${ano}-${String(mes).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+      const regs=pontoRegistros
+        .filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(dataStr))
+        .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
+      // Calculate hours
+      let totalMs=0;let entrada=null
+      for(const r of regs){
+        if(r.tipo==='entrada'||r.tipo==='retorno') entrada=new Date(r.created_at)
+        if((r.tipo==='intervalo'||r.tipo==='saida')&&entrada){totalMs+=new Date(r.created_at)-entrada;entrada=null}
+      }
+      if(entrada) totalMs+=Date.now()-entrada
+      const horas=totalMs>0?`${Math.floor(totalMs/3600000)}h${String(Math.floor((totalMs%3600000)/60000)).padStart(2,'0')}m`:'—'
+      const diaSemana=new Date(ano,mes-1,d).toLocaleDateString('pt-BR',{weekday:'short'})
+      const isFimSemana=new Date(ano,mes-1,d).getDay()===0||new Date(ano,mes-1,d).getDay()===6
+      result.push({data:dataStr,dia:d,diaSemana,isFimSemana,regs,horas,totalMs,falta:regs.length===0&&!isFimSemana})
+    }
+    return result
   }
 
   const handleConfirmAdmin=()=>{
@@ -3203,7 +3285,10 @@ export default function App() {
         {tab==='ponto'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <p style={{fontWeight:800,fontSize:14}}>🕐 Ponto Eletrônico</p>
-            <button onClick={()=>setPontoModal('novoFunc')} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Funcionário</button>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setPontoAddManual(true)} style={{...S.btnGray,padding:'10px 14px',fontSize:12,color:'#6f42c1',fontWeight:700}}>+ Manual</button>
+              <button onClick={()=>setPontoModal('novoFunc')} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Funcionário</button>
+            </div>
           </div>
 
           {/* STATUS DO DIA */}
@@ -3250,10 +3335,8 @@ export default function App() {
                           {st.status==='presente'&&<span style={{fontSize:11,fontWeight:700,color:C.grayDark}}>{horas}</span>}
                         </div>
                         <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                          <button onClick={()=>{
-                            setPontoModal('editFunc')
-                            setPontoSelecionado(f.id)
-                          }} style={{...S.btnGray,padding:'5px 8px',fontSize:11}}>✏️</button>
+                          <button onClick={()=>setPontoMesFunc(f.id)} style={{...S.btnGray,padding:'5px 8px',fontSize:10,color:C.blue,fontWeight:700}}>📅</button>
+                          <button onClick={()=>{setPontoModal('editFunc');setPontoSelecionado(f.id)}} style={{...S.btnGray,padding:'5px 8px',fontSize:11}}>✏️</button>
                           <button onClick={()=>{if(window.confirm('Excluir '+f.nome+'?')){savePontoFuncionarios(pontoFuncionarios.filter(x=>x.id!==f.id))}}} style={{...S.btnGray,padding:'5px 8px',fontSize:11,color:C.red}}>🗑️</button>
                         </div>
                       </div>
@@ -3297,7 +3380,8 @@ export default function App() {
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                   <thead><tr style={{background:C.gray}}>
-                    {['Funcionário','Cargo','Tipo','Horário','Validação'].map(h=><th key={h} style={{padding:'8px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
+                    {['Funcionário','Cargo','Tipo','Horário','Validação',...(canAdmin?['']:[])]  .map(h=><th key={h} style={{padding:'8px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
+                    {canAdmin&&<th style={{padding:'8px 14px'}}></th>}
                   </tr></thead>
                   <tbody>
                     {pontoRegistros.filter(r=>r.created_at.startsWith(todayStr())).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r=>{
@@ -3308,7 +3392,13 @@ export default function App() {
                           <td style={{padding:'8px 14px',color:C.grayDark}}>{r.funcionarioCargo}</td>
                           <td style={{padding:'8px 14px'}}><span style={{background:cores[r.tipo]+'22',color:cores[r.tipo],padding:'2px 8px',borderRadius:20,fontWeight:700,fontSize:11}}>{r.tipo}</span></td>
                           <td style={{padding:'8px 14px',fontWeight:700}}>{new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
-                          <td style={{padding:'8px 14px',color:C.grayDark}}>{r.validacao==='foto'?'📷 Foto':'🔢 PIN'}</td>
+                          <td style={{padding:'8px 14px',color:C.grayDark}}>{r.manual?'✍️ Manual':r.validacao==='foto'?'📷 Foto':'🔢 PIN'}</td>
+                          {canAdmin&&<td style={{padding:'8px 14px'}}>
+                            <div style={{display:'flex',gap:4}}>
+                              <button onClick={()=>editarRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11}}>✏️</button>
+                              <button onClick={()=>excluirRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                            </div>
+                          </td>}
                         </tr>
                       )
                     })}
@@ -3857,6 +3947,164 @@ export default function App() {
           </div>
         </Overlay>
       )}
+
+      {/* MODAL EDITAR REGISTRO PONTO */}
+      {pontoEditReg&&(
+        <Overlay onClose={()=>setPontoEditReg(null)}>
+          <MHead title="✏️ Editar Registro de Ponto" onClose={()=>setPontoEditReg(null)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:C.gray,borderRadius:12,padding:12}}>
+              <p style={{fontWeight:800,fontSize:14,marginBottom:4}}>{pontoEditReg.funcionarioNome}</p>
+              <p style={{fontSize:12,color:C.grayDark}}>{pontoEditReg.funcionarioCargo}</p>
+              <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Registro original: {new Date(pontoEditReg.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TIPO DE REGISTRO</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                {[{id:'entrada',label:'Entrada',color:'#50A773'},{id:'intervalo',label:'Intervalo',color:C.orange},{id:'retorno',label:'Retorno',color:C.blue},{id:'saida',label:'Saída',color:C.red}].map(t=>(
+                  <button key={t.id} onClick={()=>setPontoEditReg(r=>({...r,tipo:t.id}))}
+                    style={{background:pontoEditReg.tipo===t.id?t.color+'22':'#f9f9f9',border:`2px solid ${pontoEditReg.tipo===t.id?t.color:C.grayMid}`,borderRadius:8,padding:'8px 4px',cursor:'pointer',fontSize:11,fontWeight:700,color:pontoEditReg.tipo===t.id?t.color:C.grayDark}}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>HORÁRIO</label>
+              <input type="time" value={pontoEditReg.hora||''} onChange={e=>setPontoEditReg(r=>({...r,hora:e.target.value}))} style={S.input} />
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>MOTIVO DA ALTERAÇÃO</label>
+              <input placeholder="Ex: Funcionário esqueceu de registrar..." value={pontoEditReg.obs||''} onChange={e=>setPontoEditReg(r=>({...r,obs:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:10}}>
+              <p style={{fontSize:11,color:C.orange,fontWeight:700}}>⚠️ Esta alteração ficará registrada na auditoria com seu nome.</p>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={salvarEdicaoPonto}>✓ Salvar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setPontoEditReg(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL ADICIONAR PONTO MANUAL */}
+      {pontoAddManual&&(
+        <Overlay onClose={()=>setPontoAddManual(false)}>
+          <MHead title="✍️ Adicionar Ponto Manual" onClose={()=>setPontoAddManual(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#F0F8FF',border:`1px solid ${C.blue}33`,borderRadius:10,padding:10}}>
+              <p style={{fontSize:12,color:C.blue,fontWeight:700}}>ℹ️ Use para corrigir quando o funcionário esqueceu de registrar o ponto.</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>FUNCIONÁRIO</label>
+              <select value={pontoManualForm.funcionarioId} onChange={e=>setPontoManualForm(f=>({...f,funcionarioId:e.target.value}))} style={S.input}>
+                <option value="">Selecione...</option>
+                {pontoFuncionarios.map(f=><option key={f.id} value={f.id}>{f.nome} — {f.cargo}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TIPO</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                {[{id:'entrada',label:'Entrada',color:'#50A773'},{id:'intervalo',label:'Intervalo',color:C.orange},{id:'retorno',label:'Retorno',color:C.blue},{id:'saida',label:'Saída',color:C.red}].map(t=>(
+                  <button key={t.id} onClick={()=>setPontoManualForm(f=>({...f,tipo:t.id}))}
+                    style={{background:pontoManualForm.tipo===t.id?t.color+'22':'#f9f9f9',border:`2px solid ${pontoManualForm.tipo===t.id?t.color:C.grayMid}`,borderRadius:8,padding:'8px 4px',cursor:'pointer',fontSize:11,fontWeight:700,color:pontoManualForm.tipo===t.id?t.color:C.grayDark}}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DATA</label>
+                <input type="date" value={pontoManualForm.data} onChange={e=>setPontoManualForm(f=>({...f,data:e.target.value}))} style={S.input} />
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>HORÁRIO</label>
+                <input type="time" value={pontoManualForm.hora} onChange={e=>setPontoManualForm(f=>({...f,hora:e.target.value}))} style={S.input} />
+              </div>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO</label>
+              <input placeholder="Ex: Esqueceu de registrar entrada..." value={pontoManualForm.obs} onChange={e=>setPontoManualForm(f=>({...f,obs:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={adicionarPontoManual}>✓ Adicionar</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setPontoAddManual(false)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL ESPELHO DO MÊS */}
+      {pontoMesFunc&&(()=>{
+        const func=pontoFuncionarios.find(f=>f.id===pontoMesFunc)
+        const espelho=getEspelhoMes(pontoMesFunc,pontoMesData)
+        const totalMs=espelho.reduce((s,d)=>s+d.totalMs,0)
+        const totalH=Math.floor(totalMs/3600000)
+        const totalM=Math.floor((totalMs%3600000)/60000)
+        const faltas=espelho.filter(d=>d.falta).length
+        return(
+          <Overlay onClose={()=>setPontoMesFunc(null)}>
+            <MHead title={`📅 Espelho do Mês — ${func?.nome||''}`} onClose={()=>setPontoMesFunc(null)} />
+            <div style={{padding:'18px 22px'}}>
+              <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:14,flexWrap:'wrap'}}>
+                <input type="month" value={pontoMesData} onChange={e=>setPontoMesData(e.target.value)} style={{...S.input,width:'auto'}} />
+                <div style={{display:'flex',gap:10,fontSize:12}}>
+                  <span style={{background:C.green+'22',color:C.green,padding:'4px 10px',borderRadius:20,fontWeight:700}}>✅ Total: {totalH}h{String(totalM).padStart(2,'0')}m</span>
+                  {faltas>0&&<span style={{background:C.red+'22',color:C.red,padding:'4px 10px',borderRadius:20,fontWeight:700}}>⚠️ Faltas: {faltas}</span>}
+                </div>
+                <button onClick={()=>{
+                  const w=window.open('','_blank')
+                  w.document.write('<html><head><title>Espelho</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:6px 10px;border-bottom:1px solid #eee}.falta{background:#FFF0F0}.fds{background:#F5F5F5}@media print{button{display:none}}</style></head><body>')
+                  w.document.write('<button onclick="window.print()">Imprimir</button>')
+                  w.document.write('<h2>📅 Espelho de Ponto — '+func?.nome+'</h2>')
+                  w.document.write('<p>Mês: '+pontoMesData+' · Cargo: '+func?.cargo+'</p>')
+                  w.document.write('<p>Total horas: '+totalH+'h'+String(totalM).padStart(2,'0')+'m · Faltas: '+faltas+'</p>')
+                  w.document.write('<table><tr><th>Dia</th><th>Entrada</th><th>Intervalo</th><th>Retorno</th><th>Saída</th><th>Total</th><th>Obs</th></tr>')
+                  espelho.forEach(d=>{
+                    const cls=d.falta?'falta':d.isFimSemana?'fds':''
+                    const getH=(tipo)=>{const r=d.regs.find(x=>x.tipo===tipo);return r?new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}
+                    w.document.write('<tr class="'+cls+'"><td>'+d.dia+'/'+d.diaSemana+'</td><td>'+getH('entrada')+'</td><td>'+getH('intervalo')+'</td><td>'+getH('retorno')+'</td><td>'+getH('saida')+'</td><td>'+d.horas+'</td><td>'+(d.falta?'FALTA':'')+'</td></tr>')
+                  })
+                  w.document.write('</table></body></html>')
+                  w.document.close()
+                }} style={{...S.btnGray,padding:'8px 14px',fontSize:12,marginLeft:'auto'}}>🖨️ Imprimir</button>
+              </div>
+              <div style={{overflowX:'auto',maxHeight:'60vh',overflowY:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead style={{position:'sticky',top:0}}>
+                    <tr style={{background:C.red}}>
+                      {['Dia','Entrada','Intervalo','Retorno','Saída','Horas'].map(h=>(
+                        <th key={h} style={{padding:'8px 10px',textAlign:'left',fontSize:10,fontWeight:800,color:'white'}}>{h.toUpperCase()}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {espelho.map(d=>{
+                      const getH=(tipo)=>{const r=d.regs.find(x=>x.tipo===tipo);return r?new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}
+                      const bg=d.falta?C.redLight:d.isFimSemana?C.gray:'white'
+                      return(
+                        <tr key={d.data} style={{borderBottom:`1px solid ${C.grayMid}`,background:bg}}>
+                          <td style={{padding:'7px 10px',fontWeight:700}}>
+                            <span style={{color:d.isFimSemana?C.grayDark:d.falta?C.red:'inherit'}}>{d.dia} {d.diaSemana}</span>
+                            {d.falta&&<span style={{fontSize:9,background:C.red+'22',color:C.red,padding:'1px 5px',borderRadius:10,marginLeft:4,fontWeight:700}}>FALTA</span>}
+                          </td>
+                          <td style={{padding:'7px 10px',color:d.regs.find(x=>x.tipo==='entrada')?'#50A773':C.grayDark,fontWeight:700}}>{getH('entrada')}</td>
+                          <td style={{padding:'7px 10px',color:d.regs.find(x=>x.tipo==='intervalo')?C.orange:C.grayDark}}>{getH('intervalo')}</td>
+                          <td style={{padding:'7px 10px',color:d.regs.find(x=>x.tipo==='retorno')?C.blue:C.grayDark}}>{getH('retorno')}</td>
+                          <td style={{padding:'7px 10px',color:d.regs.find(x=>x.tipo==='saida')?C.red:C.grayDark,fontWeight:700}}>{getH('saida')}</td>
+                          <td style={{padding:'7px 10px',fontWeight:800,color:d.totalMs>0?C.green:C.grayDark}}>{d.horas}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Overlay>
+        )
+      })()}
 
       {/* MODAL NOVO/EDITAR FUNCIONÁRIO PONTO */}
       {/* MODAL NOVO/EDITAR FUNCIONÁRIO PONTO */}
