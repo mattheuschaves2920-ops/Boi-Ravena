@@ -1610,7 +1610,7 @@ export default function App() {
               <button onClick={()=>setDashTurno('todos')} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:dashTurno==='todos'?C.red:C.gray,color:dashTurno==='todos'?C.white:C.grayDark,borderRadius:8,fontWeight:dashTurno==='todos'?800:600}}>Todos os Turnos</button>
               {TURNOS.map(t=><button key={t.id} onClick={()=>setDashTurno(t.id)} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:dashTurno===t.id?C.red:C.gray,color:dashTurno===t.id?C.white:C.grayDark,borderRadius:8,fontWeight:dashTurno===t.id?800:600}}>{t.icon} {t.label}</button>)}
             </div>
-            <div style={{display:'flex',gap:6,background:C.white,borderRadius:12,padding:6,boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>
+            <div style={{display:'flex',gap:6,background:C.white,borderRadius:12,padding:6,boxShadow:'0 1px 4px rgba(0,0,0,0.06)',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',flexWrap:'nowrap'}}>
               <button onClick={()=>setDashSetor('todos')} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:dashSetor==='todos'?C.text:C.gray,color:dashSetor==='todos'?C.white:C.grayDark,borderRadius:8,fontWeight:dashSetor==='todos'?800:600}}>Todos os Setores</button>
               {SETORES.map(s=><button key={s} onClick={()=>setDashSetor(s)} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:dashSetor===s?SETOR_COLORS[s]:C.gray,color:dashSetor===s?C.white:C.grayDark,borderRadius:8,fontWeight:dashSetor===s?800:600}}>{SETOR_ICONS[s]} {s}</button>)}
             </div>
