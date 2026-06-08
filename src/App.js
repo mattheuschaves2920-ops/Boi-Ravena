@@ -60,6 +60,14 @@ function Toast({ msg, type }) {
 
 function Login({ onLogin }) {
   const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState('')
+  // Load saved credentials
+  useEffect(()=>{
+    try{
+      const saved=localStorage.getItem('boi_saved_email')
+      if(saved) setEmail(saved)
+    }catch(e){}
+  },[])
+
   const go=async()=>{
     // Primeiro verifica usuarios demo
     const demo=USERS.find(u=>u.email===email&&u.password===pass)
