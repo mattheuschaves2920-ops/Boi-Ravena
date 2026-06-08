@@ -147,6 +147,115 @@ function Login({ onLogin }) {
           <button onClick={()=>setPontoTela(true)} style={{...S.btnGray,width:'100%',padding:12,fontSize:14,borderRadius:14,color:'#1565C0',fontWeight:700,border:'1.5px solid #1565C033',marginTop:4}}>🕐 Registrar Ponto</button>
         </div>
       </div>
+
+  if(pontoTela) return(
+    <div style={{minHeight:'100vh',background:'#f5f5f5',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:'white',borderRadius:24,padding:28,width:'100%',maxWidth:420,boxShadow:'0 8px 32px rgba(0,0,0,0.12)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
+          <button onClick={()=>{setPontoTela(false);setPontoModal2(null);setPontoSel(null);setPontoPin2('');setPontoFoto2(null);if(pontoStream2){pontoStream2.getTracks().forEach(t=>t.stop());setPontoStream2(null)}}} style={{background:'#f0f0f0',border:'none',borderRadius:10,padding:'8px 14px',cursor:'pointer',fontSize:13,fontWeight:700}}>← Voltar</button>
+          <div>
+            <p style={{fontWeight:900,fontSize:18,margin:0}}>🕐 Registro de Ponto</p>
+            <p style={{fontSize:12,color:'#888',margin:0}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})} · {new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+          </div>
+        </div>
+        {pontoFuncionariosL.length===0
+          ? <div style={{textAlign:'center',padding:'30px 0'}}>
+              <p style={{fontSize:32,marginBottom:8}}>👤</p>
+              <p style={{fontWeight:700,fontSize:14,marginBottom:6}}>Nenhum funcionário cadastrado</p>
+              <p style={{fontSize:12,color:'#888'}}>Peça ao administrador para cadastrar na aba Ponto</p>
+            </div>
+          : <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:16}}>
+              <p style={{fontSize:11,fontWeight:800,color:'#666',marginBottom:4}}>SELECIONE SEU NOME</p>
+              {pontoFuncionariosL.map(f=>{
+                const st=getPontoStatusL(f.id)
+                return(
+                  <button key={f.id} onClick={()=>{setPontoSel(f.id);setPontoModal2('registro')}}
+                    style={{background:pontoSel===f.id?'#EFF6FF':'#f9f9f9',border:`2px solid ${pontoSel===f.id?'#1565C0':'#e0e0e0'}`,borderRadius:12,padding:'12px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left',width:'100%'}}>
+                    <div style={{width:42,height:42,borderRadius:'50%',overflow:'hidden',background:'#eee',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>
+                      {f.foto?<img src={f.foto} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
+                    </div>
+                    <div style={{flex:1}}>
+                      <p style={{fontWeight:800,fontSize:14,margin:0}}>{f.nome}</p>
+                      <p style={{fontSize:11,color:'#888',margin:0}}>{f.cargo}</p>
+                    </div>
+                    <span style={{background:st.color+'22',color:st.color,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>{st.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+        }
+        {pontoModal2==='registro'&&pontoSel&&(()=>{
+          const func=pontoFuncionariosL.find(f=>f.id===pontoSel)
+          const st=getPontoStatusL(pontoSel)
+          const vRef=React.createRef();const cRef=React.createRef()
+          return(
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
+              <div style={{background:'white',borderRadius:20,padding:24,width:'100%',maxWidth:400,maxHeight:'90vh',overflowY:'auto'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <p style={{fontWeight:900,fontSize:16,margin:0}}>Registrar Ponto</p>
+                  <button onClick={()=>{setPontoModal2(null);setPontoPin2('');setPontoFoto2(null);if(pontoStream2){pontoStream2.getTracks().forEach(t=>t.stop());setPontoStream2(null)}}} style={{background:'#f0f0f0',border:'none',borderRadius:8,padding:'6px 10px',cursor:'pointer'}}>✕</button>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:10,background:'#f5f5f5',borderRadius:12,padding:12,marginBottom:16}}>
+                  <div style={{width:44,height:44,borderRadius:'50%',overflow:'hidden',background:'#e0e0e0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>
+                    {func?.foto?<img src={func.foto} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
+                  </div>
+                  <div>
+                    <p style={{fontWeight:800,fontSize:14,margin:0}}>{func?.nome}</p>
+                    <p style={{fontSize:11,color:'#888',margin:0}}>{func?.cargo} · <span style={{color:st.color,fontWeight:700}}>{st.label}</span></p>
+                  </div>
+                </div>
+                <p style={{fontSize:11,fontWeight:800,color:'#666',marginBottom:8}}>TIPO DE REGISTRO</p>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+                  {[{id:'entrada',label:'Entrada',icon:'🟢',color:'#50A773'},{id:'intervalo',label:'Intervalo',icon:'🟡',color:'#FF8C00'},{id:'retorno',label:'Retorno',icon:'🔵',color:'#1565C0'},{id:'saida',label:'Saída',icon:'🔴',color:'#EA1D2C'}].map(t=>(
+                    <button key={t.id} onClick={()=>setPontoTipo2(t.id)}
+                      style={{background:pontoTipo2===t.id?t.color+'22':'#f9f9f9',border:`2px solid ${pontoTipo2===t.id?t.color:'#e0e0e0'}`,borderRadius:10,padding:'10px 8px',cursor:'pointer',textAlign:'center'}}>
+                      <p style={{fontSize:18,margin:'0 0 2px'}}>{t.icon}</p>
+                      <p style={{fontSize:12,fontWeight:700,color:pontoTipo2===t.id?t.color:'#666',margin:0}}>{t.label}</p>
+                    </button>
+                  ))}
+                </div>
+                <p style={{fontSize:11,fontWeight:800,color:'#666',marginBottom:8}}>VALIDAÇÃO</p>
+                <div style={{display:'flex',gap:8,marginBottom:12}}>
+                  <button onClick={()=>{setPontoVal('pin');setPontoFoto2(null);if(pontoStream2){pontoStream2.getTracks().forEach(t=>t.stop());setPontoStream2(null)}}}
+                    style={{flex:1,background:pontoVal==='pin'?'#EFF6FF':'#f9f9f9',border:`2px solid ${pontoVal==='pin'?'#1565C0':'#e0e0e0'}`,borderRadius:10,padding:10,cursor:'pointer',fontWeight:700,fontSize:13,color:pontoVal==='pin'?'#1565C0':'#666'}}>🔢 PIN</button>
+                  <button onClick={()=>{setPontoVal('foto');setPontoPin2('');iniciarCamPonto2()}}
+                    style={{flex:1,background:pontoVal==='foto'?'#F0FFF6':'#f9f9f9',border:`2px solid ${pontoVal==='foto'?'#50A773':'#e0e0e0'}`,borderRadius:10,padding:10,cursor:'pointer',fontWeight:700,fontSize:13,color:pontoVal==='foto'?'#50A773':'#666'}}>📷 Foto</button>
+                </div>
+                {pontoVal==='pin'&&(
+                  <div style={{marginBottom:16}}>
+                    <label style={{fontSize:11,fontWeight:800,color:'#666',display:'block',marginBottom:6}}>PIN (4 dígitos)</label>
+                    <input type="password" inputMode="numeric" maxLength={4} value={pontoPin2}
+                      onChange={e=>setPontoPin2(e.target.value.replace(/[^0-9]/g,''))}
+                      placeholder="••••" style={{width:'100%',border:'1.5px solid #e0e0e0',borderRadius:10,padding:'12px',textAlign:'center',fontSize:28,letterSpacing:12,fontWeight:900,boxSizing:'border-box'}} />
+                  </div>
+                )}
+                {pontoVal==='foto'&&(
+                  <div style={{marginBottom:16,textAlign:'center'}}>
+                    {!pontoFoto2&&pontoStream2&&<>
+                      <video ref={vRef} autoPlay playsInline muted style={{width:'100%',borderRadius:12}}
+                        ref={el=>{if(el&&pontoStream2)el.srcObject=pontoStream2}} />
+                      <canvas ref={cRef} style={{display:'none'}} />
+                      <button onClick={()=>tirarFotoPonto2(vRef,cRef)} style={{background:'#EA1D2C',color:'white',border:'none',borderRadius:10,padding:'10px 24px',cursor:'pointer',marginTop:8,fontSize:14,fontWeight:700}}>📸 Tirar Foto</button>
+                    </>}
+                    {pontoFoto2&&<>
+                      <img src={pontoFoto2} style={{width:'100%',borderRadius:12,marginBottom:8}} alt="foto" />
+                      <button onClick={()=>{setPontoFoto2(null);iniciarCamPonto2()}} style={{background:'#f0f0f0',border:'none',borderRadius:8,padding:'6px 14px',cursor:'pointer',fontSize:12}}>🔄 Refazer</button>
+                    </>}
+                    {!pontoFoto2&&!pontoStream2&&<button onClick={iniciarCamPonto2} style={{background:'#EA1D2C',color:'white',border:'none',borderRadius:10,padding:'10px 20px',cursor:'pointer',fontSize:13,fontWeight:700}}>📷 Abrir Câmera</button>}
+                  </div>
+                )}
+                <div style={{background:'#f5f5f5',borderRadius:10,padding:10,marginBottom:14,textAlign:'center'}}>
+                  <p style={{fontSize:14,fontWeight:700,color:'#444',margin:0}}>⏰ {new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</p>
+                  <p style={{fontSize:11,color:'#888',margin:0}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+                </div>
+                <button onClick={registrarPontoL} style={{width:'100%',background:'#EA1D2C',color:'white',border:'none',borderRadius:12,padding:14,fontSize:15,fontWeight:800,cursor:'pointer'}}>✓ Confirmar Registro</button>
+              </div>
+            </div>
+          )
+        })()}
+      </div>
+    </div>
+  )
     </div>
   )
 }
@@ -1257,6 +1366,7 @@ export default function App() {
     {key:'pdv',label:'Vitrine/PDV',icon:'🏪'},
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
+    ...(canAdmin?[{key:'ponto',label:'Ponto',icon:'🕐'}]:[]),
     ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
   ]
 
