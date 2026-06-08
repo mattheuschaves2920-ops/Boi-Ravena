@@ -1553,10 +1553,11 @@ export default function App() {
       </div>
 
       {/* TABS */}
-      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:56,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
+      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:48,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
         {TABS.map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'12px 10px',fontFamily:"'Nunito'",fontSize:11,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:'fit-content'}}>
-            {t.icon} {t.label}
+          <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'8px 6px',fontFamily:"'Nunito'",fontSize:10,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+            <span style={{fontSize:14}}>{t.icon}</span>
+            <span style={{fontSize:9,maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
           </button>
         ))}
       </div>
