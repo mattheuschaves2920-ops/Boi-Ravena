@@ -4350,3 +4350,4 @@ export default function App() {
 // Sun Jun  7 14:13:12 UTC 2026
 // atualizado Sun Jun  7 15:52:14 UTC 2026
 // Mon Jun  8 00:27:11 UTC 2026
+// fix mobile Mon Jun  8 13:09:23 UTC 2026
