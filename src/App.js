@@ -100,6 +100,7 @@ function Login({ onLogin }) {
           ))}
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:16,textAlign:'center',fontWeight:700}}>{err}</p>}
           <button onClick={go} style={{...S.btnRed,width:'100%',padding:14,fontSize:16,borderRadius:14}}>Entrar</button>
+          <button onClick={()=>setPontoTela(true)} style={{...S.btnGray,width:'100%',padding:12,fontSize:14,borderRadius:14,color:'#1565C0',fontWeight:700,border:'1.5px solid #1565C033',marginTop:4}}>🕐 Registrar Ponto</button>
         </div>
       </div>
     </div>
@@ -163,6 +164,18 @@ export default function App() {
   const [inventarioContagem,setInventarioContagem] = useState({})
   const [inventarioHistorico,setInventarioHistorico] = useState([])
   const [inventarioFiltro,setInventarioFiltro] = useState('todos')
+  // PONTO ELETRÔNICO
+  const [pontoTela,setPontoTela] = useState(false) // tela de ponto na login
+  const [pontoFuncionarios,setPontoFuncionarios] = useState([])
+  const [pontoRegistros,setPontoRegistros] = useState([])
+  const [pontoModal,setPontoModal] = useState(null) // 'registro'|'admin'
+  const [pontoSelecionado,setPontoSelecionado] = useState(null)
+  const [pontoTipo,setPontoTipo] = useState('entrada')
+  const [pontoValidacao,setPontoValidacao] = useState('pin') // 'pin'|'foto'
+  const [pontoPin,setPontoPin] = useState('')
+  const [pontoFotoData,setPontoFotoData] = useState(null)
+  const [pontoFotoStream,setPontoFotoStream] = useState(null)
+
   const [whatsappNum,setWhatsappNum] = useState(()=>{try{return localStorage.getItem('boi_whatsapp_num')||''}catch(e){return ''}})
   const [whatsappModal,setWhatsappModal] = useState(false)
   // INVENTÁRIO
@@ -687,6 +700,117 @@ export default function App() {
     lines.push('💰 *Total: '+fmtCur(ct)+'*')
     lines.push('📊 _Sistema Boi de Minas_')
     openWhatsapp(lines.join(nl))
+  }
+
+  // ── PONTO ELETRÔNICO ─────────────────────────────────────────
+  useEffect(()=>{
+    try{
+      const f=JSON.parse(localStorage.getItem('boi_ponto_funcionarios')||'[]')
+      const r=JSON.parse(localStorage.getItem('boi_ponto_registros')||'[]')
+      setPontoFuncionarios(f)
+      setPontoRegistros(r)
+    }catch(e){}
+  },[])
+
+  const savePontoFuncionarios=(list)=>{
+    setPontoFuncionarios(list)
+    try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(list))}catch(e){}
+  }
+
+  const savePontoRegistros=(list)=>{
+    setPontoRegistros(list)
+    try{localStorage.setItem('boi_ponto_registros',JSON.stringify(list))}catch(e){}
+  }
+
+  const registrarPonto=()=>{
+    if(!pontoSelecionado) return showToast('Selecione um funcionário','err')
+    const func=pontoFuncionarios.find(f=>f.id===pontoSelecionado)
+    if(!func) return showToast('Funcionário não encontrado','err')
+
+    // Validate PIN
+    if(pontoValidacao==='pin'){
+      if(!pontoPin) return showToast('Digite o PIN','err')
+      if(pontoPin!==func.pin) return showToast('PIN incorreto!','err')
+    }
+    // Validate foto
+    if(pontoValidacao==='foto'){
+      if(!pontoFotoData) return showToast('Tire uma foto para validar','err')
+    }
+
+    const registro={
+      id:Date.now(),
+      funcionarioId:func.id,
+      funcionarioNome:func.nome,
+      funcionarioCargo:func.cargo,
+      tipo:pontoTipo,
+      created_at:new Date().toISOString(),
+      foto:pontoValidacao==='foto'?pontoFotoData:null,
+      validacao:pontoValidacao,
+    }
+
+    const updated=[registro,...pontoRegistros]
+    savePontoRegistros(updated)
+
+    // Stop camera if open
+    if(pontoFotoStream){
+      pontoFotoStream.getTracks().forEach(t=>t.stop())
+      setPontoFotoStream(null)
+    }
+
+    setPontoPin('')
+    setPontoFotoData(null)
+    setPontoSelecionado(null)
+    setPontoTipo('entrada')
+
+    const tipoLabel={entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'}
+    showToast('✅ '+tipoLabel[pontoTipo]+' registrada — '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))
+    setPontoModal(null)
+  }
+
+  const iniciarCameraPonto=async()=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}})
+      setPontoFotoStream(stream)
+    }catch(e){showToast('Câmera não disponível','err')}
+  }
+
+  const tirarFotoPonto=(videoRef,canvasRef)=>{
+    if(!videoRef.current) return
+    const canvas=canvasRef.current
+    canvas.width=videoRef.current.videoWidth
+    canvas.height=videoRef.current.videoHeight
+    canvas.getContext('2d').drawImage(videoRef.current,0,0)
+    setPontoFotoData(canvas.toDataURL('image/jpeg',0.7))
+    if(pontoFotoStream){pontoFotoStream.getTracks().forEach(t=>t.stop());setPontoFotoStream(null)}
+  }
+
+  const getPontoStatus=(funcId)=>{
+    const regsFunc=pontoRegistros.filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(todayStr()))
+    if(!regsFunc.length) return {status:'ausente',label:'Ausente',color:'#999'}
+    const ultimo=regsFunc[0]
+    if(ultimo.tipo==='entrada'||ultimo.tipo==='retorno') return {status:'presente',label:'Presente',color:'#50A773'}
+    if(ultimo.tipo==='intervalo') return {status:'intervalo',label:'Intervalo',color:'#FF8C00'}
+    if(ultimo.tipo==='saida') return {status:'saiu',label:'Saiu',color:'#EA1D2C'}
+    return {status:'ausente',label:'Ausente',color:'#999'}
+  }
+
+  const getHorasTrabalhadasHoje=(funcId)=>{
+    const regs=pontoRegistros
+      .filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(todayStr()))
+      .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
+    let total=0
+    let entrada=null
+    for(const r of regs){
+      if(r.tipo==='entrada'||r.tipo==='retorno') entrada=new Date(r.created_at)
+      if((r.tipo==='intervalo'||r.tipo==='saida')&&entrada){
+        total+=new Date(r.created_at)-entrada
+        entrada=null
+      }
+    }
+    if(entrada) total+=Date.now()-entrada
+    const h=Math.floor(total/3600000)
+    const m=Math.floor((total%3600000)/60000)
+    return `${h}h${m.toString().padStart(2,'0')}m`
   }
 
   const handleConfirmAdmin=()=>{
@@ -2845,6 +2969,126 @@ export default function App() {
           <canvas ref={desperdicioCanvasRef} style={{display:'none'}} />
         </>}
 
+        {/* ══ PONTO ELETRÔNICO ══ */}
+        {tab==='ponto'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🕐 Ponto Eletrônico</p>
+            <button onClick={()=>setPontoModal('novoFunc')} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Funcionário</button>
+          </div>
+
+          {/* STATUS DO DIA */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+            {[
+              {label:'Presentes',val:pontoFuncionarios.filter(f=>getPontoStatus(f.id).status==='presente').length,color:C.green,icon:'🟢'},
+              {label:'Intervalo',val:pontoFuncionarios.filter(f=>getPontoStatus(f.id).status==='intervalo').length,color:C.orange,icon:'🟡'},
+              {label:'Saíram',val:pontoFuncionarios.filter(f=>getPontoStatus(f.id).status==='saiu').length,color:C.red,icon:'🔴'},
+              {label:'Ausentes',val:pontoFuncionarios.filter(f=>getPontoStatus(f.id).status==='ausente').length,color:'#999',icon:'⚪'},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:24,color:c.color}}>{c.val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* FUNCIONÁRIOS */}
+          {pontoFuncionarios.length===0
+            ? <div style={{...S.card,textAlign:'center',padding:40,border:`2px dashed ${C.grayMid}`}}>
+                <p style={{fontSize:32,marginBottom:8}}>👤</p>
+                <p style={{fontWeight:800,fontSize:14,marginBottom:6}}>Nenhum funcionário cadastrado</p>
+                <p style={{fontSize:12,color:C.grayDark,marginBottom:16}}>Cadastre os funcionários para controlar o ponto</p>
+                <button onClick={()=>setPontoModal('novoFunc')} style={{...S.btnRed,padding:'12px 24px'}}>+ Cadastrar Funcionário</button>
+              </div>
+            : <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:20}}>
+                {pontoFuncionarios.map(f=>{
+                  const st=getPontoStatus(f.id)
+                  const horas=getHorasTrabalhadasHoje(f.id)
+                  const regsHoje=pontoRegistros.filter(r=>r.funcionarioId===f.id&&r.created_at.startsWith(todayStr())).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
+                  return(
+                    <div key={f.id} style={{...S.card,padding:0,overflow:'hidden',border:`1.5px solid ${st.color}33`}}>
+                      <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12}}>
+                        <div style={{width:48,height:48,borderRadius:50,overflow:'hidden',background:C.gray,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>
+                          {f.foto?<img src={f.foto} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
+                        </div>
+                        <div style={{flex:1}}>
+                          <p style={{fontWeight:800,fontSize:14}}>{f.nome}</p>
+                          <p style={{fontSize:11,color:C.grayDark}}>{f.cargo} · Turno: {f.turno||'—'}</p>
+                          <p style={{fontSize:11,color:C.grayDark}}>Horário: {f.horarioEntrada||'--:--'} às {f.horarioSaida||'--:--'}</p>
+                        </div>
+                        <div style={{textAlign:'right'}}>
+                          <span style={{background:st.color+'22',color:st.color,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700,display:'block',marginBottom:4}}>{st.label}</span>
+                          {st.status==='presente'&&<span style={{fontSize:11,fontWeight:700,color:C.grayDark}}>{horas}</span>}
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                          <button onClick={()=>{
+                            setPontoModal('editFunc')
+                            setPontoSelecionado(f.id)
+                          }} style={{...S.btnGray,padding:'5px 8px',fontSize:11}}>✏️</button>
+                          <button onClick={()=>{if(window.confirm('Excluir '+f.nome+'?')){savePontoFuncionarios(pontoFuncionarios.filter(x=>x.id!==f.id))}}} style={{...S.btnGray,padding:'5px 8px',fontSize:11,color:C.red}}>🗑️</button>
+                        </div>
+                      </div>
+                      {regsHoje.length>0&&(
+                        <div style={{padding:'8px 16px',background:C.gray,borderTop:`1px solid ${C.grayMid}`,display:'flex',gap:8,overflowX:'auto'}}>
+                          {regsHoje.map(r=>{
+                            const cores={entrada:C.green,intervalo:C.orange,retorno:C.blue,saida:C.red}
+                            const icons={entrada:'🟢',intervalo:'🟡',retorno:'🔵',saida:'🔴'}
+                            return(
+                              <div key={r.id} style={{background:'white',borderRadius:8,padding:'5px 10px',flexShrink:0,border:`1px solid ${cores[r.tipo]}33`}}>
+                                <p style={{fontSize:10,fontWeight:700,color:cores[r.tipo]}}>{icons[r.tipo]} {r.tipo.charAt(0).toUpperCase()+r.tipo.slice(1)}</p>
+                                <p style={{fontSize:11,fontWeight:800}}>{new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+          }
+
+          {/* REGISTROS DO DIA */}
+          {pontoRegistros.filter(r=>r.created_at.startsWith(todayStr())).length>0&&(
+            <div style={{...S.card,padding:0,overflow:'hidden'}}>
+              <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <p style={{fontSize:12,fontWeight:800}}>📋 TODOS OS REGISTROS DE HOJE</p>
+                <button onClick={()=>{
+                  const regs=pontoRegistros.filter(r=>r.created_at.startsWith(todayStr()))
+                  const w=window.open('','_blank')
+                  w.document.write('<html><head><title>Ponto</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                  w.document.write('<button onclick="window.print()">Imprimir</button>')
+                  w.document.write('<h2>🕐 Ponto — '+new Date().toLocaleDateString('pt-BR')+'</h2>')
+                  w.document.write('<table><tr><th>Funcionário</th><th>Tipo</th><th>Horário</th><th>Validação</th></tr>')
+                  regs.forEach(r=>w.document.write('<tr><td>'+r.funcionarioNome+'</td><td>'+r.tipo+'</td><td>'+new Date(r.created_at).toLocaleTimeString('pt-BR')+'</td><td>'+r.validacao+'</td></tr>'))
+                  w.document.write('</table></body></html>')
+                  w.document.close()
+                }} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>🖨️ Imprimir</button>
+              </div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                  <thead><tr style={{background:C.gray}}>
+                    {['Funcionário','Cargo','Tipo','Horário','Validação'].map(h=><th key={h} style={{padding:'8px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {pontoRegistros.filter(r=>r.created_at.startsWith(todayStr())).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r=>{
+                      const cores={entrada:C.green,intervalo:C.orange,retorno:C.blue,saida:C.red}
+                      return(
+                        <tr key={r.id} style={{borderBottom:`1px solid ${C.gray}`}}>
+                          <td style={{padding:'8px 14px',fontWeight:700}}>{r.funcionarioNome}</td>
+                          <td style={{padding:'8px 14px',color:C.grayDark}}>{r.funcionarioCargo}</td>
+                          <td style={{padding:'8px 14px'}}><span style={{background:cores[r.tipo]+'22',color:cores[r.tipo],padding:'2px 8px',borderRadius:20,fontWeight:700,fontSize:11}}>{r.tipo}</span></td>
+                          <td style={{padding:'8px 14px',fontWeight:700}}>{new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
+                          <td style={{padding:'8px 14px',color:C.grayDark}}>{r.validacao==='foto'?'📷 Foto':'🔢 PIN'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>}
+
         {/* ══ AUDITORIA ══ */}
         {tab==='auditoria'&&canAdmin&&<>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
@@ -3383,6 +3627,90 @@ export default function App() {
           </div>
         </Overlay>
       )}
+
+      {/* MODAL NOVO/EDITAR FUNCIONÁRIO PONTO */}
+      {(pontoModal==='novoFunc'||pontoModal==='editFunc')&&(()=>{
+        const isEdit=pontoModal==='editFunc'
+        const funcEdit=isEdit?pontoFuncionarios.find(f=>f.id===pontoSelecionado):null
+        const [form,setForm] = React.useState(isEdit?{...funcEdit}:{nome:'',cargo:'',turno:TURNOS[0]?.id||'T1',horarioEntrada:'',horarioSaida:'',pin:'',foto:null})
+        const videoRef=React.useRef()
+        const canvasRef=React.useRef()
+        const [stream,setStream]=React.useState(null)
+        const [fotoPreview,setFotoPreview]=React.useState(form.foto||null)
+
+        const abrirCam=async()=>{
+          try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});setStream(s)}catch(e){showToast('Câmera indisponível','err')}
+        }
+        const tirarFoto=()=>{
+          if(!videoRef.current)return
+          const c=canvasRef.current;c.width=videoRef.current.videoWidth;c.height=videoRef.current.videoHeight
+          c.getContext('2d').drawImage(videoRef.current,0,0)
+          const d=c.toDataURL('image/jpeg',0.7);setFotoPreview(d);setForm(f=>({...f,foto:d}))
+          stream?.getTracks().forEach(t=>t.stop());setStream(null)
+        }
+        const salvar=()=>{
+          if(!form.nome) return showToast('Nome obrigatório','err')
+          if(!form.pin||form.pin.length!==4) return showToast('PIN deve ter 4 dígitos','err')
+          if(isEdit){
+            savePontoFuncionarios(pontoFuncionarios.map(f=>f.id===pontoSelecionado?{...f,...form}:f))
+          } else {
+            savePontoFuncionarios([...pontoFuncionarios,{...form,id:Date.now()}])
+          }
+          stream?.getTracks().forEach(t=>t.stop())
+          setPontoModal(null);setPontoSelecionado(null)
+          showToast('✓ Funcionário '+(isEdit?'atualizado':'cadastrado')+'!')
+        }
+        return(
+          <Overlay onClose={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}}>
+            <MHead title={isEdit?'✏️ Editar Funcionário':'👤 Novo Funcionário'} onClose={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}} />
+            <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+              {/* FOTO */}
+              <div style={{textAlign:'center',marginBottom:4}}>
+                <div style={{width:80,height:80,borderRadius:50,overflow:'hidden',background:C.gray,margin:'0 auto 10px',border:`3px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>
+                  {fotoPreview?<img src={fotoPreview} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
+                </div>
+                {stream?(
+                  <div>
+                    <video ref={videoRef} autoPlay playsInline muted style={{width:'100%',borderRadius:10,maxHeight:200}}
+                      ref={el=>{if(el&&stream)el.srcObject=stream}} />
+                    <canvas ref={canvasRef} style={{display:'none'}} />
+                    <button onClick={tirarFoto} style={{...S.btnRed,marginTop:8,padding:'8px 20px',fontSize:13}}>📸 Tirar Foto</button>
+                  </div>
+                ):(
+                  <button onClick={abrirCam} style={{...S.btnGray,padding:'6px 14px',fontSize:12,color:C.blue}}>📷 {fotoPreview?'Trocar Foto':'Adicionar Foto'}</button>
+                )}
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOME COMPLETO</label>
+                <input value={form.nome} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Nome do funcionário" style={S.input} autoFocus />
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CARGO</label>
+                <input value={form.cargo} onChange={e=>setForm(f=>({...f,cargo:e.target.value}))} placeholder="Ex: Cozinheiro, Churrasqueiro..." style={S.input} />
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div>
+                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>ENTRADA ESPERADA</label>
+                  <input type="time" value={form.horarioEntrada} onChange={e=>setForm(f=>({...f,horarioEntrada:e.target.value}))} style={S.input} />
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SAÍDA ESPERADA</label>
+                  <input type="time" value={form.horarioSaida} onChange={e=>setForm(f=>({...f,horarioSaida:e.target.value}))} style={S.input} />
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PIN DE 4 DÍGITOS</label>
+                <input type="password" inputMode="numeric" maxLength={4} value={form.pin} onChange={e=>setForm(f=>({...f,pin:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="••••" style={{...S.input,textAlign:'center',fontSize:24,letterSpacing:8}} />
+                <p style={{fontSize:10,color:C.grayDark,marginTop:3}}>O funcionário usará este PIN para registrar o ponto</p>
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button style={{...S.btnRed,flex:1}} onClick={salvar}>✓ Salvar</button>
+                <button style={{...S.btnGray,flex:1}} onClick={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}}>Cancelar</button>
+              </div>
+            </div>
+          </Overlay>
+        )
+      })()}
 
       {/* MODAL EDITAR MOVIMENTO */}
       {editMovModal&&editMovItem&&(
