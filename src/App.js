@@ -357,7 +357,7 @@ export default function App() {
   const [editMovModal,setEditMovModal] = useState(false)
   const [editMovItem,setEditMovItem] = useState(null)
   const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:''})
-  const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]})
+  const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
   const [dashSetor,setDashSetor] = useState('todos')
   const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''})
@@ -1306,13 +1306,13 @@ export default function App() {
   const handleBarcodeInput=(code)=>{
     if(scanForProduct){
       // Modo cadastro de produto - preenche o campo barcode
-      setProdForm(f=>({...f,barcode:code.trim()}))
+      setProdForm(f=>({...f,barcode:f.barcode||code.trim(),barcodes:f.barcodes.includes(code.trim())?f.barcodes:[...f.barcodes,code.trim()]}))
       stopScanner()
       setScanForProduct(false)
       showToast('✓ Código '+code.trim()+' preenchido!')
       return
     }
-    const p=products.find(x=>x.barcode===code.trim())
+    const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
     if(p){
       setMovForm(f=>({...f,productId:p.id}))
       stopScanner()
@@ -1414,15 +1414,15 @@ export default function App() {
 
   const handleSaveProd=async()=>{
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
-    const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:prodForm.barcode||null,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor}
+    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
-    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
+    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
     logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
   }
 
-  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0]}); setModal('produto') }
+  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0]}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:SETORES[0],turno:getTurnoAtual()}); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
@@ -1877,7 +1877,7 @@ export default function App() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
-            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
               style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
@@ -3676,7 +3676,7 @@ export default function App() {
           <MHead title={editProd?'✏️ Editar Produto':'+ Novo Produto'} onClose={()=>setModal(null)} />
           <div style={{padding:'16px 20px'}}>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              {[{label:'NOME',key:'name',type:'text',ph:'Ex: Filé Mignon',full:true},{label:'QUANTIDADE',key:'quantity',type:'number',ph:'0'},{label:'ESTOQUE MÍNIMO',key:'min_stock',type:'number',ph:'0'},{label:'ESTOQUE MÁXIMO',key:'max_stock',type:'number',ph:'999'},{label:'CUSTO (R$)',key:'cost',type:'number',ph:'0,00'},{label:'CÓDIGO DE BARRAS',key:'barcode',type:'text',ph:'789...'},{label:'FORNECEDOR',key:'supplier',type:'text',ph:'Nome fornecedor',full:true},{label:'VALIDADE',key:'expiry',type:'date',ph:''}].map(f=>(
+              {[{label:'NOME',key:'name',type:'text',ph:'Ex: Filé Mignon',full:true},{label:'QUANTIDADE',key:'quantity',type:'number',ph:'0'},{label:'ESTOQUE MÍNIMO',key:'min_stock',type:'number',ph:'0'},{label:'ESTOQUE MÁXIMO',key:'max_stock',type:'number',ph:'999'},{label:'CUSTO (R$)',key:'cost',type:'number',ph:'0,00'},{label:'FORNECEDOR',key:'supplier',type:'text',ph:'Nome fornecedor',full:true},{label:'VALIDADE',key:'expiry',type:'date',ph:''}].map(f=>(
                 <div key={f.key} style={{gridColumn:f.full?'1/-1':'auto'}}>
                   <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>{f.label}</label>
                   <input type={f.type} placeholder={f.ph} value={prodForm[f.key]} onChange={e=>setProdForm(p=>({...p,[f.key]:e.target.value}))} style={S.input} />
@@ -3689,6 +3689,26 @@ export default function App() {
               <div>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>UNIDADE</label>
                 <select value={prodForm.unit} onChange={e=>setProdForm(p=>({...p,unit:e.target.value}))} style={S.input}>{['kg','g','l','ml','un','cx','pct','fardo'].map(u=><option key={u}>{u}</option>)}</select>
+              </div>
+              {/* CÓDIGOS DE BARRAS */}
+              <div style={{gridColumn:'1/-1',marginTop:4}}>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CÓDIGOS DE BARRAS</label>
+                <div style={{display:'flex',gap:6,marginBottom:6}}>
+                  <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} placeholder="Escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
+                  <button onClick={()=>{if(prodForm.barcode&&!prodForm.barcodes.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...f.barcodes,f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
+                </div>
+                {prodForm.barcodes.length>0&&(
+                  <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                    {prodForm.barcodes.map((bc,i)=>(
+                      <div key={i} style={{display:'flex',alignItems:'center',gap:6,background:C.gray,borderRadius:8,padding:'6px 10px'}}>
+                        <span style={{fontSize:12,flex:1,fontFamily:'monospace',fontWeight:600}}>📦 {bc}</span>
+                        {i===0&&<span style={{fontSize:9,background:C.green+'22',color:C.green,padding:'2px 6px',borderRadius:10,fontWeight:700}}>PRINCIPAL</span>}
+                        <button onClick={()=>setProdForm(f=>({...f,barcodes:f.barcodes.filter((_,j)=>j!==i)}))} style={{background:'none',border:'none',cursor:'pointer',color:'#EA1D2C',fontSize:14,padding:'0 4px'}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {prodForm.barcodes.length===0&&<p style={{fontSize:10,color:C.grayDark,marginTop:2}}>Adicione um ou mais códigos. O primeiro será o principal.</p>}
               </div>
               <div style={{gridColumn:'1/-1'}}>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
