@@ -786,6 +786,47 @@ export default function App() {
   }
 
   // ── SCANNER CÓDIGO DE BARRAS ───────────────────────────────────
+  // ── EDITAR MOVIMENTO ──────────────────────────────────────────
+  const openEditMov=(mov)=>{
+    setEditMovItem(mov)
+    setEditMovForm({quantity:mov.quantity,cost_unit:mov.cost_unit||0,note:mov.note||''})
+    setEditMovModal(true)
+  }
+
+  const saveEditMov=async()=>{
+    if(!editMovForm.quantity||parseFloat(editMovForm.quantity)<=0) return showToast('Quantidade inválida','err')
+    const oldQty=editMovItem.quantity
+    const newQty=parseFloat(editMovForm.quantity)
+    const newCost=parseFloat(editMovForm.cost_unit)||0
+    const product=products.find(p=>p.id===editMovItem.product_id)
+
+    // Update movement in Supabase
+    const{error}=await supabase.from('movimentos').update({
+      quantity:newQty,
+      cost_unit:newCost,
+      note:editMovForm.note,
+    }).eq('id',editMovItem.id)
+
+    if(error) return showToast('Erro ao editar movimento','err')
+
+    // Adjust product stock
+    if(product){
+      let newStock=product.quantity
+      if(editMovItem.type==='entrada') newStock=product.quantity-(oldQty-newQty)
+      if(editMovItem.type==='saida') newStock=product.quantity+(oldQty-newQty)
+      newStock=Math.max(0,newStock)
+      await supabase.from('produtos').update({quantity:newStock}).eq('id',product.id)
+      setProducts(prev=>prev.map(p=>p.id===product.id?{...p,quantity:newStock}:p))
+    }
+
+    // Update local movements list
+    setMovements(prev=>prev.map(m=>m.id===editMovItem.id?{...m,quantity:newQty,cost_unit:newCost,note:editMovForm.note}:m))
+    logAudit('MOVIMENTO EDITADO',product?.name||'',`${oldQty}→${newQty} ${product?.unit||''} · Custo: ${fmtCur(newCost)}`)
+    setEditMovModal(false)
+    setEditMovItem(null)
+    showToast('✓ Movimento atualizado!')
+  }
+
   const startScanner=async()=>{
     try{
       const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
@@ -3337,6 +3378,72 @@ export default function App() {
               <button style={{...S.btnRed,flex:1}} onClick={saveContagem}>✓ Confirmar Contagem</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
             </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL EDITAR MOVIMENTO */}
+      {editMovModal&&editMovItem&&(
+        <Overlay onClose={()=>setEditMovModal(false)}>
+          <MHead title="✏️ Editar Movimento" onClose={()=>setEditMovModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            {(()=>{
+              const product=products.find(p=>p.id===editMovItem.product_id)
+              const turnoInfo=TURNOS.find(t=>t.id===getTurnoFromDate(editMovItem.created_at))
+              return <>
+                <div style={{background:C.gray,borderRadius:12,padding:12}}>
+                  <p style={{fontSize:13,fontWeight:800,marginBottom:4}}>{product?.name||'Produto removido'}</p>
+                  <div style={{display:'flex',gap:8,fontSize:11,color:C.grayDark}}>
+                    <span>{editMovItem.type==='entrada'?'📥 Entrada':'📤 Saída'}</span>
+                    <span>·</span>
+                    <span>{new Date(editMovItem.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                    <span>·</span>
+                    <span>{turnoInfo?.label||'—'}</span>
+                    <span>·</span>
+                    <span>{editMovItem.setor||'—'}</span>
+                  </div>
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QUANTIDADE ({product?.unit||'un'})</label>
+                    <input type="number" step="0.1" min="0" value={editMovForm.quantity}
+                      onChange={e=>setEditMovForm(f=>({...f,quantity:e.target.value}))}
+                      style={S.input} />
+                  </div>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CUSTO UNITÁRIO (R$)</label>
+                    <input type="number" step="0.01" min="0" value={editMovForm.cost_unit}
+                      onChange={e=>setEditMovForm(f=>({...f,cost_unit:e.target.value}))}
+                      style={S.input} />
+                  </div>
+                </div>
+
+                {/* Preview custo total */}
+                <div style={{background:editMovItem.type==='entrada'?'#F0FFF6':C.redLight,borderRadius:10,padding:12,display:'flex',justifyContent:'space-between'}}>
+                  <span style={{fontSize:13,fontWeight:700,color:editMovItem.type==='entrada'?C.green:C.red}}>Custo total do movimento</span>
+                  <span style={{fontSize:16,fontWeight:900,color:editMovItem.type==='entrada'?C.green:C.red}}>
+                    {fmtCur((parseFloat(editMovForm.quantity)||0)*(parseFloat(editMovForm.cost_unit)||0))}
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO</label>
+                  <input placeholder="Observação..." value={editMovForm.note}
+                    onChange={e=>setEditMovForm(f=>({...f,note:e.target.value}))}
+                    style={S.input} />
+                </div>
+
+                <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:10}}>
+                  <p style={{fontSize:11,color:C.orange,fontWeight:700}}>⚠️ Alterar a quantidade ajustará o estoque automaticamente.</p>
+                </div>
+
+                <div style={{display:'flex',gap:8}}>
+                  <button style={{...S.btnRed,flex:1}} onClick={saveEditMov}>✓ Salvar</button>
+                  <button style={{...S.btnGray,flex:1}} onClick={()=>setEditMovModal(false)}>Cancelar</button>
+                </div>
+              </>
+            })()}
           </div>
         </Overlay>
       )}
