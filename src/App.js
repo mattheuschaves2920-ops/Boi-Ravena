@@ -1553,9 +1553,9 @@ export default function App() {
       </div>
 
       {/* TABS */}
-      <div style={{background:C.white,padding:'0 16px',display:'flex',overflowX:'auto',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:56,zIndex:99}}>
+      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:56,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
         {TABS.map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'12px 14px',fontFamily:"'Nunito'",fontSize:12,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap'}}>
+          <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'12px 10px',fontFamily:"'Nunito'",fontSize:11,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:'fit-content'}}>
             {t.icon} {t.label}
           </button>
         ))}
