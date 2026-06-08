@@ -1042,9 +1042,6 @@ export default function App() {
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
     ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
-    {key:'inventario',label:'Inventário',icon:'📋'},
-    {key:'previsao',label:'Previsão',icon:'🔮'},
-    ...(canAdmin?[{key:'dono',label:'Painel Dono',icon:'👑'}]:[]),
   ]
 
   return (
