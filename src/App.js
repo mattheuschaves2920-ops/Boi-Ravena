@@ -135,7 +135,7 @@ function PontoFuncModal({isEdit,funcEdit,onSave,onClose,S,C}){
 }
 
 function Login({ onLogin }) {
-  const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState('')
+  const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState(''); const [lembrar,setLembrar]=useState(true)
   const [pontoTela,setPontoTela]=useState(false)
   const [pontoFuncionariosL,setPontoFuncionariosL]=useState(()=>{try{return JSON.parse(localStorage.getItem('boi_ponto_funcionarios')||'[]')}catch(e){return []}})
   const [pontoRegistrosL,setPontoRegistrosL]=useState(()=>{try{return JSON.parse(localStorage.getItem('boi_ponto_registros')||'[]')}catch(e){return []}})
@@ -327,6 +327,10 @@ function Login({ onLogin }) {
             </div>
           ))}
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:16,textAlign:'center',fontWeight:700}}>{err}</p>}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <input type="checkbox" id="lembrar" checked={lembrar} onChange={e=>setLembrar(e.target.checked)} style={{width:16,height:16,cursor:'pointer',accentColor:C.red}} />
+            <label htmlFor="lembrar" style={{fontSize:13,color:C.grayDark,cursor:'pointer',userSelect:'none'}}>Manter conectado por 7 dias</label>
+          </div>
           <button onClick={go} style={{...S.btnRed,width:'100%',padding:14,fontSize:16,borderRadius:14}}>Entrar</button>
           <button onClick={()=>setPontoTela(true)} style={{...S.btnGray,width:'100%',padding:12,fontSize:14,borderRadius:14,color:'#1565C0',fontWeight:700,border:'1.5px solid #1565C033',marginTop:4}}>🕐 Registrar Ponto</button>
         </div>
@@ -430,6 +434,20 @@ export default function App() {
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+
+  // Auto-login from saved session
+  useEffect(()=>{
+    if(user) return
+    try{
+      const saved=localStorage.getItem('boi_session')
+      if(saved){
+        const session=JSON.parse(saved)
+        if(session.savedAt&&Date.now()-session.savedAt<7*24*60*60*1000){
+          setUser(session)
+        } else { localStorage.removeItem('boi_session') }
+      }
+    }catch(e){}
+  },[])
 
   useEffect(()=>{
     if(!user) return
@@ -1548,7 +1566,7 @@ export default function App() {
             <div style={{width:26,height:26,background:'rgba(255,255,255,0.3)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:12}}>{user.avatar}</div>
             <span style={{fontSize:12,color:C.white,fontWeight:700}}>{user.name.split(' ')[0]}</span>
           </div>
-          <button onClick={()=>setUser(null)} style={{background:'rgba(255,255,255,0.15)',border:'none',borderRadius:20,padding:'5px 12px',color:C.white,fontSize:11,cursor:'pointer',fontFamily:"'Nunito'",fontWeight:700}}>Sair</button>
+          <button onClick={()=>{try{localStorage.removeItem('boi_session')}catch(e){};setUser(null)}} style={{background:'rgba(255,255,255,0.15)',border:'none',borderRadius:20,padding:'5px 12px',color:C.white,fontSize:11,cursor:'pointer',fontFamily:"'Nunito'",fontWeight:700}}>Sair</button>
         </div>
       </div>
 
