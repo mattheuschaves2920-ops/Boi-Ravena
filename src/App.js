@@ -588,6 +588,47 @@ export default function App() {
     }).filter(p=>p.consumo30>0).sort((a,b)=>a.diasRestantes-b.diasRestantes)
   }
 
+  // ── INVENTÁRIO ──────────────────────────────────────────────────
+  const iniciarInventario=()=>{
+    setInventarioAtivo({id:Date.now(),started_at:new Date().toISOString(),user_name:user?.name||'Sistema'})
+    setInventarioContagem({})
+  }
+  const finalizarInventario=()=>{
+    const resultado=products.map(p=>{
+      const c=parseFloat(inventarioContagem[p.id])||0
+      return{productId:p.id,name:p.name,unit:p.unit,category:p.category,setor:p.setor,esperado:p.quantity,contado:c,diferenca:c-p.quantity,custo:p.cost,custoDiferenca:(c-p.quantity)*p.cost}
+    })
+    const inv={...inventarioAtivo,finished_at:new Date().toISOString(),status:'finalizado',resultado,
+      totalDiferenca:resultado.reduce((s,p)=>s+Math.abs(p.diferenca),0),
+      custoDiferenca:resultado.reduce((s,p)=>s+Math.abs(p.custoDiferenca),0)}
+    const hist=[inv,...inventarioHistorico].slice(0,10)
+    setInventarioHistorico(hist)
+    try{localStorage.setItem('boi_inventarios',JSON.stringify(hist))}catch(e){}
+    logAudit('INVENTÁRIO',inv.totalDiferenca+' diferenças','')
+    setInventarioAtivo(null);setInventarioContagem({})
+    showToast('✓ Inventário! '+resultado.filter(p=>p.diferenca!==0).length+' diferenças')
+  }
+
+  // ── BACKUP ─────────────────────────────────────────────────────
+  const exportBackup=()=>{
+    const backup={versao:'1.0',data:new Date().toISOString(),restaurante:'Boi de Minas',
+      produtos:products,movimentos:movements.slice(0,500),cardapio,pdvPontos,
+      inventarios:inventarioHistorico,desperdicios:desperdicioList}
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a');a.href=url;a.download='boi-minas-backup-'+todayStr()+'.json';a.click()
+    URL.revokeObjectURL(url)
+    showToast('✓ Backup exportado!')
+  }
+
+  // ── PWA ─────────────────────────────────────────────────────────
+  const installPWA=async()=>{
+    if(!pwaPrompt){showToast('Use o menu do navegador → Adicionar à tela inicial','warn');return}
+    pwaPrompt.prompt();const{outcome}=await pwaPrompt.userChoice
+    if(outcome==='accepted'){showToast('✓ App instalado!');setPwaPrompt(null)}
+  }
+
+
   const openWhatsapp=(msg)=>{
     const num=whatsappNum.replace(/[^0-9]/g,'')
     if(!num){setWhatsappModal(true);return}
