@@ -100,7 +100,10 @@ function Login({ onLogin }) {
           ))}
           {err&&<p style={{color:C.red,fontSize:13,marginBottom:16,textAlign:'center',fontWeight:700}}>{err}</p>}
           <button onClick={go} style={{...S.btnRed,width:'100%',padding:14,fontSize:16,borderRadius:14}}>Entrar</button>
-         
+          <div style={{marginTop:20,padding:16,background:C.redLight,borderRadius:12}}>
+            <p style={{fontSize:11,color:C.red,fontWeight:800,marginBottom:8}}>DEMO (senha: 1234)</p>
+            {USERS.map(u=><button key={u.id} onClick={()=>{setEmail(u.email);setPass('1234')}} style={{display:'block',background:'none',border:'none',color:C.grayDark,fontSize:12,cursor:'pointer',padding:'3px 0',fontFamily:"'Nunito'",fontWeight:600}}>{u.email} — <span style={{color:C.red,fontWeight:800}}>{ROLE_LABELS[u.role]}</span></button>)}
+          </div>
         </div>
       </div>
     </div>
@@ -121,6 +124,9 @@ export default function App() {
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
+  const [editMovModal,setEditMovModal] = useState(false)
+  const [editMovItem,setEditMovItem] = useState(null)
+  const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:''})
   const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',supplier:'',expiry:'',setor:SETORES[0]})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
   const [dashSetor,setDashSetor] = useState('todos')
