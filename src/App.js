@@ -60,6 +60,40 @@ function Toast({ msg, type }) {
 
 function Login({ onLogin }) {
   const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState('')
+  const [pontoTela,setPontoTela]=useState(false)
+  const [pontoFuncionariosL,setPontoFuncionariosL]=useState(()=>{try{return JSON.parse(localStorage.getItem('boi_ponto_funcionarios')||'[]')}catch(e){return []}})
+  const [pontoRegistrosL,setPontoRegistrosL]=useState(()=>{try{return JSON.parse(localStorage.getItem('boi_ponto_registros')||'[]')}catch(e){return []}})
+  const [pontoModal2,setPontoModal2]=useState(null)
+  const [pontoSel,setPontoSel]=useState(null)
+  const [pontoTipo2,setPontoTipo2]=useState('entrada')
+  const [pontoVal,setPontoVal]=useState('pin')
+  const [pontoPin2,setPontoPin2]=useState('')
+  const [pontoFoto2,setPontoFoto2]=useState(null)
+  const [pontoStream2,setPontoStream2]=useState(null)
+  const getPontoStatusL=(funcId)=>{
+    const regs=pontoRegistrosL.filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(new Date().toISOString().split('T')[0]))
+    if(!regs.length)return{status:'ausente',label:'Ausente',color:'#999'}
+    const u=regs[0]
+    if(u.tipo==='entrada'||u.tipo==='retorno')return{status:'presente',label:'Presente',color:'#50A773'}
+    if(u.tipo==='intervalo')return{status:'intervalo',label:'Intervalo',color:'#FF8C00'}
+    if(u.tipo==='saida')return{status:'saiu',label:'Saiu',color:'#EA1D2C'}
+    return{status:'ausente',label:'Ausente',color:'#999'}
+  }
+  const registrarPontoL=()=>{
+    const func=pontoFuncionariosL.find(f=>f.id===pontoSel)
+    if(!func)return
+    if(pontoVal==='pin'){if(pontoPin2!==func.pin)return alert('PIN incorreto!')}
+    if(pontoVal==='foto'){if(!pontoFoto2)return alert('Tire uma foto!')}
+    const reg={id:Date.now(),funcionarioId:func.id,funcionarioNome:func.nome,funcionarioCargo:func.cargo,tipo:pontoTipo2,created_at:new Date().toISOString(),validacao:pontoVal,foto:pontoVal==='foto'?pontoFoto2:null}
+    const updated=[reg,...pontoRegistrosL]
+    setPontoRegistrosL(updated)
+    try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated))}catch(e){}
+    if(pontoStream2){pontoStream2.getTracks().forEach(t=>t.stop());setPontoStream2(null)}
+    setPontoPin2('');setPontoFoto2(null);setPontoSel(null);setPontoTipo2('entrada')
+    const labels={entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'}
+    setPontoModal2(null)
+    alert('✅ '+labels[pontoTipo2]+' registrada — '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))
+  }
   // Load saved credentials
   useEffect(()=>{
     try{
@@ -68,6 +102,16 @@ function Login({ onLogin }) {
     }catch(e){}
   },[])
 
+  const iniciarCamPonto2=async()=>{
+    try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});setPontoStream2(s)}catch(e){alert('Câmera não disponível')}
+  }
+  const tirarFotoPonto2=(vr,cr)=>{
+    if(!vr.current)return
+    const c=cr.current;c.width=vr.current.videoWidth;c.height=vr.current.videoHeight
+    c.getContext('2d').drawImage(vr.current,0,0)
+    setPontoFoto2(c.toDataURL('image/jpeg',0.7))
+    pontoStream2?.getTracks().forEach(t=>t.stop());setPontoStream2(null)
+  }
   const go=async()=>{
     // Primeiro verifica usuarios demo
     const demo=USERS.find(u=>u.email===email&&u.password===pass)
