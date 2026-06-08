@@ -58,6 +58,82 @@ function Toast({ msg, type }) {
   return <div style={{position:'fixed',bottom:80,right:20,zIndex:2000,background:bg,color:C.white,padding:'14px 22px',borderRadius:14,fontSize:14,fontFamily:"'Nunito',sans-serif",fontWeight:700,boxShadow:'0 4px 20px rgba(0,0,0,0.2)',maxWidth:320}}>{msg}</div>
 }
 
+function PontoFuncModal({isEdit,funcEdit,onSave,onClose,S,C}){
+  const [form,setForm]=React.useState(isEdit&&funcEdit?{...funcEdit}:{nome:'',cargo:'',horarioEntrada:'',horarioSaida:'',pin:'',foto:null})
+  const [stream,setStream]=React.useState(null)
+  const [fotoPreview,setFotoPreview]=React.useState(isEdit&&funcEdit?funcEdit.foto||null:null)
+  const videoRef=React.useRef()
+  const canvasRef=React.useRef()
+
+  React.useEffect(()=>{return()=>{stream?.getTracks().forEach(t=>t.stop())}},[stream])
+
+  const abrirCam=async()=>{
+    try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});setStream(s)}catch(e){alert('Câmera não disponível')}
+  }
+  const tirarFoto=()=>{
+    if(!videoRef.current)return
+    const c=canvasRef.current;c.width=videoRef.current.videoWidth;c.height=videoRef.current.videoHeight
+    c.getContext('2d').drawImage(videoRef.current,0,0)
+    const d=c.toDataURL('image/jpeg',0.7);setFotoPreview(d);setForm(f=>({...f,foto:d}))
+    stream?.getTracks().forEach(t=>t.stop());setStream(null)
+  }
+  const salvar=()=>{
+    if(!form.nome)return alert('Nome obrigatório')
+    if(!form.pin||form.pin.length!==4)return alert('PIN deve ter 4 dígitos')
+    stream?.getTracks().forEach(t=>t.stop())
+    onSave(form)
+  }
+
+  return(
+    <Overlay onClose={onClose}>
+      <MHead title={isEdit?'✏️ Editar Funcionário':'👤 Novo Funcionário'} onClose={onClose} />
+      <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{textAlign:'center',marginBottom:4}}>
+          <div style={{width:80,height:80,borderRadius:50,overflow:'hidden',background:C.gray,margin:'0 auto 10px',border:`3px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>
+            {fotoPreview?<img src={fotoPreview} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
+          </div>
+          {stream?(
+            <div>
+              <video ref={el=>{if(el&&stream){el.srcObject=stream;videoRef.current=el}}} autoPlay playsInline muted style={{width:'100%',borderRadius:10,maxHeight:200}} />
+              <canvas ref={canvasRef} style={{display:'none'}} />
+              <button onClick={tirarFoto} style={{...S.btnRed,marginTop:8,padding:'8px 20px',fontSize:13}}>📸 Tirar Foto</button>
+            </div>
+          ):(
+            <button onClick={abrirCam} style={{...S.btnGray,padding:'6px 14px',fontSize:12,color:C.blue}}>📷 {fotoPreview?'Trocar Foto':'Adicionar Foto'}</button>
+          )}
+        </div>
+        <div>
+          <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOME COMPLETO</label>
+          <input value={form.nome} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Nome do funcionário" style={S.input} autoFocus />
+        </div>
+        <div>
+          <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CARGO</label>
+          <input value={form.cargo} onChange={e=>setForm(f=>({...f,cargo:e.target.value}))} placeholder="Ex: Cozinheiro, Churrasqueiro..." style={S.input} />
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          <div>
+            <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>ENTRADA ESPERADA</label>
+            <input type="time" value={form.horarioEntrada||''} onChange={e=>setForm(f=>({...f,horarioEntrada:e.target.value}))} style={S.input} />
+          </div>
+          <div>
+            <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SAÍDA ESPERADA</label>
+            <input type="time" value={form.horarioSaida||''} onChange={e=>setForm(f=>({...f,horarioSaida:e.target.value}))} style={S.input} />
+          </div>
+        </div>
+        <div>
+          <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PIN DE 4 DÍGITOS</label>
+          <input type="password" inputMode="numeric" maxLength={4} value={form.pin||''} onChange={e=>setForm(f=>({...f,pin:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="••••" style={{...S.input,textAlign:'center',fontSize:24,letterSpacing:8}} />
+          <p style={{fontSize:10,color:C.grayDark,marginTop:3}}>O funcionário usará este PIN para registrar o ponto</p>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button style={{...S.btnRed,flex:1}} onClick={salvar}>✓ Salvar</button>
+          <button style={{...S.btnGray,flex:1}} onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </Overlay>
+  )
+}
+
 function Login({ onLogin }) {
   const [email,setEmail]=useState(''); const [pass,setPass]=useState(''); const [err,setErr]=useState('')
   const [pontoTela,setPontoTela]=useState(false)
@@ -3783,90 +3859,26 @@ export default function App() {
       )}
 
       {/* MODAL NOVO/EDITAR FUNCIONÁRIO PONTO */}
-      {(pontoModal==='novoFunc'||pontoModal==='editFunc')&&(()=>{
-        const isEdit=pontoModal==='editFunc'
-        const funcEdit=isEdit?pontoFuncionarios.find(f=>f.id===pontoSelecionado):null
-        const [form,setForm] = React.useState(isEdit?{...funcEdit}:{nome:'',cargo:'',turno:TURNOS[0]?.id||'T1',horarioEntrada:'',horarioSaida:'',pin:'',foto:null})
-        const videoRef=React.useRef()
-        const canvasRef=React.useRef()
-        const [stream,setStream]=React.useState(null)
-        const [fotoPreview,setFotoPreview]=React.useState(form.foto||null)
+      {/* MODAL NOVO/EDITAR FUNCIONÁRIO PONTO */}
+      {(pontoModal==='novoFunc'||pontoModal==='editFunc')&&(
+        <PontoFuncModal
+          isEdit={pontoModal==='editFunc'}
+          funcEdit={pontoModal==='editFunc'?pontoFuncionarios.find(f=>f.id===pontoSelecionado):null}
+          onSave={(form)=>{
+            if(pontoModal==='editFunc'){
+              savePontoFuncionarios(pontoFuncionarios.map(f=>f.id===pontoSelecionado?{...f,...form}:f))
+            } else {
+              savePontoFuncionarios([...pontoFuncionarios,{...form,id:Date.now()}])
+            }
+            setPontoModal(null);setPontoSelecionado(null)
+            showToast('✓ Funcionário '+(pontoModal==='editFunc'?'atualizado':'cadastrado')+'!')
+          }}
+          onClose={()=>{setPontoModal(null);setPontoSelecionado(null)}}
+          S={S} C={C}
+        />
+      )}
 
-        const abrirCam=async()=>{
-          try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});setStream(s)}catch(e){showToast('Câmera indisponível','err')}
-        }
-        const tirarFoto=()=>{
-          if(!videoRef.current)return
-          const c=canvasRef.current;c.width=videoRef.current.videoWidth;c.height=videoRef.current.videoHeight
-          c.getContext('2d').drawImage(videoRef.current,0,0)
-          const d=c.toDataURL('image/jpeg',0.7);setFotoPreview(d);setForm(f=>({...f,foto:d}))
-          stream?.getTracks().forEach(t=>t.stop());setStream(null)
-        }
-        const salvar=()=>{
-          if(!form.nome) return showToast('Nome obrigatório','err')
-          if(!form.pin||form.pin.length!==4) return showToast('PIN deve ter 4 dígitos','err')
-          if(isEdit){
-            savePontoFuncionarios(pontoFuncionarios.map(f=>f.id===pontoSelecionado?{...f,...form}:f))
-          } else {
-            savePontoFuncionarios([...pontoFuncionarios,{...form,id:Date.now()}])
-          }
-          stream?.getTracks().forEach(t=>t.stop())
-          setPontoModal(null);setPontoSelecionado(null)
-          showToast('✓ Funcionário '+(isEdit?'atualizado':'cadastrado')+'!')
-        }
-        return(
-          <Overlay onClose={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}}>
-            <MHead title={isEdit?'✏️ Editar Funcionário':'👤 Novo Funcionário'} onClose={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}} />
-            <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
-              {/* FOTO */}
-              <div style={{textAlign:'center',marginBottom:4}}>
-                <div style={{width:80,height:80,borderRadius:50,overflow:'hidden',background:C.gray,margin:'0 auto 10px',border:`3px solid ${C.red}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:32}}>
-                  {fotoPreview?<img src={fotoPreview} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:'👤'}
-                </div>
-                {stream?(
-                  <div>
-                    <video ref={videoRef} autoPlay playsInline muted style={{width:'100%',borderRadius:10,maxHeight:200}}
-                      ref={el=>{if(el&&stream)el.srcObject=stream}} />
-                    <canvas ref={canvasRef} style={{display:'none'}} />
-                    <button onClick={tirarFoto} style={{...S.btnRed,marginTop:8,padding:'8px 20px',fontSize:13}}>📸 Tirar Foto</button>
-                  </div>
-                ):(
-                  <button onClick={abrirCam} style={{...S.btnGray,padding:'6px 14px',fontSize:12,color:C.blue}}>📷 {fotoPreview?'Trocar Foto':'Adicionar Foto'}</button>
-                )}
-              </div>
-              <div>
-                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOME COMPLETO</label>
-                <input value={form.nome} onChange={e=>setForm(f=>({...f,nome:e.target.value}))} placeholder="Nome do funcionário" style={S.input} autoFocus />
-              </div>
-              <div>
-                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CARGO</label>
-                <input value={form.cargo} onChange={e=>setForm(f=>({...f,cargo:e.target.value}))} placeholder="Ex: Cozinheiro, Churrasqueiro..." style={S.input} />
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                <div>
-                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>ENTRADA ESPERADA</label>
-                  <input type="time" value={form.horarioEntrada} onChange={e=>setForm(f=>({...f,horarioEntrada:e.target.value}))} style={S.input} />
-                </div>
-                <div>
-                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SAÍDA ESPERADA</label>
-                  <input type="time" value={form.horarioSaida} onChange={e=>setForm(f=>({...f,horarioSaida:e.target.value}))} style={S.input} />
-                </div>
-              </div>
-              <div>
-                <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PIN DE 4 DÍGITOS</label>
-                <input type="password" inputMode="numeric" maxLength={4} value={form.pin} onChange={e=>setForm(f=>({...f,pin:e.target.value.replace(/[^0-9]/g,'')}))} placeholder="••••" style={{...S.input,textAlign:'center',fontSize:24,letterSpacing:8}} />
-                <p style={{fontSize:10,color:C.grayDark,marginTop:3}}>O funcionário usará este PIN para registrar o ponto</p>
-              </div>
-              <div style={{display:'flex',gap:8}}>
-                <button style={{...S.btnRed,flex:1}} onClick={salvar}>✓ Salvar</button>
-                <button style={{...S.btnGray,flex:1}} onClick={()=>{stream?.getTracks().forEach(t=>t.stop());setPontoModal(null);setPontoSelecionado(null)}}>Cancelar</button>
-              </div>
-            </div>
-          </Overlay>
-        )
-      })()}
-
-      {/* MODAL EDITAR MOVIMENTO */}
+      {/* MODAL EDITAR MOVIMENTO */}      {/* MODAL EDITAR MOVIMENTO */}
       {editMovModal&&editMovItem&&(
         <Overlay onClose={()=>setEditMovModal(false)}>
           <MHead title="✏️ Editar Movimento" onClose={()=>setEditMovModal(false)} />
