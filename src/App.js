@@ -408,7 +408,12 @@ export default function App() {
   const [pontoPin,setPontoPin] = useState('')
   const [pontoFotoData,setPontoFotoData] = useState(null)
   const [pontoFotoStream,setPontoFotoStream] = useState(null)
-  const [pontoEditReg,setPontoEditReg] = useState(null) // editar registro
+  const [pontoEditReg,setPontoEditReg] = useState(null)
+  const [energiaLeituras,setEnergiaLeituras] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')}catch(e){return []}})
+  const [energiaModal,setEnergiaModal] = useState(false)
+  const [energiaForm,setEnergiaForm] = useState({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
+  const [energiaAlerta,setEnergiaAlerta] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_alerta')||'{"ativo":true,"diaSemana":1}')}catch(e){return {ativo:true,diaSemana:1}}})
+  const [energiaConfig,setEnergiaConfig] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_config')||'{"tarifa":0.95,"meta":500}')}catch(e){return {tarifa:0.95,meta:500}}}) // editar registro
   const [pontoAddManual,setPontoAddManual] = useState(null) // adicionar manual
   const [pontoManualForm,setPontoManualForm] = useState({funcionarioId:'',tipo:'entrada',data:todayStr(),hora:'',obs:''})
   const [pontoMesFunc,setPontoMesFunc] = useState(null) // espelho do mês
@@ -1140,6 +1145,63 @@ export default function App() {
       result.push({data:dataStr,dia:d,diaSemana,isFimSemana,regs,horas,totalMs,falta:regs.length===0&&!isFimSemana})
     }
     return result
+  }
+
+  // ── ENERGIA / CEMIG ─────────────────────────────────────────────
+  const saveEnergiaLeituras=(list)=>{
+    setEnergiaLeituras(list)
+    try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
+  }
+
+  const saveEnergiaAlerta=(cfg)=>{
+    setEnergiaAlerta(cfg)
+    try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
+  }
+
+  const saveEnergiaConfig=(cfg)=>{
+    setEnergiaConfig(cfg)
+    try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
+  }
+
+  const addLeituraEnergia=()=>{
+    if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
+    const nova={
+      id:Date.now(),
+      data:energiaForm.data,
+      leitura:parseFloat(energiaForm.leitura),
+      obs:energiaForm.obs||'',
+      registradoPor:user?.name||'Sistema',
+      created_at:new Date().toISOString(),
+    }
+    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
+    saveEnergiaLeituras(updated)
+    logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
+    setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
+    setEnergiaModal(false)
+    showToast('✓ Leitura registrada!')
+  }
+
+  const getConsumoSemana=(leituras,idx)=>{
+    if(idx>=leituras.length-1) return null
+    const atual=leituras[idx]
+    const anterior=leituras[idx+1]
+    const dias=Math.round((new Date(atual.data)-new Date(anterior.data))/(1000*60*60*24))
+    const kwh=atual.leitura-anterior.leitura
+    const custo=kwh*(energiaConfig.tarifa||0.95)
+    const kwhDia=dias>0?kwh/dias:0
+    return{kwh,dias,custo,kwhDia:kwhDia.toFixed(1)}
+  }
+
+  const verificarAlertaEnergia=()=>{
+    if(!energiaAlerta.ativo) return false
+    const hoje=new Date()
+    const diaSemana=hoje.getDay()
+    if(diaSemana!==energiaAlerta.diaSemana) return false
+    // Check if already registered this week
+    const inicioSemana=new Date(hoje)
+    inicioSemana.setDate(hoje.getDate()-hoje.getDay())
+    const jaRegistrou=energiaLeituras.some(l=>new Date(l.data)>=inicioSemana)
+    return !jaRegistrou
   }
 
   const handleConfirmAdmin=()=>{
@@ -3428,6 +3490,144 @@ export default function App() {
           )}
         </>}
 
+        {/* ══ ENERGIA / CEMIG ══ */}
+        {tab==='energia'&&<>
+          {/* ALERTA SEMANAL */}
+          {verificarAlertaEnergia()&&(
+            <div style={{...S.card,background:'#FFF8E1',border:`2px solid #F59E0B`,marginBottom:14,padding:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:28}}>⚡</span>
+                <div>
+                  <p style={{fontWeight:800,fontSize:14,color:'#B45309',marginBottom:2}}>Hora de registrar a leitura!</p>
+                  <p style={{fontSize:12,color:'#92400E'}}>Você ainda não registrou a leitura desta semana</p>
+                </div>
+              </div>
+              <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,background:'#F59E0B',padding:'10px 16px',fontSize:13,whiteSpace:'nowrap'}}>📝 Registrar</button>
+            </div>
+          )}
+
+          {/* HEADER */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>⚡ Controle de Energia — CEMIG</p>
+            <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Registrar Leitura</button>
+          </div>
+
+          {/* KPIs */}
+          {energiaLeituras.length>=2&&(()=>{
+            const ultimo=getConsumoSemana(energiaLeituras,0)
+            const penultimo=energiaLeituras.length>=3?getConsumoSemana(energiaLeituras,1):null
+            const variacao=ultimo&&penultimo?((ultimo.kwh-penultimo.kwh)/penultimo.kwh*100).toFixed(1):null
+            const totalMes=energiaLeituras.filter(l=>{
+              const d=new Date(l.data)
+              const hoje=new Date()
+              return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear()
+            })
+            const consumoMes=totalMes.length>=2?totalMes[0].leitura-totalMes[totalMes.length-1].leitura:0
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Consumo Última Semana',val:(ultimo?.kwh||0).toFixed(0)+' kWh',color:'#1565C0',icon:'📊',sub:fmtCur(ultimo?.custo||0)+' estimado'},
+                  {label:'Custo/Dia',val:fmtCur((ultimo?.custo||0)/( ultimo?.dias||7)),color:'#6f42c1',icon:'💰',sub:(ultimo?.kwhDia||0)+' kWh/dia'},
+                  {label:'Variação Semana',val:variacao!==null?(variacao>0?'+':'')+variacao+'%':'—',color:variacao>5?C.red:variacao<-5?C.green:C.orange,icon:variacao>0?'📈':'📉',sub:penultimo?'vs semana anterior':'dados insuficientes'},
+                  {label:'Consumo Mês',val:consumoMes.toFixed(0)+' kWh',color:C.red,icon:'🗓️',sub:fmtCur(consumoMes*(energiaConfig.tarifa||0.95))+' estimado'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1,marginBottom:4}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* CONFIGURAÇÕES */}
+          <div style={{...S.card,padding:14,marginBottom:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <p style={{fontSize:12,fontWeight:800}}>⚙️ CONFIGURAÇÕES</p>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TARIFA (R$/kWh)</label>
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:13}} />
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>META MENSAL (kWh)</label>
+                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:13}} />
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ALERTA — DIA DA SEMANA</label>
+                <select value={energiaAlerta.diaSemana} onChange={e=>saveEnergiaAlerta({...energiaAlerta,diaSemana:parseInt(e.target.value)})} style={{...S.input,fontSize:13}}>
+                  {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i)=><option key={i} value={i}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:10}}>
+              <input type="checkbox" checked={energiaAlerta.ativo} onChange={e=>saveEnergiaAlerta({...energiaAlerta,ativo:e.target.checked})} style={{width:16,height:16,accentColor:C.red}} />
+              <label style={{fontSize:12,color:C.grayDark}}>Ativar alerta semanal para registrar leitura</label>
+            </div>
+          </div>
+
+          {/* HISTÓRICO DE LEITURAS */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:12,fontWeight:800}}>📋 HISTÓRICO DE LEITURAS</p>
+              {energiaLeituras.length>0&&<button onClick={()=>{
+                const w=window.open('','_blank')
+                w.document.write('<html><head><title>Energia</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#EA1D2C;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                w.document.write('<button onclick="window.print()">Imprimir</button>')
+                w.document.write('<h2>⚡ Controle de Energia — Boi de Minas</h2>')
+                w.document.write('<p>Tarifa: R$ '+energiaConfig.tarifa+'/kWh</p>')
+                w.document.write('<table><tr><th>Data</th><th>Leitura (kWh)</th><th>Consumo</th><th>Dias</th><th>Custo Est.</th><th>kWh/dia</th><th>Obs</th></tr>')
+                energiaLeituras.forEach((l,i)=>{
+                  const c=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
+                  w.document.write('<tr><td>'+new Date(l.data).toLocaleDateString('pt-BR')+'</td><td>'+l.leitura+'</td><td>'+(c?c.kwh.toFixed(0)+' kWh':'—')+'</td><td>'+(c?c.dias:'—')+'</td><td>'+(c?fmtCur(c.custo):'—')+'</td><td>'+(c?c.kwhDia:'—')+'</td><td>'+l.obs+'</td></tr>')
+                })
+                w.document.write('</table></body></html>')
+                w.document.close()
+              }} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>🖨️ Imprimir</button>}
+            </div>
+            {energiaLeituras.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
+                  <p style={{fontSize:32,marginBottom:8}}>⚡</p>
+                  <p style={{fontWeight:700,fontSize:13}}>Nenhuma leitura registrada</p>
+                  <p style={{fontSize:11,marginTop:4}}>Registre a primeira leitura do relógio de energia</p>
+                </div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead><tr style={{background:C.gray}}>
+                      {['Data','Leitura (kWh)','Consumo','Dias','Custo Est.','kWh/dia','Variação','Obs',''].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {energiaLeituras.map((l,i)=>{
+                        const consumo=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
+                        const anterior=i<energiaLeituras.length-2?getConsumoSemana(energiaLeituras,i+1):null
+                        const variacao=consumo&&anterior?((consumo.kwh-anterior.kwh)/anterior.kwh*100).toFixed(1):null
+                        return(
+                          <tr key={l.id} style={{borderBottom:`1px solid ${C.gray}`}}>
+                            <td style={{padding:'8px 12px',fontWeight:700}}>{new Date(l.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+                            <td style={{padding:'8px 12px',fontFamily:'monospace',fontWeight:700,color:'#1565C0'}}>{l.leitura.toLocaleString('pt-BR')}</td>
+                            <td style={{padding:'8px 12px',fontWeight:700,color:C.grayDark}}>{consumo?consumo.kwh.toFixed(0)+' kWh':'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.grayDark}}>{consumo?consumo.dias+'d':'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.green,fontWeight:700}}>{consumo?fmtCur(consumo.custo):'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.grayDark}}>{consumo?consumo.kwhDia:'—'}</td>
+                            <td style={{padding:'8px 12px'}}>
+                              {variacao!==null&&<span style={{background:(variacao>5?C.red:variacao<-5?C.green:C.orange)+'22',color:variacao>5?C.red:variacao<-5?C.green:C.orange,padding:'2px 8px',borderRadius:20,fontWeight:700,fontSize:11}}>{variacao>0?'+':''}{variacao}%</span>}
+                            </td>
+                            <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
+                            <td style={{padding:'8px 12px'}}>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
+        </>}
+
         {/* ══ AUDITORIA ══ */}
         {tab==='auditoria'&&canAdmin&&<>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
@@ -3982,6 +4182,45 @@ export default function App() {
             <div style={{display:'flex',gap:8,marginTop:4}}>
               <button style={{...S.btnRed,flex:1}} onClick={saveContagem}>✓ Confirmar Contagem</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL REGISTRAR LEITURA ENERGIA */}
+      {energiaModal&&(
+        <Overlay onClose={()=>setEnergiaModal(false)}>
+          <MHead title="⚡ Registrar Leitura de Energia" onClose={()=>setEnergiaModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#FFF8E1',border:'1px solid #F59E0B33',borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:'#B45309',fontWeight:700}}>📖 Anote o valor exibido no medidor/relógio de energia (em kWh)</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DATA DA LEITURA</label>
+              <input type="date" value={energiaForm.data} onChange={e=>setEnergiaForm(f=>({...f,data:e.target.value}))} style={S.input} />
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>LEITURA DO RELÓGIO (kWh)</label>
+              <input type="number" step="0.1" placeholder="Ex: 12345.6" value={energiaForm.leitura} onChange={e=>setEnergiaForm(f=>({...f,leitura:e.target.value}))} style={{...S.input,fontSize:18,fontWeight:700,textAlign:'center',letterSpacing:2}} autoFocus />
+              <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Digite o número completo mostrado no medidor</p>
+            </div>
+            {energiaLeituras.length>0&&energiaForm.leitura&&(
+              <div style={{background:C.gray,borderRadius:10,padding:12}}>
+                <p style={{fontSize:12,fontWeight:700,marginBottom:6}}>📊 Prévia do consumo:</p>
+                <div style={{display:'flex',gap:16,fontSize:13}}>
+                  <span style={{color:'#1565C0',fontWeight:800}}>{(parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura).toFixed(0)} kWh consumidos</span>
+                  <span style={{color:C.green,fontWeight:800}}>{fmtCur((parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura)*(energiaConfig.tarifa||0.95))} estimado</span>
+                </div>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Desde {new Date(energiaLeituras[0].data).toLocaleDateString('pt-BR')}</p>
+              </div>
+            )}
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO (opcional)</label>
+              <input placeholder="Ex: Semana de muito movimento, AC ligado..." value={energiaForm.obs} onChange={e=>setEnergiaForm(f=>({...f,obs:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={addLeituraEnergia}>✓ Salvar Leitura</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setEnergiaModal(false)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
