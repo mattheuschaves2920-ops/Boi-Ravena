@@ -1605,6 +1605,7 @@ export default function App() {
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
     ...(canAdmin?[{key:'ponto',label:'Ponto',icon:'🕐'}]:[]),
+    {key:'energia',label:'Energia',icon:'⚡'},
     ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
   ]
 
@@ -1710,17 +1711,17 @@ export default function App() {
                     </div>
                     {isAtual&&<span style={{background:C.red,color:C.white,fontSize:9,padding:'3px 8px',borderRadius:20,fontWeight:800}}>ATUAL</span>}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8,marginTop:8}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:10}}>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:18,fontWeight:900,color:C.green}}>+{stats?.entradas||0}</p>
+                      <p style={{fontSize:20,fontWeight:900,color:C.green,lineHeight:1}}>+{stats?.entradas||0}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>ENTRADAS</p>
                     </div>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:18,fontWeight:900,color:C.red}}>-{stats?.saidas||0}</p>
+                      <p style={{fontSize:20,fontWeight:900,color:C.red,lineHeight:1}}>-{stats?.saidas||0}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>SAÍDAS</p>
                     </div>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:14,fontWeight:900,color:C.purple}}>{fmtCur(stats?.custo||0).replace('R$ ','')}</p>
+                      <p style={{fontSize:16,fontWeight:900,color:'#6f42c1',lineHeight:1}}>{fmtCur(stats?.custo||0)}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>CUSTO</p>
                     </div>
                   </div>
