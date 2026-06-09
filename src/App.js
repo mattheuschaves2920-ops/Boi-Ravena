@@ -1605,7 +1605,6 @@ export default function App() {
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
     ...(canAdmin?[{key:'ponto',label:'Ponto',icon:'🕐'}]:[]),
-    {key:'energia',label:'Energia',icon:'⚡'},
     ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
   ]
 
@@ -1634,11 +1633,11 @@ export default function App() {
       </div>
 
       {/* TABS */}
-      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:48,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
+      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:54,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
         {TABS.map(t=>(
           <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'8px 6px',fontFamily:"'Nunito'",fontSize:10,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-            <span style={{fontSize:14}}>{t.icon}</span>
-            <span style={{fontSize:9,maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
+            <span style={{fontSize:16}}>{t.icon}</span>
+            <span style={{fontSize:10,maxWidth:60,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
           </button>
         ))}
       </div>
@@ -1711,7 +1710,7 @@ export default function App() {
                     </div>
                     {isAtual&&<span style={{background:C.red,color:C.white,fontSize:9,padding:'3px 8px',borderRadius:20,fontWeight:800}}>ATUAL</span>}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8,marginTop:8}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8,marginTop:8}}>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
                       <p style={{fontSize:18,fontWeight:900,color:C.green}}>+{stats?.entradas||0}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>ENTRADAS</p>
@@ -1731,7 +1730,7 @@ export default function App() {
           </div>
 
           {/* CARDS POR SETOR */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:14}}>
             {statsPorSetor.map(s=>(
               <div key={s.setor} className="cc" onClick={()=>setDashSetor(dashSetor===s.setor?'todos':s.setor)} style={{...S.card,border:`2px solid ${dashSetor===s.setor?SETOR_COLORS[s.setor]:C.grayMid}`,background:dashSetor===s.setor?SETOR_COLORS[s.setor]+'11':C.white,transition:'all 0.2s',padding:14}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -1848,7 +1847,7 @@ export default function App() {
           </div>
 
           {/* GRÁFICO + MAIS CONSUMIDOS */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📈 MOVIMENTOS — 7 DIAS</p>
               <ResponsiveContainer width="100%" height={150}>
@@ -2073,13 +2072,13 @@ export default function App() {
           </div>
 
           {/* COMPARATIVO TURNOS E SETORES */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={{...S.card,padding:16}}>
               <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🔄 POR TURNO</p>
               {statsPorTurno.map(t=>(
                 <div key={t.id} style={{background:C.gray,borderRadius:10,padding:12,marginBottom:8}}>
                   <p style={{fontWeight:800,fontSize:12,marginBottom:6}}>{t.icon} {t.label} · {t.sub}</p>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:6}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:6}}>
                     {[{l:'Entradas',v:`+${t.entradas}`,c:C.green},{l:'Saídas',v:`-${t.saidas}`,c:C.red},{l:'Custo',v:fmtCur(t.custo).replace('R$ ','R$'),c:'#6f42c1'}].map(x=>(
                       <div key={x.l} style={{background:C.white,borderRadius:6,padding:'6px 4px',textAlign:'center'}}>
                         <p style={{fontWeight:900,fontSize:12,color:x.c}}>{x.v}</p>
@@ -2106,7 +2105,7 @@ export default function App() {
           </div>
 
           {/* GIRO DE ESTOQUE + VARIAÇÃO DE PREÇO */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔄 GIRO DE ESTOQUE (MÊS)</p>
               {giroEstoqueRel.slice(0,8).map((p,i)=>(
@@ -2141,7 +2140,7 @@ export default function App() {
           </div>
 
           {/* TOP 10 + PARADOS */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 TOP 10 — MAIOR CUSTO</p>
               {topProdsRel.filter(p=>p.custoTotal>0).slice(0,10).map((p,i)=>(
@@ -2184,7 +2183,7 @@ export default function App() {
           {/* VENCIMENTOS */}
           <div style={{...S.card,marginBottom:14,padding:16}}>
             <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📅 RELATÓRIO DE VENCIMENTOS</p>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
               {[
                 {label:'Vencendo em 7 dias',days:7,color:C.red,icon:'🚨'},
                 {label:'Vencendo em 15 dias',days:15,color:C.orange,icon:'⚠️'},
@@ -2349,7 +2348,7 @@ export default function App() {
             </div>
 
             {/* CARDS PRINCIPAIS */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:16}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:16}}>
               {/* CMV % */}
               <div style={{...S.card,border:`2px solid ${semaforo}`,background:semaforo+'11',gridColumn:'1/2'}}>
                 <p style={{fontSize:11,fontWeight:800,color:semaforo,marginBottom:8}}>📊 CMV DO PERÍODO</p>
@@ -2481,7 +2480,7 @@ export default function App() {
             </div>
 
             {/* RESUMO */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:14}}>
               {[
                 {label:'Itens Cadastrados',val:cardapio.length,color:C.blue,icon:'📋'},
                 {label:'Ticket Médio Est.',val:fmtCur(cardapio.length?cardapio.reduce((s,c)=>s+c.preco_venda,0)/cardapio.length:0),color:C.green,icon:'💰'},
@@ -2489,7 +2488,7 @@ export default function App() {
               ].map(c=>(
                 <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14,textAlign:'center'}}>
                   <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                  <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
                 </div>
               ))}
             </div>
@@ -2686,7 +2685,7 @@ export default function App() {
               ].map(c=>(
                 <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
                   <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                  <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
                 </div>
               ))}
             </div>
@@ -2775,7 +2774,7 @@ export default function App() {
             )}
 
             {/* KPIs PRINCIPAIS */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:14}}>
               {[
                 {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:`${products.length} produtos`},
                 {label:'Custo do Dia',val:fmtCur(custoHoje),color:C.orange,icon:'💸',sub:`${saidasHoje} saídas registradas`},
@@ -2793,7 +2792,7 @@ export default function App() {
             </div>
 
             {/* CONSUMO POR SETOR HOJE */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
               <div style={{...S.card,padding:16}}>
                 <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
                 {SETORES.map(s=>{
@@ -2957,7 +2956,7 @@ export default function App() {
             ].map(c=>(
               <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
                 <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
               </div>
             ))}
           </div>
@@ -3013,7 +3012,7 @@ export default function App() {
               {custoDesHojeComp>0&&<p style={{fontSize:12,fontWeight:700,color:C.red}}>🗑️ Desperdício hoje: {fmtCur(custoDesHojeComp)}</p>}
             </div>
           )}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:14}}>
             {[
               {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:products.length+' produtos'},
               {label:'Custo do Dia',val:fmtCur(custoHojeComp),color:C.orange,icon:'💸',sub:hojeMovsComp.filter(m=>m.type==='saida').length+' saídas'},
@@ -3029,7 +3028,7 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={{...S.card,padding:16}}>
               <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
               {SETORES.map(s=>{
@@ -3070,7 +3069,7 @@ export default function App() {
                 {whatsappNum?'✓ '+whatsappNum:'⚙️ Configurar'}
               </button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
               {[
                 {label:'📊 Resumo Diário',sub:'KPIs, alertas e movimentos',action:enviarResumoDiario},
                 {label:'🚨 Alerta de Estoque',sub:'Produtos baixos e vencendo',action:enviarAlertaEstoque},
@@ -4057,7 +4056,7 @@ export default function App() {
             {cardapioForm.preco_venda>0&&cardapioForm.custo_estimado>0&&(
               <div style={{background:C.gray,borderRadius:12,padding:14}}>
                 <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:8}}>PRÉVIA DO CMV</p>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8,textAlign:'center'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8,textAlign:'center'}}>
                   {[
                     {label:'CMV',val:`${((cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:(cardapioForm.custo_estimado/cardapioForm.preco_venda)*100<=cardapioForm.meta_cmv?C.green:C.red},
                     {label:'Margem',val:`${((1-cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:C.green},
