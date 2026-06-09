@@ -3508,9 +3508,12 @@ export default function App() {
           )}
 
           {/* HEADER */}
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <p style={{fontWeight:800,fontSize:14}}>⚡ Controle de Energia — CEMIG</p>
-            <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Registrar Leitura</button>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+            <div>
+              <p style={{fontWeight:900,fontSize:20,marginBottom:4}}>⚡ Controle de Energia</p>
+              <p style={{fontSize:13,color:C.grayDark}}>Acompanhe o consumo e custos da CEMIG semanalmente</p>
+            </div>
+            <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'14px 24px',fontSize:14,fontWeight:800}}>+ Registrar Leitura</button>
           </div>
 
           {/* KPIs */}
@@ -3543,36 +3546,37 @@ export default function App() {
           })()}
 
           {/* CONFIGURAÇÕES */}
-          <div style={{...S.card,padding:14,marginBottom:14}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-              <p style={{fontSize:12,fontWeight:800}}>⚙️ CONFIGURAÇÕES</p>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+          <div style={{...S.card,padding:20,marginBottom:16,border:`1.5px solid ${C.grayMid}`}}>
+            <p style={{fontSize:14,fontWeight:800,marginBottom:16}}>⚙️ Configurações</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:13}} />
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>META MENSAL (kWh)</label>
-                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:13}} />
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
+                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ALERTA — DIA DA SEMANA</label>
-                <select value={energiaAlerta.diaSemana} onChange={e=>saveEnergiaAlerta({...energiaAlerta,diaSemana:parseInt(e.target.value)})} style={{...S.input,fontSize:13}}>
-                  {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i)=><option key={i} value={i}>{d}</option>)}
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>DIA DO ALERTA SEMANAL</label>
+                <select value={energiaAlerta.diaSemana} onChange={e=>saveEnergiaAlerta({...energiaAlerta,diaSemana:parseInt(e.target.value)})} style={{...S.input,fontSize:14}}>
+                  {['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'].map((d,i)=><option key={i} value={i}>{d}</option>)}
                 </select>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Dia para lembrar de registrar</p>
               </div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:10}}>
-              <input type="checkbox" checked={energiaAlerta.ativo} onChange={e=>saveEnergiaAlerta({...energiaAlerta,ativo:e.target.checked})} style={{width:16,height:16,accentColor:C.red}} />
-              <label style={{fontSize:12,color:C.grayDark}}>Ativar alerta semanal para registrar leitura</label>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginTop:16,padding:'12px 14px',background:C.gray,borderRadius:10}}>
+              <input type="checkbox" id="alertaEnergia" checked={energiaAlerta.ativo} onChange={e=>saveEnergiaAlerta({...energiaAlerta,ativo:e.target.checked})} style={{width:18,height:18,accentColor:C.red,cursor:'pointer'}} />
+              <label htmlFor="alertaEnergia" style={{fontSize:13,color:C.grayDark,cursor:'pointer'}}>🔔 Ativar alerta semanal — aparece um aviso quando chegar o dia de registrar</label>
             </div>
           </div>
 
           {/* HISTÓRICO DE LEITURAS */}
           <div style={{...S.card,padding:0,overflow:'hidden'}}>
-            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontSize:12,fontWeight:800}}>📋 HISTÓRICO DE LEITURAS</p>
+            <div style={{padding:'16px 20px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:14,fontWeight:800}}>📋 Histórico de Leituras</p>
               {energiaLeituras.length>0&&<button onClick={()=>{
                 const w=window.open('','_blank')
                 w.document.write('<html><head><title>Energia</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#EA1D2C;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
@@ -3589,10 +3593,11 @@ export default function App() {
               }} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>🖨️ Imprimir</button>}
             </div>
             {energiaLeituras.length===0
-              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
-                  <p style={{fontSize:32,marginBottom:8}}>⚡</p>
-                  <p style={{fontWeight:700,fontSize:13}}>Nenhuma leitura registrada</p>
-                  <p style={{fontSize:11,marginTop:4}}>Registre a primeira leitura do relógio de energia</p>
+              ? <div style={{textAlign:'center',padding:'60px 20px',color:C.grayDark}}>
+                  <p style={{fontSize:48,marginBottom:12}}>⚡</p>
+                  <p style={{fontWeight:800,fontSize:16,marginBottom:8}}>Nenhuma leitura registrada</p>
+                  <p style={{fontSize:13,marginBottom:20}}>Registre a primeira leitura do relógio de energia para começar o controle</p>
+                  <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'12px 24px',fontSize:14}}>+ Registrar Primeira Leitura</button>
                 </div>
               : <div style={{overflowX:'auto'}}>
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
