@@ -411,6 +411,7 @@ export default function App() {
   const [pontoEditReg,setPontoEditReg] = useState(null)
   const [energiaLeituras,setEnergiaLeituras] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')}catch(e){return []}})
   const [energiaModal,setEnergiaModal] = useState(false)
+  const [energiaPopup,setEnergiaPopup] = useState(false)
   const [energiaForm,setEnergiaForm] = useState({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
   const [energiaAlerta,setEnergiaAlerta] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_alerta')||'{"ativo":true,"diaSemana":1}')}catch(e){return {ativo:true,diaSemana:1}}})
   const [energiaConfig,setEnergiaConfig] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_config')||'{"tarifa":0.95,"meta":500}')}catch(e){return {tarifa:0.95,meta:500}}}) // editar registro
@@ -439,6 +440,27 @@ export default function App() {
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+
+  // Alerta CEMIG popup ao abrir o app
+  useEffect(()=>{
+    if(!user) return
+    try{
+      const alerta=JSON.parse(localStorage.getItem('boi_energia_alerta')||'{"ativo":true,"diaSemana":1}')
+      if(!alerta.ativo) return
+      const hoje=new Date()
+      if(hoje.getDay()!==alerta.diaSemana) return
+      const leituras=JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')
+      const inicioSemana=new Date(hoje)
+      inicioSemana.setDate(hoje.getDate()-hoje.getDay())
+      inicioSemana.setHours(0,0,0,0)
+      const jaRegistrou=leituras.some(l=>new Date(l.data)>=inicioSemana)
+      if(jaRegistrou) return
+      // Check snooze
+      const snooze=parseInt(localStorage.getItem('boi_energia_popup_snooze')||'0')
+      if(Date.now()<snooze) return
+      setTimeout(()=>setEnergiaPopup(true),1500)
+    }catch(e){}
+  },[user])
 
   // Auto-login from saved session
   useEffect(()=>{
@@ -4191,6 +4213,42 @@ export default function App() {
             </div>
           </div>
         </Overlay>
+      )}
+
+      {/* POPUP ALERTA CEMIG */}
+      {energiaPopup&&(
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.6)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:C.white,borderRadius:24,overflow:'hidden',width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',animation:'slideUp 0.3s ease'}}>
+            {/* Header amarelo */}
+            <div style={{background:'linear-gradient(135deg,#F59E0B,#D97706)',padding:'28px 24px',textAlign:'center'}}>
+              <div style={{fontSize:56,marginBottom:8}}>⚡</div>
+              <p style={{color:'white',fontWeight:900,fontSize:20,marginBottom:4}}>Hora de registrar!</p>
+              <p style={{color:'rgba(255,255,255,0.9)',fontSize:14}}>Leitura semanal do medidor CEMIG</p>
+            </div>
+            {/* Body */}
+            <div style={{padding:'24px 24px 20px'}}>
+              <div style={{background:'#FFF8E1',borderRadius:14,padding:16,marginBottom:20,border:'1.5px solid #F59E0B44'}}>
+                <p style={{fontSize:13,color:'#92400E',fontWeight:700,marginBottom:6}}>📋 O que fazer agora:</p>
+                <p style={{fontSize:13,color:'#78350F',lineHeight:1.6}}>1. Vá até o medidor de energia<br/>2. Anote o número mostrado (kWh)<br/>3. Registre no sistema</p>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <button onClick={()=>{setEnergiaPopup(false);setTab('energia');setEnergiaModal(true)}} style={{...S.btnRed,background:'#F59E0B',padding:'14px',fontSize:15,fontWeight:800,borderRadius:14,border:'none',cursor:'pointer'}}>
+                  📝 Registrar Agora
+                </button>
+                <button onClick={()=>{
+                  // Lembrar mais tarde - não mostrar de novo por 4h
+                  try{localStorage.setItem('boi_energia_popup_snooze',Date.now()+4*60*60*1000)}catch(e){}
+                  setEnergiaPopup(false)
+                }} style={{...S.btnGray,padding:'12px',fontSize:13,borderRadius:14}}>
+                  ⏰ Lembrar em 4 horas
+                </button>
+                <button onClick={()=>setEnergiaPopup(false)} style={{background:'none',border:'none',cursor:'pointer',color:C.grayDark,fontSize:13,padding:'8px'}}>
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL REGISTRAR LEITURA ENERGIA */}
