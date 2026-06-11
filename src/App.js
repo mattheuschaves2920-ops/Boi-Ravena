@@ -466,6 +466,11 @@ export default function App() {
       if(prods) setProducts(prods)
       if(movs)  setMovements(movs)
       if(usrs)  setDbUsers(usrs)
+      // Load energia leituras
+      try{
+        const{data:enLeit}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
+        if(enLeit) setEnergiaLeituras(enLeit)
+      }catch(e){console.log('energia_leituras not ready',e)}
       // Load cardapio from localStorage
       try{
         const saved=localStorage.getItem('boi_cardapio')
@@ -1153,6 +1158,13 @@ export default function App() {
     try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
   }
 
+  const loadEnergiaLeituras=async()=>{
+    try{
+      const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
+      if(data) setEnergiaLeituras(data)
+    }catch(e){}
+  }
+
   const saveEnergiaAlerta=(cfg)=>{
     setEnergiaAlerta(cfg)
     try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
@@ -1163,18 +1175,28 @@ export default function App() {
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
   }
 
-  const addLeituraEnergia=()=>{
+  const addLeituraEnergia=async()=>{
     if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
-    const nova={
-      id:Date.now(),
-      data:energiaForm.data,
-      leitura:parseFloat(energiaForm.leitura),
-      obs:energiaForm.obs||'',
-      registradoPor:user?.name||'Sistema',
-      created_at:new Date().toISOString(),
+    // Try save to Supabase first
+    let savedToCloud=false
+    try{
+      const{error}=await supabase.from('energia_leituras').insert({
+        data:energiaForm.data,
+        leitura:parseFloat(energiaForm.leitura),
+        obs:energiaForm.obs||null,
+        registrado_por:user?.name||'Sistema',
+      })
+      if(!error){
+        savedToCloud=true
+        await loadEnergiaLeituras()
+      }
+    }catch(e){}
+    // Fallback to localStorage
+    if(!savedToCloud){
+      const nova={id:Date.now(),data:energiaForm.data,leitura:parseFloat(energiaForm.leitura),obs:energiaForm.obs||'',registrado_por:user?.name||'Sistema',created_at:new Date().toISOString()}
+      const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
+      saveEnergiaLeituras(updated)
     }
-    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
-    saveEnergiaLeituras(updated)
     logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
     setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
     setEnergiaModal(false)
@@ -3551,12 +3573,12 @@ export default function App() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:e.target.value})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
-                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:e.target.value})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
