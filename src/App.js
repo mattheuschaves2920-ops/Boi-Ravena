@@ -1220,15 +1220,15 @@ export default function App() {
 
   const verificarAlertaEnergia=()=>{
     try{
-    if(!energiaAlerta.ativo) return false
-    const hoje=new Date()
-    const diaSemana=hoje.getDay()
-    if(diaSemana!==energiaAlerta.diaSemana) return false
-    // Check if already registered this week
-    const inicioSemana=new Date(hoje)
-    inicioSemana.setDate(hoje.getDate()-hoje.getDay())
-    const jaRegistrou=energiaLeituras.some(l=>new Date(l.data)>=inicioSemana)
-    return !jaRegistrou
+      if(!energiaAlerta||!energiaAlerta.ativo) return false
+      const hoje=new Date()
+      if(hoje.getDay()!==energiaAlerta.diaSemana) return false
+      const inicioSemana=new Date(hoje)
+      inicioSemana.setDate(hoje.getDate()-hoje.getDay())
+      inicioSemana.setHours(0,0,0,0)
+      const lista=Array.isArray(energiaLeituras)?energiaLeituras:[]
+      const jaRegistrou=lista.some(l=>{try{return new Date(l.data)>=inicioSemana}catch(e){return false}})
+      return !jaRegistrou
     }catch(e){return false}
   }
 
@@ -3546,11 +3546,11 @@ export default function App() {
           </div>
 
           {/* KPIs */}
-          {energiaLeituras.length>=2&&(()=>{
-            const ultimo=getConsumoSemana(energiaLeituras,0)
-            const penultimo=energiaLeituras.length>=3?getConsumoSemana(energiaLeituras,1):null
+          {(energiaLeituras||[]).length>=2&&(()=>{
+            const ultimo=getConsumoSemana((energiaLeituras||[]),0)
+            const penultimo=(energiaLeituras||[]).length>=3?getConsumoSemana((energiaLeituras||[]),1):null
             const variacao=ultimo&&penultimo?((ultimo.kwh-penultimo.kwh)/penultimo.kwh*100).toFixed(1):null
-            const totalMes=energiaLeituras.filter(l=>{
+            const totalMes=(energiaLeituras||[]).filter(l=>{
               const d=new Date(l.data)
               const hoje=new Date()
               return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear()
@@ -3606,22 +3606,22 @@ export default function App() {
           <div style={{...S.card,padding:0,overflow:'hidden'}}>
             <div style={{padding:'16px 20px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <p style={{fontSize:14,fontWeight:800}}>📋 Histórico de Leituras</p>
-              {energiaLeituras.length>0&&<button onClick={()=>{
+              {(energiaLeituras||[]).length>0&&<button onClick={()=>{
                 const w=window.open('','_blank')
                 w.document.write('<html><head><title>Energia</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#EA1D2C;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
                 w.document.write('<button onclick="window.print()">Imprimir</button>')
                 w.document.write('<h2>⚡ Controle de Energia — Boi de Minas</h2>')
                 w.document.write('<p>Tarifa: R$ '+energiaConfig.tarifa+'/kWh</p>')
                 w.document.write('<table><tr><th>Data</th><th>Leitura (kWh)</th><th>Consumo</th><th>Dias</th><th>Custo Est.</th><th>kWh/dia</th><th>Obs</th></tr>')
-                energiaLeituras.forEach((l,i)=>{
-                  const c=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
+                (energiaLeituras||[]).forEach((l,i)=>{
+                  const c=i<energiaLeituras.length-1?getConsumoSemana((energiaLeituras||[]),i):null
                   w.document.write('<tr><td>'+new Date(l.data).toLocaleDateString('pt-BR')+'</td><td>'+l.leitura+'</td><td>'+(c?c.kwh.toFixed(0)+' kWh':'—')+'</td><td>'+(c?c.dias:'—')+'</td><td>'+(c?fmtCur(c.custo):'—')+'</td><td>'+(c?c.kwhDia:'—')+'</td><td>'+l.obs+'</td></tr>')
                 })
                 w.document.write('</table></body></html>')
                 w.document.close()
               }} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>🖨️ Imprimir</button>}
             </div>
-            {energiaLeituras.length===0
+            {(energiaLeituras||[]).length===0
               ? <div style={{textAlign:'center',padding:'60px 20px',color:C.grayDark}}>
                   <p style={{fontSize:48,marginBottom:12}}>⚡</p>
                   <p style={{fontWeight:800,fontSize:16,marginBottom:8}}>Nenhuma leitura registrada</p>
@@ -3634,9 +3634,9 @@ export default function App() {
                       {['Data','Leitura (kWh)','Consumo','Dias','Custo Est.','kWh/dia','Variação','Obs',''].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
                     </tr></thead>
                     <tbody>
-                      {energiaLeituras.map((l,i)=>{
-                        const consumo=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
-                        const anterior=i<energiaLeituras.length-2?getConsumoSemana(energiaLeituras,i+1):null
+                      {(energiaLeituras||[]).map((l,i)=>{
+                        const consumo=i<energiaLeituras.length-1?getConsumoSemana((energiaLeituras||[]),i):null
+                        const anterior=i<energiaLeituras.length-2?getConsumoSemana((energiaLeituras||[]),i+1):null
                         const variacao=consumo&&anterior?((consumo.kwh-anterior.kwh)/anterior.kwh*100).toFixed(1):null
                         return(
                           <tr key={l.id} style={{borderBottom:`1px solid ${C.gray}`}}>
@@ -4320,14 +4320,14 @@ export default function App() {
               <input type="number" step="0.1" placeholder="Ex: 12345.6" value={energiaForm.leitura} onChange={e=>setEnergiaForm(f=>({...f,leitura:e.target.value}))} style={{...S.input,fontSize:18,fontWeight:700,textAlign:'center',letterSpacing:2}} autoFocus />
               <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Digite o número completo mostrado no medidor</p>
             </div>
-            {energiaLeituras.length>0&&energiaForm.leitura&&(
+            {(energiaLeituras||[]).length>0&&energiaForm.leitura&&(
               <div style={{background:C.gray,borderRadius:10,padding:12}}>
                 <p style={{fontSize:12,fontWeight:700,marginBottom:6}}>📊 Prévia do consumo:</p>
                 <div style={{display:'flex',gap:16,fontSize:13}}>
-                  <span style={{color:'#1565C0',fontWeight:800}}>{(parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura).toFixed(0)} kWh consumidos</span>
-                  <span style={{color:C.green,fontWeight:800}}>{fmtCur((parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura)*(energiaConfig.tarifa||0.95))} estimado</span>
+                  <span style={{color:'#1565C0',fontWeight:800}}>{(parseFloat(energiaForm.leitura)-(energiaLeituras&&energiaLeituras[0]?energiaLeituras[0].leitura:0)).toFixed(0)} kWh consumidos</span>
+                  <span style={{color:C.green,fontWeight:800}}>{fmtCur((parseFloat(energiaForm.leitura)-(energiaLeituras&&energiaLeituras[0]?energiaLeituras[0].leitura:0))*(energiaConfig.tarifa||0.95))} estimado</span>
                 </div>
-                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Desde {new Date(energiaLeituras[0].data).toLocaleDateString('pt-BR')}</p>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Desde {new Date((energiaLeituras&&energiaLeituras[0]?energiaLeituras[0].data:'')).toLocaleDateString('pt-BR')}</p>
               </div>
             )}
             <div>
