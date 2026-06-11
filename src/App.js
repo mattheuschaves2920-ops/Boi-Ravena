@@ -408,7 +408,12 @@ export default function App() {
   const [pontoPin,setPontoPin] = useState('')
   const [pontoFotoData,setPontoFotoData] = useState(null)
   const [pontoFotoStream,setPontoFotoStream] = useState(null)
-  const [pontoEditReg,setPontoEditReg] = useState(null) // editar registro
+  const [pontoEditReg,setPontoEditReg] = useState(null)
+  const [energiaLeituras,setEnergiaLeituras] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')}catch(e){return []}})
+  const [energiaModal,setEnergiaModal] = useState(false)
+  const [energiaForm,setEnergiaForm] = useState({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
+  const [energiaAlerta,setEnergiaAlerta] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_alerta')||'{"ativo":true,"diaSemana":1}')}catch(e){return {ativo:true,diaSemana:1}}})
+  const [energiaConfig,setEnergiaConfig] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_config')||'{"tarifa":0.95,"meta":500}')}catch(e){return {tarifa:0.95,meta:500}}}) // editar registro
   const [pontoAddManual,setPontoAddManual] = useState(null) // adicionar manual
   const [pontoManualForm,setPontoManualForm] = useState({funcionarioId:'',tipo:'entrada',data:todayStr(),hora:'',obs:''})
   const [pontoMesFunc,setPontoMesFunc] = useState(null) // espelho do mês
@@ -1142,6 +1147,63 @@ export default function App() {
     return result
   }
 
+  // ── ENERGIA / CEMIG ─────────────────────────────────────────────
+  const saveEnergiaLeituras=(list)=>{
+    setEnergiaLeituras(list)
+    try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
+  }
+
+  const saveEnergiaAlerta=(cfg)=>{
+    setEnergiaAlerta(cfg)
+    try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
+  }
+
+  const saveEnergiaConfig=(cfg)=>{
+    setEnergiaConfig(cfg)
+    try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
+  }
+
+  const addLeituraEnergia=()=>{
+    if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
+    const nova={
+      id:Date.now(),
+      data:energiaForm.data,
+      leitura:parseFloat(energiaForm.leitura),
+      obs:energiaForm.obs||'',
+      registradoPor:user?.name||'Sistema',
+      created_at:new Date().toISOString(),
+    }
+    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
+    saveEnergiaLeituras(updated)
+    logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
+    setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
+    setEnergiaModal(false)
+    showToast('✓ Leitura registrada!')
+  }
+
+  const getConsumoSemana=(leituras,idx)=>{
+    if(idx>=leituras.length-1) return null
+    const atual=leituras[idx]
+    const anterior=leituras[idx+1]
+    const dias=Math.round((new Date(atual.data)-new Date(anterior.data))/(1000*60*60*24))
+    const kwh=atual.leitura-anterior.leitura
+    const custo=kwh*(energiaConfig.tarifa||0.95)
+    const kwhDia=dias>0?kwh/dias:0
+    return{kwh,dias,custo,kwhDia:kwhDia.toFixed(1)}
+  }
+
+  const verificarAlertaEnergia=()=>{
+    if(!energiaAlerta.ativo) return false
+    const hoje=new Date()
+    const diaSemana=hoje.getDay()
+    if(diaSemana!==energiaAlerta.diaSemana) return false
+    // Check if already registered this week
+    const inicioSemana=new Date(hoje)
+    inicioSemana.setDate(hoje.getDate()-hoje.getDay())
+    const jaRegistrou=energiaLeituras.some(l=>new Date(l.data)>=inicioSemana)
+    return !jaRegistrou
+  }
+
   const handleConfirmAdmin=()=>{
     const adminUser=USERS.find(u=>u.role==='admin')
     if(confirmPass===adminUser?.password||confirmPass==='1234'){
@@ -1543,6 +1605,7 @@ export default function App() {
     {key:'inventario',label:'Inventário',icon:'📋'},
     {key:'previsao',label:'Previsão',icon:'🔮'},
     ...(canAdmin?[{key:'ponto',label:'Ponto',icon:'🕐'}]:[]),
+    {key:'energia',label:'Energia',icon:'⚡'},
     ...(canAdmin?[{key:'dono',label:'👑 Dono',icon:'👑'}]:[]),
   ]
 
@@ -1571,11 +1634,11 @@ export default function App() {
       </div>
 
       {/* TABS */}
-      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:48,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
+      <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:54,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
         {TABS.map(t=>(
           <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'8px 6px',fontFamily:"'Nunito'",fontSize:10,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-            <span style={{fontSize:14}}>{t.icon}</span>
-            <span style={{fontSize:9,maxWidth:52,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
+            <span style={{fontSize:16}}>{t.icon}</span>
+            <span style={{fontSize:10,maxWidth:60,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
           </button>
         ))}
       </div>
@@ -1648,17 +1711,17 @@ export default function App() {
                     </div>
                     {isAtual&&<span style={{background:C.red,color:C.white,fontSize:9,padding:'3px 8px',borderRadius:20,fontWeight:800}}>ATUAL</span>}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8,marginTop:8}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:10}}>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:18,fontWeight:900,color:C.green}}>+{stats?.entradas||0}</p>
+                      <p style={{fontSize:20,fontWeight:900,color:C.green,lineHeight:1}}>+{stats?.entradas||0}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>ENTRADAS</p>
                     </div>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:18,fontWeight:900,color:C.red}}>-{stats?.saidas||0}</p>
+                      <p style={{fontSize:20,fontWeight:900,color:C.red,lineHeight:1}}>-{stats?.saidas||0}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>SAÍDAS</p>
                     </div>
                     <div style={{textAlign:'center',background:C.gray,borderRadius:10,padding:'8px 4px'}}>
-                      <p style={{fontSize:14,fontWeight:900,color:C.purple}}>{fmtCur(stats?.custo||0).replace('R$ ','')}</p>
+                      <p style={{fontSize:16,fontWeight:900,color:'#6f42c1',lineHeight:1}}>{fmtCur(stats?.custo||0)}</p>
                       <p style={{fontSize:9,color:C.grayDark,fontWeight:700}}>CUSTO</p>
                     </div>
                   </div>
@@ -1668,7 +1731,7 @@ export default function App() {
           </div>
 
           {/* CARDS POR SETOR */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:14}}>
             {statsPorSetor.map(s=>(
               <div key={s.setor} className="cc" onClick={()=>setDashSetor(dashSetor===s.setor?'todos':s.setor)} style={{...S.card,border:`2px solid ${dashSetor===s.setor?SETOR_COLORS[s.setor]:C.grayMid}`,background:dashSetor===s.setor?SETOR_COLORS[s.setor]+'11':C.white,transition:'all 0.2s',padding:14}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
@@ -1785,7 +1848,7 @@ export default function App() {
           </div>
 
           {/* GRÁFICO + MAIS CONSUMIDOS */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📈 MOVIMENTOS — 7 DIAS</p>
               <ResponsiveContainer width="100%" height={150}>
@@ -2010,13 +2073,13 @@ export default function App() {
           </div>
 
           {/* COMPARATIVO TURNOS E SETORES */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={{...S.card,padding:16}}>
               <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🔄 POR TURNO</p>
               {statsPorTurno.map(t=>(
                 <div key={t.id} style={{background:C.gray,borderRadius:10,padding:12,marginBottom:8}}>
                   <p style={{fontWeight:800,fontSize:12,marginBottom:6}}>{t.icon} {t.label} · {t.sub}</p>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:6}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:6}}>
                     {[{l:'Entradas',v:`+${t.entradas}`,c:C.green},{l:'Saídas',v:`-${t.saidas}`,c:C.red},{l:'Custo',v:fmtCur(t.custo).replace('R$ ','R$'),c:'#6f42c1'}].map(x=>(
                       <div key={x.l} style={{background:C.white,borderRadius:6,padding:'6px 4px',textAlign:'center'}}>
                         <p style={{fontWeight:900,fontSize:12,color:x.c}}>{x.v}</p>
@@ -2043,7 +2106,7 @@ export default function App() {
           </div>
 
           {/* GIRO DE ESTOQUE + VARIAÇÃO DE PREÇO */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔄 GIRO DE ESTOQUE (MÊS)</p>
               {giroEstoqueRel.slice(0,8).map((p,i)=>(
@@ -2078,7 +2141,7 @@ export default function App() {
           </div>
 
           {/* TOP 10 + PARADOS */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={S.card}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 TOP 10 — MAIOR CUSTO</p>
               {topProdsRel.filter(p=>p.custoTotal>0).slice(0,10).map((p,i)=>(
@@ -2121,7 +2184,7 @@ export default function App() {
           {/* VENCIMENTOS */}
           <div style={{...S.card,marginBottom:14,padding:16}}>
             <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📅 RELATÓRIO DE VENCIMENTOS</p>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
               {[
                 {label:'Vencendo em 7 dias',days:7,color:C.red,icon:'🚨'},
                 {label:'Vencendo em 15 dias',days:15,color:C.orange,icon:'⚠️'},
@@ -2286,7 +2349,7 @@ export default function App() {
             </div>
 
             {/* CARDS PRINCIPAIS */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:16}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:16}}>
               {/* CMV % */}
               <div style={{...S.card,border:`2px solid ${semaforo}`,background:semaforo+'11',gridColumn:'1/2'}}>
                 <p style={{fontSize:11,fontWeight:800,color:semaforo,marginBottom:8}}>📊 CMV DO PERÍODO</p>
@@ -2418,7 +2481,7 @@ export default function App() {
             </div>
 
             {/* RESUMO */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10,marginBottom:14}}>
               {[
                 {label:'Itens Cadastrados',val:cardapio.length,color:C.blue,icon:'📋'},
                 {label:'Ticket Médio Est.',val:fmtCur(cardapio.length?cardapio.reduce((s,c)=>s+c.preco_venda,0)/cardapio.length:0),color:C.green,icon:'💰'},
@@ -2426,7 +2489,7 @@ export default function App() {
               ].map(c=>(
                 <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14,textAlign:'center'}}>
                   <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                  <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
                 </div>
               ))}
             </div>
@@ -2623,7 +2686,7 @@ export default function App() {
               ].map(c=>(
                 <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
                   <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                  <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
                 </div>
               ))}
             </div>
@@ -2712,7 +2775,7 @@ export default function App() {
             )}
 
             {/* KPIs PRINCIPAIS */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:14}}>
               {[
                 {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:`${products.length} produtos`},
                 {label:'Custo do Dia',val:fmtCur(custoHoje),color:C.orange,icon:'💸',sub:`${saidasHoje} saídas registradas`},
@@ -2730,7 +2793,7 @@ export default function App() {
             </div>
 
             {/* CONSUMO POR SETOR HOJE */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
               <div style={{...S.card,padding:16}}>
                 <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
                 {SETORES.map(s=>{
@@ -2894,7 +2957,7 @@ export default function App() {
             ].map(c=>(
               <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
                 <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                <div style={{fontWeight:900,fontSize:22,color:c.color}}>{c.val}</div>
+                <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
               </div>
             ))}
           </div>
@@ -2950,7 +3013,7 @@ export default function App() {
               {custoDesHojeComp>0&&<p style={{fontSize:12,fontWeight:700,color:C.red}}>🗑️ Desperdício hoje: {fmtCur(custoDesHojeComp)}</p>}
             </div>
           )}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:14}}>
             {[
               {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:products.length+' produtos'},
               {label:'Custo do Dia',val:fmtCur(custoHojeComp),color:C.orange,icon:'💸',sub:hojeMovsComp.filter(m=>m.type==='saida').length+' saídas'},
@@ -2966,7 +3029,7 @@ export default function App() {
               </div>
             ))}
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12,marginBottom:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
             <div style={{...S.card,padding:16}}>
               <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
               {SETORES.map(s=>{
@@ -3007,7 +3070,7 @@ export default function App() {
                 {whatsappNum?'✓ '+whatsappNum:'⚙️ Configurar'}
               </button>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
               {[
                 {label:'📊 Resumo Diário',sub:'KPIs, alertas e movimentos',action:enviarResumoDiario},
                 {label:'🚨 Alerta de Estoque',sub:'Produtos baixos e vencendo',action:enviarAlertaEstoque},
@@ -3426,6 +3489,149 @@ export default function App() {
               </div>
             </div>
           )}
+        </>}
+
+        {/* ══ ENERGIA / CEMIG ══ */}
+        {tab==='energia'&&<>
+          {/* ALERTA SEMANAL */}
+          {verificarAlertaEnergia()&&(
+            <div style={{...S.card,background:'#FFF8E1',border:`2px solid #F59E0B`,marginBottom:14,padding:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:28}}>⚡</span>
+                <div>
+                  <p style={{fontWeight:800,fontSize:14,color:'#B45309',marginBottom:2}}>Hora de registrar a leitura!</p>
+                  <p style={{fontSize:12,color:'#92400E'}}>Você ainda não registrou a leitura desta semana</p>
+                </div>
+              </div>
+              <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,background:'#F59E0B',padding:'10px 16px',fontSize:13,whiteSpace:'nowrap'}}>📝 Registrar</button>
+            </div>
+          )}
+
+          {/* HEADER */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+            <div>
+              <p style={{fontWeight:900,fontSize:20,marginBottom:4}}>⚡ Controle de Energia</p>
+              <p style={{fontSize:13,color:C.grayDark}}>Acompanhe o consumo e custos da CEMIG semanalmente</p>
+            </div>
+            <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'14px 24px',fontSize:14,fontWeight:800}}>+ Registrar Leitura</button>
+          </div>
+
+          {/* KPIs */}
+          {energiaLeituras.length>=2&&(()=>{
+            const ultimo=getConsumoSemana(energiaLeituras,0)
+            const penultimo=energiaLeituras.length>=3?getConsumoSemana(energiaLeituras,1):null
+            const variacao=ultimo&&penultimo?((ultimo.kwh-penultimo.kwh)/penultimo.kwh*100).toFixed(1):null
+            const totalMes=energiaLeituras.filter(l=>{
+              const d=new Date(l.data)
+              const hoje=new Date()
+              return d.getMonth()===hoje.getMonth()&&d.getFullYear()===hoje.getFullYear()
+            })
+            const consumoMes=totalMes.length>=2?totalMes[0].leitura-totalMes[totalMes.length-1].leitura:0
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Consumo Última Semana',val:(ultimo?.kwh||0).toFixed(0)+' kWh',color:'#1565C0',icon:'📊',sub:fmtCur(ultimo?.custo||0)+' estimado'},
+                  {label:'Custo/Dia',val:fmtCur((ultimo?.custo||0)/( ultimo?.dias||7)),color:'#6f42c1',icon:'💰',sub:(ultimo?.kwhDia||0)+' kWh/dia'},
+                  {label:'Variação Semana',val:variacao!==null?(variacao>0?'+':'')+variacao+'%':'—',color:variacao>5?C.red:variacao<-5?C.green:C.orange,icon:variacao>0?'📈':'📉',sub:penultimo?'vs semana anterior':'dados insuficientes'},
+                  {label:'Consumo Mês',val:consumoMes.toFixed(0)+' kWh',color:C.red,icon:'🗓️',sub:fmtCur(consumoMes*(energiaConfig.tarifa||0.95))+' estimado'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:4}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1,marginBottom:4}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* CONFIGURAÇÕES */}
+          <div style={{...S.card,padding:20,marginBottom:16,border:`1.5px solid ${C.grayMid}`}}>
+            <p style={{fontSize:14,fontWeight:800,marginBottom:16}}>⚙️ Configurações</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
+              <div>
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
+              </div>
+              <div>
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
+                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
+              </div>
+              <div>
+                <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>DIA DO ALERTA SEMANAL</label>
+                <select value={energiaAlerta.diaSemana} onChange={e=>saveEnergiaAlerta({...energiaAlerta,diaSemana:parseInt(e.target.value)})} style={{...S.input,fontSize:14}}>
+                  {['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'].map((d,i)=><option key={i} value={i}>{d}</option>)}
+                </select>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Dia para lembrar de registrar</p>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginTop:16,padding:'12px 14px',background:C.gray,borderRadius:10}}>
+              <input type="checkbox" id="alertaEnergia" checked={energiaAlerta.ativo} onChange={e=>saveEnergiaAlerta({...energiaAlerta,ativo:e.target.checked})} style={{width:18,height:18,accentColor:C.red,cursor:'pointer'}} />
+              <label htmlFor="alertaEnergia" style={{fontSize:13,color:C.grayDark,cursor:'pointer'}}>🔔 Ativar alerta semanal — aparece um aviso quando chegar o dia de registrar</label>
+            </div>
+          </div>
+
+          {/* HISTÓRICO DE LEITURAS */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'16px 20px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:14,fontWeight:800}}>📋 Histórico de Leituras</p>
+              {energiaLeituras.length>0&&<button onClick={()=>{
+                const w=window.open('','_blank')
+                w.document.write('<html><head><title>Energia</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#EA1D2C;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                w.document.write('<button onclick="window.print()">Imprimir</button>')
+                w.document.write('<h2>⚡ Controle de Energia — Boi de Minas</h2>')
+                w.document.write('<p>Tarifa: R$ '+energiaConfig.tarifa+'/kWh</p>')
+                w.document.write('<table><tr><th>Data</th><th>Leitura (kWh)</th><th>Consumo</th><th>Dias</th><th>Custo Est.</th><th>kWh/dia</th><th>Obs</th></tr>')
+                energiaLeituras.forEach((l,i)=>{
+                  const c=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
+                  w.document.write('<tr><td>'+new Date(l.data).toLocaleDateString('pt-BR')+'</td><td>'+l.leitura+'</td><td>'+(c?c.kwh.toFixed(0)+' kWh':'—')+'</td><td>'+(c?c.dias:'—')+'</td><td>'+(c?fmtCur(c.custo):'—')+'</td><td>'+(c?c.kwhDia:'—')+'</td><td>'+l.obs+'</td></tr>')
+                })
+                w.document.write('</table></body></html>')
+                w.document.close()
+              }} style={{...S.btnGray,padding:'6px 12px',fontSize:11}}>🖨️ Imprimir</button>}
+            </div>
+            {energiaLeituras.length===0
+              ? <div style={{textAlign:'center',padding:'60px 20px',color:C.grayDark}}>
+                  <p style={{fontSize:48,marginBottom:12}}>⚡</p>
+                  <p style={{fontWeight:800,fontSize:16,marginBottom:8}}>Nenhuma leitura registrada</p>
+                  <p style={{fontSize:13,marginBottom:20}}>Registre a primeira leitura do relógio de energia para começar o controle</p>
+                  <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,padding:'12px 24px',fontSize:14}}>+ Registrar Primeira Leitura</button>
+                </div>
+              : <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                    <thead><tr style={{background:C.gray}}>
+                      {['Data','Leitura (kWh)','Consumo','Dias','Custo Est.','kWh/dia','Variação','Obs',''].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {energiaLeituras.map((l,i)=>{
+                        const consumo=i<energiaLeituras.length-1?getConsumoSemana(energiaLeituras,i):null
+                        const anterior=i<energiaLeituras.length-2?getConsumoSemana(energiaLeituras,i+1):null
+                        const variacao=consumo&&anterior?((consumo.kwh-anterior.kwh)/anterior.kwh*100).toFixed(1):null
+                        return(
+                          <tr key={l.id} style={{borderBottom:`1px solid ${C.gray}`}}>
+                            <td style={{padding:'8px 12px',fontWeight:700}}>{new Date(l.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+                            <td style={{padding:'8px 12px',fontFamily:'monospace',fontWeight:700,color:'#1565C0'}}>{l.leitura.toLocaleString('pt-BR')}</td>
+                            <td style={{padding:'8px 12px',fontWeight:700,color:C.grayDark}}>{consumo?consumo.kwh.toFixed(0)+' kWh':'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.grayDark}}>{consumo?consumo.dias+'d':'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.green,fontWeight:700}}>{consumo?fmtCur(consumo.custo):'—'}</td>
+                            <td style={{padding:'8px 12px',color:C.grayDark}}>{consumo?consumo.kwhDia:'—'}</td>
+                            <td style={{padding:'8px 12px'}}>
+                              {variacao!==null&&<span style={{background:(variacao>5?C.red:variacao<-5?C.green:C.orange)+'22',color:variacao>5?C.red:variacao<-5?C.green:C.orange,padding:'2px 8px',borderRadius:20,fontWeight:700,fontSize:11}}>{variacao>0?'+':''}{variacao}%</span>}
+                            </td>
+                            <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
+                            <td style={{padding:'8px 12px'}}>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+            }
+          </div>
         </>}
 
         {/* ══ AUDITORIA ══ */}
@@ -3851,7 +4057,7 @@ export default function App() {
             {cardapioForm.preco_venda>0&&cardapioForm.custo_estimado>0&&(
               <div style={{background:C.gray,borderRadius:12,padding:14}}>
                 <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:8}}>PRÉVIA DO CMV</p>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:8,textAlign:'center'}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:8,textAlign:'center'}}>
                   {[
                     {label:'CMV',val:`${((cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:(cardapioForm.custo_estimado/cardapioForm.preco_venda)*100<=cardapioForm.meta_cmv?C.green:C.red},
                     {label:'Margem',val:`${((1-cardapioForm.custo_estimado/cardapioForm.preco_venda)*100).toFixed(1)}%`,color:C.green},
@@ -3982,6 +4188,45 @@ export default function App() {
             <div style={{display:'flex',gap:8,marginTop:4}}>
               <button style={{...S.btnRed,flex:1}} onClick={saveContagem}>✓ Confirmar Contagem</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setPdvModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL REGISTRAR LEITURA ENERGIA */}
+      {energiaModal&&(
+        <Overlay onClose={()=>setEnergiaModal(false)}>
+          <MHead title="⚡ Registrar Leitura de Energia" onClose={()=>setEnergiaModal(false)} />
+          <div style={{padding:'18px 22px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#FFF8E1',border:'1px solid #F59E0B33',borderRadius:10,padding:12}}>
+              <p style={{fontSize:12,color:'#B45309',fontWeight:700}}>📖 Anote o valor exibido no medidor/relógio de energia (em kWh)</p>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DATA DA LEITURA</label>
+              <input type="date" value={energiaForm.data} onChange={e=>setEnergiaForm(f=>({...f,data:e.target.value}))} style={S.input} />
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>LEITURA DO RELÓGIO (kWh)</label>
+              <input type="number" step="0.1" placeholder="Ex: 12345.6" value={energiaForm.leitura} onChange={e=>setEnergiaForm(f=>({...f,leitura:e.target.value}))} style={{...S.input,fontSize:18,fontWeight:700,textAlign:'center',letterSpacing:2}} autoFocus />
+              <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Digite o número completo mostrado no medidor</p>
+            </div>
+            {energiaLeituras.length>0&&energiaForm.leitura&&(
+              <div style={{background:C.gray,borderRadius:10,padding:12}}>
+                <p style={{fontSize:12,fontWeight:700,marginBottom:6}}>📊 Prévia do consumo:</p>
+                <div style={{display:'flex',gap:16,fontSize:13}}>
+                  <span style={{color:'#1565C0',fontWeight:800}}>{(parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura).toFixed(0)} kWh consumidos</span>
+                  <span style={{color:C.green,fontWeight:800}}>{fmtCur((parseFloat(energiaForm.leitura)-energiaLeituras[0].leitura)*(energiaConfig.tarifa||0.95))} estimado</span>
+                </div>
+                <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Desde {new Date(energiaLeituras[0].data).toLocaleDateString('pt-BR')}</p>
+              </div>
+            )}
+            <div>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO (opcional)</label>
+              <input placeholder="Ex: Semana de muito movimento, AC ligado..." value={energiaForm.obs} onChange={e=>setEnergiaForm(f=>({...f,obs:e.target.value}))} style={S.input} />
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{...S.btnRed,flex:1}} onClick={addLeituraEnergia}>✓ Salvar Leitura</button>
+              <button style={{...S.btnGray,flex:1}} onClick={()=>setEnergiaModal(false)}>Cancelar</button>
             </div>
           </div>
         </Overlay>
@@ -4390,3 +4635,4 @@ export default function App() {
 // atualizado Sun Jun  7 15:52:14 UTC 2026
 // Mon Jun  8 00:27:11 UTC 2026
 // fix mobile Mon Jun  8 13:09:23 UTC 2026
+// energia cemig Tue Jun  9 22:52:11 UTC 2026
