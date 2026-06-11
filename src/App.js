@@ -443,7 +443,7 @@ export default function App() {
 
   // Alerta CEMIG popup ao abrir o app
   useEffect(()=>{
-    if(!user) return
+    if(!user||loading) return
     try{
       const alerta=JSON.parse(localStorage.getItem('boi_energia_alerta')||'{"ativo":true,"diaSemana":1}')
       if(!alerta.ativo) return
@@ -495,6 +495,8 @@ export default function App() {
         const savedMeta=localStorage.getItem('boi_cmv_meta')
         if(savedMeta) setCmvMeta(parseFloat(savedMeta))
       }catch(e){}
+      const{data:enLeit}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
+      if(enLeit) setEnergiaLeituras(enLeit)
       setLoading(false)
     }
     load()
@@ -1217,6 +1219,7 @@ export default function App() {
   }
 
   const verificarAlertaEnergia=()=>{
+    try{
     if(!energiaAlerta.ativo) return false
     const hoje=new Date()
     const diaSemana=hoje.getDay()
@@ -1226,6 +1229,7 @@ export default function App() {
     inicioSemana.setDate(hoje.getDate()-hoje.getDay())
     const jaRegistrou=energiaLeituras.some(l=>new Date(l.data)>=inicioSemana)
     return !jaRegistrou
+    }catch(e){return false}
   }
 
   const handleConfirmAdmin=()=>{
