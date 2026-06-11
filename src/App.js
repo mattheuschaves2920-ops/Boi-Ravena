@@ -409,7 +409,7 @@ export default function App() {
   const [pontoFotoData,setPontoFotoData] = useState(null)
   const [pontoFotoStream,setPontoFotoStream] = useState(null)
   const [pontoEditReg,setPontoEditReg] = useState(null)
-  const [energiaLeituras,setEnergiaLeituras] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')}catch(e){return []}})
+  const [energiaLeituras,setEnergiaLeituras] = useState([])
   const [energiaModal,setEnergiaModal] = useState(false)
   const [energiaPopup,setEnergiaPopup] = useState(false)
   const [energiaForm,setEnergiaForm] = useState({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
@@ -449,7 +449,7 @@ export default function App() {
       if(!alerta.ativo) return
       const hoje=new Date()
       if(hoje.getDay()!==alerta.diaSemana) return
-      const leituras=JSON.parse(localStorage.getItem('boi_energia_leituras')||'[]')
+      const leituras=energiaLeituras
       const inicioSemana=new Date(hoje)
       inicioSemana.setDate(hoje.getDate()-hoje.getDay())
       inicioSemana.setHours(0,0,0,0)
@@ -1172,7 +1172,11 @@ export default function App() {
   // ── ENERGIA / CEMIG ─────────────────────────────────────────────
   const saveEnergiaLeituras=(list)=>{
     setEnergiaLeituras(list)
-    try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
+  }
+
+  const loadEnergiaLeituras=async()=>{
+    const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
+    if(data) setEnergiaLeituras(data)
   }
 
   const saveEnergiaAlerta=(cfg)=>{
@@ -1185,18 +1189,16 @@ export default function App() {
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
   }
 
-  const addLeituraEnergia=()=>{
+  const addLeituraEnergia=async()=>{
     if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
-    const nova={
-      id:Date.now(),
+    const{error}=await supabase.from('energia_leituras').insert({
       data:energiaForm.data,
       leitura:parseFloat(energiaForm.leitura),
-      obs:energiaForm.obs||'',
-      registradoPor:user?.name||'Sistema',
-      created_at:new Date().toISOString(),
-    }
-    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
-    saveEnergiaLeituras(updated)
+      obs:energiaForm.obs||null,
+      registrado_por:user?.name||'Sistema',
+    })
+    if(error) return showToast('Erro ao salvar leitura','err')
+    await loadEnergiaLeituras()
     logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
     setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
     setEnergiaModal(false)
@@ -3645,7 +3647,7 @@ export default function App() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))(async()=>{await supabase.from('energia_leituras').delete().eq('id',l.id);await loadEnergiaLeituras()})()}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
