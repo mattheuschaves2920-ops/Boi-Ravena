@@ -1498,9 +1498,9 @@ export default function App() {
 
   const handleSaveProd=async()=>{
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
-    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:+prodForm.unid_embalagem||null}
+    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];console.log('saving barcodes:',allBarcodes);const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:+prodForm.unid_embalagem||null}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
-    if(error) return showToast('Erro ao salvar','err')
+    if(error){console.error('Supabase error:',error);return showToast('Erro: '+error.message,'err')}
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''}); setEditProd(null); setModal(null)
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
     logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
@@ -3944,7 +3944,7 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CÓDIGOS DE BARRAS</label>
                 <div style={{display:'flex',gap:6,marginBottom:6}}>
                   <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} placeholder="Escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
-                  <button onClick={()=>{if(prodForm.barcode&&!prodForm.barcodes.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...f.barcodes,f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
+                  <button onClick={()=>{const bc=(prodForm.barcodes||[]);if(prodForm.barcode&&!bc.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...(f.barcodes||[]),f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
                 </div>
                 {prodForm.barcodes.length>0&&(
                   <div style={{display:'flex',flexDirection:'column',gap:4}}>
