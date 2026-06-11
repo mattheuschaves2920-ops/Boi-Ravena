@@ -357,7 +357,7 @@ export default function App() {
   const [editMovModal,setEditMovModal] = useState(false)
   const [editMovItem,setEditMovItem] = useState(null)
   const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:''})
-  const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]})
+  const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
   const [dashSetor,setDashSetor] = useState('todos')
   const [sepForm,setSepForm] = useState({productId:'',qty:'',turnoDestino:'T2',dataDestino:'',obs:''})
@@ -1498,15 +1498,15 @@ export default function App() {
 
   const handleSaveProd=async()=>{
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
-    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor}
+    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:+prodForm.unid_embalagem||null}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
-    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
+    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''}); setEditProd(null); setModal(null)
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
     logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
   }
 
-  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0]}); setModal('produto') }
+  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:String(p.unid_embalagem||'')}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:SETORES[0],turno:getTurnoAtual()}); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
@@ -1962,7 +1962,7 @@ export default function App() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
-            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
               style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
@@ -2194,7 +2194,7 @@ export default function App() {
                         <p style={{fontSize:10,color:C.grayDark}}>{p.category}</p>
                       </div>
                       <div style={{textAlign:'right'}}>
-                        <p style={{fontSize:12,fontWeight:800,color:C.orange}}>{p.quantity} {p.unit}</p>
+                        <p style={{fontSize:12,fontWeight:800,color:C.orange}}>{p.quantity} {p.unit}{p.embalagem&&p.unid_embalagem?` (${Math.floor(p.quantity/p.unid_embalagem)} ${p.embalagem}s)`:''}</p>
                         <p style={{fontSize:10,color:C.grayDark}}>{fmtCur(p.quantity*p.cost)}</p>
                       </div>
                     </div>
@@ -2264,7 +2264,7 @@ export default function App() {
                       {products.filter(p=>p.quantity<=p.min_stock).map(p=>(
                         <tr key={p.id} style={{borderBottom:`1px solid ${C.gray}`,background:C.redLight}}>
                           <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
-                          <td style={{padding:'8px 12px',color:C.red,fontWeight:800}}>{p.quantity} {p.unit}</td>
+                          <td style={{padding:'8px 12px',color:C.red,fontWeight:800}}>{p.quantity} {p.unit}{p.embalagem&&p.unid_embalagem?` (${Math.floor(p.quantity/p.unid_embalagem)} ${p.embalagem}s)`:''}</td>
                           <td style={{padding:'8px 12px',color:C.grayDark}}>{p.min_stock} {p.unit}</td>
                           <td style={{padding:'8px 12px',color:C.green,fontWeight:900}}>{Math.max(0,p.max_stock-p.quantity)} {p.unit}</td>
                           <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:700}}>{fmtCur(Math.max(0,p.max_stock-p.quantity)*p.cost)}</td>
@@ -3821,6 +3821,27 @@ export default function App() {
                 {products.map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
               </select>
             </div>
+            {/* EMBALAGEM CONVERTER */}
+            {(()=>{
+              const p=products.find(x=>x.id===movForm.productId)
+              if(!p||!p.embalagem||!p.unid_embalagem) return null
+              return(
+                <div style={{background:'#EFF6FF',borderRadius:12,padding:12,border:'1.5px solid #BFDBFE'}}>
+                  <p style={{fontSize:11,fontWeight:800,color:'#1D4ED8',marginBottom:8}}>📦 Lançar por {p.embalagem}? (1 {p.embalagem} = {p.unid_embalagem} {p.unit})</p>
+                  <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                    <input type='number' placeholder={`Qtd em ${p.embalagem}s`} value={movForm.qtdEmb||''} onChange={e=>{
+                      const v=e.target.value
+                      setMovForm(f=>({...f,qtdEmb:v,qty:v?String(+(+v*(p.unid_embalagem||1)).toFixed(3)):''}))
+                    }} style={{...S.input,flex:1,fontSize:15,fontWeight:700}} />
+                    <span style={{fontSize:12,color:'#1D4ED8',fontWeight:700,whiteSpace:'nowrap'}}>× {p.unid_embalagem} = {movForm.qtdEmb?(+(+movForm.qtdEmb*(p.unid_embalagem||1)).toFixed(0)):0} {p.unit}</span>
+                  </div>
+                  <p style={{fontSize:10,color:'#3B82F6',marginTop:6}}>O campo Quantidade abaixo será preenchido automaticamente</p>
+                  <div style={{marginTop:8,background:'white',borderRadius:8,padding:'8px 12px',border:'1px solid #BFDBFE'}}>
+                    <p style={{fontSize:11,color:'#1D4ED8',fontWeight:700}}>Estoque atual: {p.quantity} {p.unit} = {p.unid_embalagem?Math.floor(p.quantity/p.unid_embalagem):0} {p.embalagem}(s)</p>
+                  </div>
+                </div>
+              )
+            })()}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div>
                 <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TURNO</label>
@@ -3942,6 +3963,30 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
                 <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
               </div>
+            </div>
+
+            {/* EMBALAGEM */}
+            <div style={{background:'#EFF6FF',borderRadius:12,padding:14,marginTop:4,border:'1.5px solid #BFDBFE'}}>
+              <p style={{fontSize:12,fontWeight:800,color:'#1D4ED8',marginBottom:10}}>📦 Controle de Embalagem (opcional)</p>
+              <p style={{fontSize:11,color:'#3B82F6',marginBottom:12}}>Use quando o produto é comprado em caixas/fardos mas controlado em unidades</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>NOME DA EMBALAGEM</label>
+                  <input placeholder="Ex: fardo, caixa, PEC, pacote" value={prodForm.embalagem} onChange={e=>setProdForm(p=>({...p,embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>UNIDADES POR EMBALAGEM</label>
+                  <input type="number" placeholder="Ex: 12" value={prodForm.unid_embalagem} onChange={e=>setProdForm(p=>({...p,unid_embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+              </div>
+              {prodForm.embalagem&&prodForm.unid_embalagem&&(
+                <div style={{marginTop:10,background:'white',borderRadius:8,padding:'8px 12px',border:'1px solid #BFDBFE'}}>
+                  <p style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>
+                    📊 1 {prodForm.embalagem} = {prodForm.unid_embalagem} {prodForm.unit||'unidades'}
+                    {prodForm.quantity&&<span style={{color:'#059669',marginLeft:8}}>→ Estoque atual: {(+prodForm.quantity).toFixed(0)} {prodForm.embalagem}s = {(+prodForm.quantity*(+prodForm.unid_embalagem)).toFixed(0)} {prodForm.unit}</span>}
+                  </p>
+                </div>
+              )}
             </div>
             {/* SCANNER BOTÃO */}
             <div style={{background:C.gray,borderRadius:12,padding:12,display:'flex',alignItems:'center',gap:12}}>
