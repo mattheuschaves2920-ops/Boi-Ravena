@@ -3647,7 +3647,7 @@ export default function App() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={async()=>{if(window.confirm('Excluir esta leitura?')){await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data);else saveEnergiaLeituras((energiaLeituras||[]).filter(x=>x.id!==l.id))}}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
