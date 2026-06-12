@@ -196,7 +196,10 @@ function Login({ onLogin }) {
     try{
       const{data,error}=await supabase.from('usuarios').select('*').eq('email',email).eq('password',pass).single()
       if(data&&!error){
-        onLogin({id:data.id,name:data.name,email:data.email,role:data.role,avatar:data.name?.[0]?.toUpperCase()||'U'})
+        const u={id:data.id,name:data.name,email:data.email,role:data.role,avatar:data.name?.[0]?.toUpperCase()||'U'}
+        try{if(lembrar){localStorage.setItem('boi_session',JSON.stringify({...u,savedAt:Date.now()}))}}catch(e){}
+        try{localStorage.setItem('boi_saved_email',email)}catch(e){}
+        onLogin(u)
       } else {
         setErr('E-mail ou senha incorretos.')
       }
