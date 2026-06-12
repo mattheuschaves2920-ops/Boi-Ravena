@@ -903,7 +903,7 @@ export default function App() {
     const url=URL.createObjectURL(blob)
     const a=document.createElement('a');a.href=url;a.download='boi-minas-backup-'+todayStr()+'.json';a.click()
     URL.revokeObjectURL(url)
-    showToast('✓ Backup exportado!')
+    logAudit('BACKUP EXPORTADO','Backup completo do sistema',new Date().toISOString().slice(0,10));showToast('✓ Backup exportado!')
   }
 
   // ── PWA ─────────────────────────────────────────────────────────
@@ -1366,7 +1366,7 @@ export default function App() {
     logAudit('MOVIMENTO EDITADO',product?.name||'',`${oldQty}→${newQty} ${product?.unit||''} · Custo: ${fmtCur(newCost)}`)
     setEditMovModal(false)
     setEditMovItem(null)
-    showToast('✓ Movimento atualizado!')
+    logAudit('MOVIMENTO EDITADO',editMovForm.productId,'Qtd: '+editMovForm.qty+' | Tipo: '+editMovForm.type);showToast('✓ Movimento atualizado!')
   }
 
   const startScanner=async()=>{
@@ -3576,12 +3576,12 @@ export default function App() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:e.target.value})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>{saveEnergiaConfig({...energiaConfig,tarifa:e.target.value});logAudit('ENERGIA CONFIG','Tarifa alterada para R$'+e.target.value+'/kWh',new Date().toISOString().slice(0,10))}} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
-                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:e.target.value})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" value={energiaConfig.meta} onChange={e=>{saveEnergiaConfig({...energiaConfig,meta:e.target.value});logAudit('ENERGIA CONFIG','Meta mensal alterada para '+e.target.value+' kWh',new Date().toISOString().slice(0,10))}} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
@@ -3647,7 +3647,7 @@ export default function App() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={async()=>{if(window.confirm('Excluir esta leitura?')){await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data);else saveEnergiaLeituras((energiaLeituras||[]).filter(x=>x.id!==l.id))}}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={async()=>{if(window.confirm('Excluir esta leitura?')){await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data);else saveEnergiaLeituras((energiaLeituras||[]).filter(x=>x.id!==l.id));logAudit('ENERGIA EXCLUÍDA','Leitura: '+l.leitura+' kWh',l.data)}}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
