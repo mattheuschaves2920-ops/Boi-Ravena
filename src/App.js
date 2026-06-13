@@ -1478,7 +1478,7 @@ export default function App() {
 
   const handleSaveProd=async()=>{
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
-    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor}
+    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:prodForm.unid_embalagem?+prodForm.unid_embalagem:null}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
