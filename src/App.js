@@ -1498,7 +1498,7 @@ export default function App() {
     logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
   }
 
-  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0]}); setModal('produto') }
+  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||''}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:SETORES[0],turno:getTurnoAtual()}); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
