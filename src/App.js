@@ -1943,9 +1943,8 @@ export default function App() {
                     }
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
-                  <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} /></div>
-                    <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
                     <div style={{display:'flex',gap:5}}>
                       <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('entrada',p)}>+</button>
                       <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('saida',p)}>−</button>
