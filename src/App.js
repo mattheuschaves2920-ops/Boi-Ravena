@@ -1940,10 +1940,22 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                    {p.embalagem&&p.unid_embalagem?(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{Math.floor(p.quantity/(+p.unid_embalagem||1))}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:4}}>{p.embalagem}(s)</span><span style={{fontSize:13,color:'#1D4ED8',fontWeight:700}}>{'= '+p.quantity+' '+p.unit}</span></>):(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginLeft:4}}>{p.unit}</span></>)}
+                  <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
+                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<><span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:2}}>{p.embalagem}(s)</span>{rest>0&&<span style={{fontSize:13,color:C.orange,fontWeight:700}}>+{rest}{p.unit}</span>}<span style={{fontSize:12,color:'#1D4ED8',fontWeight:700,marginLeft:4}}>={'= '+tot+' '+p.unit}</span></>)})():(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginLeft:4}}>{p.unit}</span></>)}
+                    <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
                     <div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} />
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
+                    <div style={{display:'flex',gap:5}}>
+                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.green,fontWeight:800}} onClick={()=>openMov('entrada',p)}>+</button>
+                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.red,fontWeight:800}} onClick={()=>openMov('saida',p)}>−</button>
+                      {canManage&&<button style={{...S.btnGray,padding:'4px 9px',fontSize:11}} onClick={()=>openEdit(p)}>✏️</button>}
+                    </div>
+                  </div>
+                  {p.expiry&&<p style={{fontSize:10,color:isExp?C.orange:C.grayDark,marginTop:7,fontWeight:600}}>📅 Validade: {fmtDate(p.expiry)}</p>}
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
