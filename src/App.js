@@ -1916,13 +1916,23 @@ export default function App() {
                       {isExp&&<span style={{background:C.orange,color:C.white,fontSize:9,padding:'2px 7px',borderRadius:20,fontWeight:800}}>VENCE</span>}
                     </div>
                   </div>
-                  <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<><span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:2}}>{p.embalagem}(s)</span>{rest>0&&<span style={{fontSize:12,color:C.orange,fontWeight:700}}>+{rest} {p.unit}</span>}<span style={{fontSize:12,color:'#1D4ED8',fontWeight:700,marginLeft:4}}>= {tot} {p.unit}</span></>)})():(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:600,marginLeft:3}}>{p.unit}</span></>)}
+                  <div style={{display:'flex',alignItems:'flex-end',gap:6,marginBottom:6,flexWrap:'wrap'}}>
+                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+                        <span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span>
+                        <span style={{fontSize:12,color:isLow?C.red:C.grayDark,fontWeight:700}}>{p.embalagem}</span>
+                        <span style={{fontSize:10,color:'#1D4ED8',fontWeight:700}}>cada = {upk} {p.unit}</span>
+                      </div>
+                      {rest>0&&<span style={{fontSize:13,color:C.orange,fontWeight:700,marginBottom:4}}>+{rest} {p.unit}</span>}
+                      <span style={{fontSize:13,color:'#1D4ED8',fontWeight:700,marginBottom:4}}>= {tot} {p.unit}</span>
+                    </>)})():
+                      <><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>
+                      <span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:600,marginLeft:3}}>{p.unit}</span></>
+                    }
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} /></div>
                     <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
                     <div style={{display:'flex',gap:5}}>
                       <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.green,fontWeight:800}} onClick={()=>openMov('entrada',p)}>+</button>
@@ -3554,12 +3564,12 @@ export default function App() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" step="0.01" inputMode="decimal" value={energiaConfig.tarifa} onChange={e=>setEnergiaConfig(c=>({...c,tarifa:e.target.value}))} onBlur={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
-                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" inputMode="numeric" value={energiaConfig.meta} onChange={e=>setEnergiaConfig(c=>({...c,meta:e.target.value}))} onBlur={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
