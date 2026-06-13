@@ -1265,9 +1265,16 @@ function AppInner() {
   }
 
   const sendNotif=(title,body)=>{
-    if(Notification.permission==='granted'){
-      new Notification(title,{body,icon:'/favicon.ico',badge:'/favicon.ico'})
-    }
+    try{
+      if(typeof Notification==='undefined'||Notification.permission!=='granted') return
+      if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+        navigator.serviceWorker.ready.then(reg=>{
+          if(reg&&reg.showNotification) reg.showNotification(title,{body,icon:'/favicon.ico',badge:'/favicon.ico'})
+        }).catch(()=>{})
+      } else {
+        new Notification(title,{body,icon:'/favicon.ico',badge:'/favicon.ico'})
+      }
+    }catch(e){}
   }
 
   // Verificar estoque baixo e notificar
