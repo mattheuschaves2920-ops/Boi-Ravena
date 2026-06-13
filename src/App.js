@@ -1888,6 +1888,9 @@ export default function App() {
 
         {/* ══ ESTOQUE ══ */}
         {tab==='estoque'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+          </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
             <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,flex:1,minWidth:200}} />
             <select value={filterSetor} onChange={e=>setFilterSetor(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
@@ -1941,7 +1944,7 @@ export default function App() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
-            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+            
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
               style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
@@ -3921,6 +3924,25 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
                 <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
               </div>
+            </div>
+            <div style={{background:'#EFF6FF',borderRadius:12,padding:14,border:'1.5px solid #BFDBFE'}}>
+              <p style={{fontSize:12,fontWeight:800,color:'#1D4ED8',marginBottom:4}}>📦 Controle de Embalagem <span style={{fontWeight:400,fontSize:11}}>(opcional)</span></p>
+              <p style={{fontSize:11,color:'#3B82F6',marginBottom:10}}>Use quando compra em caixas/fardos mas controla em unidades</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>NOME DA EMBALAGEM</label>
+                  <input placeholder='Ex: fardo, caixa, PEC' value={prodForm.embalagem||''} onChange={e=>setProdForm(p=>({...p,embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>UNIDADES POR EMBALAGEM</label>
+                  <input type='number' placeholder='Ex: 12' value={prodForm.unid_embalagem||''} onChange={e=>setProdForm(p=>({...p,unid_embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+              </div>
+              {prodForm.embalagem&&prodForm.unid_embalagem&&(
+                <div style={{marginTop:8,background:'white',borderRadius:8,padding:'8px 12px',border:'1px solid #BFDBFE'}}>
+                  <p style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>1 {prodForm.embalagem} = {prodForm.unid_embalagem} {prodForm.unit||'un'}{prodForm.quantity?' → Estoque: '+Math.floor(+prodForm.quantity/(+prodForm.unid_embalagem))+' '+prodForm.embalagem+'(s) + '+(+prodForm.quantity%(+prodForm.unid_embalagem))+' '+prodForm.unit:''}</p>
+                </div>
+              )}
             </div>
             {/* SCANNER BOTÃO */}
             <div style={{background:C.gray,borderRadius:12,padding:12,display:'flex',alignItems:'center',gap:12}}>
