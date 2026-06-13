@@ -1393,7 +1393,7 @@ export default function App() {
   const handleBarcodeInput=(code)=>{
     if(scanForProduct){
       // Modo cadastro de produto - preenche o campo barcode
-      setProdForm(f=>({...f,barcode:f.barcode||code.trim(),barcodes:f.barcodes.includes(code.trim())?f.barcodes:[...f.barcodes,code.trim()]}))
+      setProdForm(f=>{const c=code.trim();const bc=f.barcodes||[];return{...f,barcode:c,barcodes:bc.includes(c)?bc:[...bc,c]};})
       stopScanner()
       setScanForProduct(false)
       showToast('✓ Código '+code.trim()+' preenchido!')
@@ -1965,7 +1965,6 @@ export default function App() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
-            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
               style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
@@ -3926,7 +3925,7 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CÓDIGOS DE BARRAS</label>
                 <div style={{display:'flex',gap:6,marginBottom:6}}>
                   <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} placeholder="Escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
-                  <button onClick={()=>{if(prodForm.barcode&&!prodForm.barcodes.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...f.barcodes,f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
+                  <button onClick={()=>{const val=(prodForm.barcode||'').trim();const bc=prodForm.barcodes||[];if(val&&!bc.includes(val)){setProdForm(f=>({...f,barcodes:[...(f.barcodes||[]),val],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
                 </div>
                 {prodForm.barcodes.length>0&&(
                   <div style={{display:'flex',flexDirection:'column',gap:4}}>
