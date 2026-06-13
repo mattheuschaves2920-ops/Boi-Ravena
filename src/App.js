@@ -340,7 +340,23 @@ function Login({ onLogin }) {
   )
 }
 
-export default function App() {
+class ErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={hasError:false,error:null}}
+  static getDerivedStateFromError(error){return{hasError:true,error}}
+  render(){
+    if(this.state.hasError){
+      return <div style={{padding:20,fontFamily:'sans-serif'}}>
+        <h2 style={{color:'#EA1D2C'}}>⚠️ Erro no aplicativo</h2>
+        <p style={{fontSize:13,color:'#666',marginBottom:10}}>Detalhe do erro (envie este texto para o suporte):</p>
+        <pre style={{background:'#f5f5f5',padding:12,borderRadius:8,fontSize:11,overflow:'auto',whiteSpace:'pre-wrap'}}>{String(this.state.error?.message||this.state.error)}\n{String(this.state.error?.stack||'')}</pre>
+        <button onClick={()=>{localStorage.clear();window.location.reload()}} style={{marginTop:14,padding:'10px 20px',background:'#EA1D2C',color:'white',border:'none',borderRadius:8,fontWeight:700}}>Limpar dados e recarregar</button>
+      </div>
+    }
+    return this.props.children
+  }
+}
+
+function AppInner() {
   const [user,setUser]         = useState(null)
   const [tab,setTab]           = useState('dashboard')
   const [products,setProducts] = useState([])
@@ -4692,3 +4708,6 @@ export default function App() {
 // Sat Jun 13 13:59:20 UTC 2026
 // fix Sat Jun 13 13:59:24 UTC 2026
 // deploy Sat Jun 13 18:18:03 UTC 2026
+
+
+export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary> }
