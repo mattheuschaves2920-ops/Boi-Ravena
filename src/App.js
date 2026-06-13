@@ -196,10 +196,7 @@ function Login({ onLogin }) {
     try{
       const{data,error}=await supabase.from('usuarios').select('*').eq('email',email).eq('password',pass).single()
       if(data&&!error){
-        const u={id:data.id,name:data.name,email:data.email,role:data.role,avatar:data.name?.[0]?.toUpperCase()||'U'}
-        try{if(lembrar){localStorage.setItem('boi_session',JSON.stringify({...u,savedAt:Date.now()}))}}catch(e){}
-        try{localStorage.setItem('boi_saved_email',email)}catch(e){}
-        onLogin(u)
+        onLogin({id:data.id,name:data.name,email:data.email,role:data.role,avatar:data.name?.[0]?.toUpperCase()||'U'})
       } else {
         setErr('E-mail ou senha incorretos.')
       }
@@ -469,11 +466,6 @@ export default function App() {
       if(prods) setProducts(prods)
       if(movs)  setMovements(movs)
       if(usrs)  setDbUsers(usrs)
-      // Load energia leituras
-      try{
-        const{data:enLeit}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
-        if(enLeit) setEnergiaLeituras(enLeit)
-      }catch(e){console.log('energia_leituras not ready',e)}
       // Load cardapio from localStorage
       try{
         const saved=localStorage.getItem('boi_cardapio')
@@ -903,7 +895,7 @@ export default function App() {
     const url=URL.createObjectURL(blob)
     const a=document.createElement('a');a.href=url;a.download='boi-minas-backup-'+todayStr()+'.json';a.click()
     URL.revokeObjectURL(url)
-    logAudit('BACKUP EXPORTADO','Backup completo do sistema',new Date().toISOString().slice(0,10));showToast('✓ Backup exportado!')
+    showToast('✓ Backup exportado!')
   }
 
   // ── PWA ─────────────────────────────────────────────────────────
@@ -1161,13 +1153,6 @@ export default function App() {
     try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
   }
 
-  const loadEnergiaLeituras=async()=>{
-    try{
-      const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
-      if(data) setEnergiaLeituras(data)
-    }catch(e){}
-  }
-
   const saveEnergiaAlerta=(cfg)=>{
     setEnergiaAlerta(cfg)
     try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
@@ -1178,28 +1163,18 @@ export default function App() {
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
   }
 
-  const addLeituraEnergia=async()=>{
+  const addLeituraEnergia=()=>{
     if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
-    // Try save to Supabase first
-    let savedToCloud=false
-    try{
-      const{error}=await supabase.from('energia_leituras').insert({
-        data:energiaForm.data,
-        leitura:parseFloat(energiaForm.leitura),
-        obs:energiaForm.obs||null,
-        registrado_por:user?.name||'Sistema',
-      })
-      if(!error){
-        savedToCloud=true
-        await loadEnergiaLeituras()
-      }
-    }catch(e){}
-    // Fallback to localStorage
-    if(!savedToCloud){
-      const nova={id:Date.now(),data:energiaForm.data,leitura:parseFloat(energiaForm.leitura),obs:energiaForm.obs||'',registrado_por:user?.name||'Sistema',created_at:new Date().toISOString()}
-      const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
-      saveEnergiaLeituras(updated)
+    const nova={
+      id:Date.now(),
+      data:energiaForm.data,
+      leitura:parseFloat(energiaForm.leitura),
+      obs:energiaForm.obs||'',
+      registradoPor:user?.name||'Sistema',
+      created_at:new Date().toISOString(),
     }
+    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
+    saveEnergiaLeituras(updated)
     logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
     setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
     setEnergiaModal(false)
@@ -1366,7 +1341,7 @@ export default function App() {
     logAudit('MOVIMENTO EDITADO',product?.name||'',`${oldQty}→${newQty} ${product?.unit||''} · Custo: ${fmtCur(newCost)}`)
     setEditMovModal(false)
     setEditMovItem(null)
-    logAudit('MOVIMENTO EDITADO',editMovForm.productId,'Qtd: '+editMovForm.qty+' | Tipo: '+editMovForm.type);showToast('✓ Movimento atualizado!')
+    showToast('✓ Movimento atualizado!')
   }
 
   const startScanner=async()=>{
@@ -1393,7 +1368,7 @@ export default function App() {
   const handleBarcodeInput=(code)=>{
     if(scanForProduct){
       // Modo cadastro de produto - preenche o campo barcode
-      setProdForm(f=>{const c=code.trim();const bc=f.barcodes||[];return{...f,barcode:c,barcodes:bc.includes(c)?bc:[...bc,c]};})
+      setProdForm(f=>({...f,barcode:f.barcode||code.trim(),barcodes:f.barcodes.includes(code.trim())?f.barcodes:[...f.barcodes,code.trim()]}))
       stopScanner()
       setScanForProduct(false)
       showToast('✓ Código '+code.trim()+' preenchido!')
@@ -1917,9 +1892,6 @@ export default function App() {
               <option value="todos">Todos os Setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
             </select>
-          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
-            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
-          </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
             {filtered.filter(p=>filterSetor==='todos'||p.setor===filterSetor).map(p=>{
@@ -1940,22 +1912,11 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                  <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<><span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:2}}>{p.embalagem}(s)</span>{rest>0&&<span style={{fontSize:13,color:C.orange,fontWeight:700}}>+{rest}{p.unit}</span>}<span style={{fontSize:12,color:'#1D4ED8',fontWeight:700,marginLeft:4}}>={'= '+tot+' '+p.unit}</span></>)})():(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginLeft:4}}>{p.unit}</span></>)}
+                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<><span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:2}}>{p.embalagem}(s)</span>{rest>0&&<span style={{fontSize:12,color:C.orange,fontWeight:700}}>+{rest}{p.unit}</span>}<span style={{fontSize:11,color:'#1D4ED8',fontWeight:700,marginLeft:2}}>{'= '+tot+' '+p.unit}</span></>)})():(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:12,color:isLow?C.red:C.grayDark,fontWeight:600,marginLeft:4}}>{p.unit}</span></>)}
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
                     <div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} />
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                    <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
-                    <div style={{display:'flex',gap:5}}>
-                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.green,fontWeight:800}} onClick={()=>openMov('entrada',p)}>+</button>
-                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.red,fontWeight:800}} onClick={()=>openMov('saida',p)}>−</button>
-                      {canManage&&<button style={{...S.btnGray,padding:'4px 9px',fontSize:11}} onClick={()=>openEdit(p)}>✏️</button>}
-                    </div>
-                  </div>
-                  {p.expiry&&<p style={{fontSize:10,color:isExp?C.orange:C.grayDark,marginTop:7,fontWeight:600}}>📅 Validade: {fmtDate(p.expiry)}</p>}
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
@@ -1978,6 +1939,7 @@ export default function App() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
+            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]});setModal('produto')}} style={{...S.btnGray,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
               style={{...S.btnGray,padding:'10px 16px',fontSize:13,marginLeft:'auto',color:notifPermission==='granted'?C.green:C.grayDark}}>
@@ -3588,12 +3550,12 @@ export default function App() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>{saveEnergiaConfig({...energiaConfig,tarifa:e.target.value});logAudit('ENERGIA CONFIG','Tarifa alterada para R$'+e.target.value+'/kWh',new Date().toISOString().slice(0,10))}} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" step="0.01" value={energiaConfig.tarifa} onChange={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
-                <input type="number" value={energiaConfig.meta} onChange={e=>{saveEnergiaConfig({...energiaConfig,meta:e.target.value});logAudit('ENERGIA CONFIG','Meta mensal alterada para '+e.target.value+' kWh',new Date().toISOString().slice(0,10))}} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" value={energiaConfig.meta} onChange={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
@@ -3659,7 +3621,7 @@ export default function App() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={async()=>{if(window.confirm('Excluir esta leitura?')){await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data);else saveEnergiaLeituras((energiaLeituras||[]).filter(x=>x.id!==l.id));logAudit('ENERGIA EXCLUÍDA','Leitura: '+l.leitura+' kWh',l.data)}}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
@@ -3938,7 +3900,7 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CÓDIGOS DE BARRAS</label>
                 <div style={{display:'flex',gap:6,marginBottom:6}}>
                   <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} placeholder="Escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
-                  <button onClick={()=>{const val=(prodForm.barcode||'').trim();const bc=prodForm.barcodes||[];if(val&&!bc.includes(val)){setProdForm(f=>({...f,barcodes:[...(f.barcodes||[]),val],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
+                  <button onClick={()=>{if(prodForm.barcode&&!prodForm.barcodes.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...f.barcodes,f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
                 </div>
                 {prodForm.barcodes.length>0&&(
                   <div style={{display:'flex',flexDirection:'column',gap:4}}>
@@ -3957,27 +3919,6 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
                 <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
               </div>
-            </div>
-
-            {/* EMBALAGEM */}
-            <div style={{background:'#EFF6FF',borderRadius:12,padding:14,marginTop:4,border:'1.5px solid #BFDBFE'}}>
-              <p style={{fontSize:12,fontWeight:800,color:'#1D4ED8',marginBottom:6}}>📦 Controle de Embalagem <span style={{fontWeight:400,fontSize:11}}>(opcional)</span></p>
-              <p style={{fontSize:11,color:'#3B82F6',marginBottom:10}}>Use quando o produto é comprado em caixas/fardos mas controlado em unidades</p>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                <div>
-                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>NOME DA EMBALAGEM</label>
-                  <input placeholder="Ex: fardo, caixa, PEC" value={prodForm.embalagem||''} onChange={e=>setProdForm(p=>({...p,embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
-                </div>
-                <div>
-                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>UNIDADES POR EMBALAGEM</label>
-                  <input type='number' placeholder='Ex: 12' value={prodForm.unid_embalagem||''} onChange={e=>setProdForm(p=>({...p,unid_embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
-                </div>
-              </div>
-              {prodForm.embalagem&&prodForm.unid_embalagem&&(
-                <div style={{marginTop:8,background:'white',borderRadius:8,padding:'8px 12px',border:'1px solid #BFDBFE'}}>
-                  <p style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>📊 1 {prodForm.embalagem} = {prodForm.unid_embalagem} {prodForm.unit||'un'}{prodForm.quantity?` → Estoque: ${prodForm.quantity} ${prodForm.unit} = ${Math.floor(+prodForm.quantity/(+prodForm.unid_embalagem))} ${prodForm.embalagem}(s)`:''}</p>
-                </div>
-              )}
             </div>
             {/* SCANNER BOTÃO */}
             <div style={{background:C.gray,borderRadius:12,padding:12,display:'flex',alignItems:'center',gap:12}}>
