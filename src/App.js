@@ -465,17 +465,27 @@ export default function App() {
       ])
       if(prods) setProducts(prods)
       if(movs){
-        setMovements(movs.filter(m=>m.type!=='auditoria'))
-        const audits=movs.filter(m=>m.type==='auditoria').map(m=>({
-          id:m.id,
-          action:(m.note||'').replace(/^\[([^\]]+)\].*/,'$1'),
-          detail:(m.note||'').replace(/^\[[^\]]+\] /,'').split(' ')[0]||'',
-          extra:(m.note||'').replace(/^\[[^\]]+\] \S+ /,''),
-          user_name:m.user_name||'Sistema',
-          user_role:'',
-          created_at:m.created_at
-        }))
-        setAuditLog(audits)
+        try{
+          setMovements(movs.filter(m=>m&&m.type!=='auditoria'))
+          const audits=movs.filter(m=>m&&m.type==='auditoria').map(m=>{
+            let action='AÇÃO',detail='',extra=''
+            try{
+              const note=m.note||''
+              const match=note.match(/^\[([^\]]+)\]\s*(.*)/)
+              if(match){
+                action=match[1]
+                const rest=match[2]||''
+                const parts=rest.split(' ')
+                detail=parts[0]||''
+                extra=parts.slice(1).join(' ')
+              }
+            }catch(e2){}
+            return{id:m.id,action,detail,extra,user_name:m.user_name||'Sistema',user_role:'',created_at:m.created_at}
+          })
+          setAuditLog(audits)
+        }catch(e3){
+          setMovements(movs.filter(m=>m&&m.type!=='auditoria'))
+        }
       }
       if(usrs)  setDbUsers(usrs)
       try{const{data:enLeit}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(enLeit)setEnergiaLeituras(enLeit)}catch(e){}
