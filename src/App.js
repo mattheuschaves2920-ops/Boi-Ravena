@@ -1947,9 +1947,9 @@ export default function App() {
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} /></div>
                     <span style={{fontSize:10,color:C.grayDark,fontWeight:600}}>Mín:{p.min_stock} · Máx:{p.max_stock}</span>
                     <div style={{display:'flex',gap:5}}>
-                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.green,fontWeight:800}} onClick={()=>openMov('entrada',p)}>+</button>
-                      <button style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:C.red,fontWeight:800}} onClick={()=>openMov('saida',p)}>−</button>
-                      <button style={{...S.btnGray,padding:'4px 9px',fontSize:11}} onClick={()=>openEdit(p)}>✏️</button>
+                      <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('entrada',p)}>+</button>
+                      <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('saida',p)}>−</button>
+                      <button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={()=>openEdit(p)}>✏️</button>
                     </div>
                   </div>
                   {p.expiry&&<p style={{fontSize:10,color:isExp?C.orange:C.grayDark,marginTop:7,fontWeight:600}}>📅 Validade: {fmtDate(p.expiry)}</p>}
