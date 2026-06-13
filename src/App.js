@@ -3902,7 +3902,7 @@ export default function App() {
       )}
 
       {/* MODAL PRODUTO */}
-      {modal==='produto'&&canManage&&(
+      {modal==='produto'&&(
         <Overlay onClose={()=>setModal(null)}>
           <MHead title={editProd?'✏️ Editar Produto':'+ Novo Produto'} onClose={()=>setModal(null)} />
           <div style={{padding:'16px 20px'}}>
