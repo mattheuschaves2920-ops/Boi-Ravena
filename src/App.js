@@ -191,7 +191,7 @@ function Login({ onLogin }) {
   const go=async()=>{
     // Primeiro verifica usuarios demo
     const demo=USERS.find(u=>u.email===email&&u.password===pass)
-    if(demo){ onLogin(demo); return }
+    if(demo){ try{localStorage.setItem('boi_session',JSON.stringify({...demo,savedAt:Date.now()}))}catch(e){}; onLogin(demo); return }
     // Depois verifica banco de dados
     try{
       const{data,error}=await supabase.from('usuarios').select('*').eq('email',email).eq('password',pass).single()
