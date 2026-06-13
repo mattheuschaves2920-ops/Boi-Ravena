@@ -1940,8 +1940,8 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6}}>
-                    <span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>
-                    <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>{p.unit}</span>{p.embalagem&&p.unid_embalagem&&<span style={{fontSize:11,color:'#1D4ED8',fontWeight:700,marginLeft:6}}>({Math.floor(p.quantity/p.unid_embalagem)} {p.embalagem}s)</span>}
+                    {p.embalagem&&p.unid_embalagem?(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{Math.floor(p.quantity/(p.unid_embalagem||1))}</span><span style={{fontSize:12,color:C.grayDark,fontWeight:600,marginRight:6}}>{p.embalagem}(s)</span><span style={{fontSize:13,color:'#1D4ED8',fontWeight:800}}>= {p.quantity} {p.unit}</span></>):(<span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>)}
+                    {!p.embalagem&&<span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>{p.unit}</span>}
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
