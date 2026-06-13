@@ -1939,10 +1939,8 @@ export default function App() {
                       {isExp&&<span style={{background:C.orange,color:C.white,fontSize:9,padding:'2px 7px',borderRadius:20,fontWeight:800}}>VENCE</span>}
                     </div>
                   </div>
-                  <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6}}>
-                    {p.embalagem&&p.unid_embalagem?(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{Math.floor(p.quantity/(p.unid_embalagem||1))}</span><span style={{fontSize:12,color:C.grayDark,fontWeight:600,marginRight:6}}>{p.embalagem}(s)</span><span style={{fontSize:13,color:'#1D4ED8',fontWeight:800}}>= {p.quantity} {p.unit}</span></>):(<span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>)}
-                    {!p.embalagem&&<span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>{p.unit}</span>}
-                    <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
+                  <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
+                    {p.embalagem&&p.unid_embalagem?(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{Math.floor(p.quantity/(+p.unid_embalagem||1))}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:4}}>{p.embalagem}(s)</span><span style={{fontSize:13,color:'#1D4ED8',fontWeight:700}}>{'= '+p.quantity+' '+p.unit}</span></>):(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginLeft:4}}>{p.unit}</span></>)}
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
                     <div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} />
