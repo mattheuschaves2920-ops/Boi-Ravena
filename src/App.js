@@ -466,6 +466,7 @@ export default function App() {
       if(prods) setProducts(prods)
       if(movs)  setMovements(movs)
       if(usrs)  setDbUsers(usrs)
+      try{const{data:enLeit}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(enLeit)setEnergiaLeituras(enLeit)}catch(e){}
       // Load cardapio from localStorage
       try{
         const saved=localStorage.getItem('boi_cardapio')
@@ -1163,18 +1164,19 @@ export default function App() {
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
   }
 
-  const addLeituraEnergia=()=>{
+  const addLeituraEnergia=async()=>{
     if(!energiaForm.leitura) return showToast('Informe a leitura do relógio','err')
-    const nova={
-      id:Date.now(),
-      data:energiaForm.data,
-      leitura:parseFloat(energiaForm.leitura),
-      obs:energiaForm.obs||'',
-      registradoPor:user?.name||'Sistema',
-      created_at:new Date().toISOString(),
+    try{
+      const{error}=await supabase.from('energia_leituras').insert({data:energiaForm.data,leitura:parseFloat(energiaForm.leitura),obs:energiaForm.obs||null,registrado_por:user?.name||'Sistema'})
+      if(error) throw error
+      const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false})
+      if(data) setEnergiaLeituras(data)
+    }catch(e){
+      const nova={id:Date.now(),data:energiaForm.data,leitura:parseFloat(energiaForm.leitura),obs:energiaForm.obs||'',registrado_por:user?.name||'Sistema',created_at:new Date().toISOString()}
+      const updated=[nova,...(energiaLeituras||[])].sort((a,b)=>new Date(b.data)-new Date(a.data))
+      setEnergiaLeituras(updated)
+      try{localStorage.setItem('boi_energia_leituras',JSON.stringify(updated))}catch(e2){}
     }
-    const updated=[nova,...energiaLeituras].sort((a,b)=>new Date(b.data)-new Date(a.data))
-    saveEnergiaLeituras(updated)
     logAudit('ENERGIA REGISTRADA','Leitura: '+energiaForm.leitura+' kWh',energiaForm.data)
     setEnergiaForm({data:new Date().toISOString().slice(0,10),leitura:'',obs:''})
     setEnergiaModal(false)
@@ -3621,7 +3623,7 @@ export default function App() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))saveEnergiaLeituras(energiaLeituras.filter(x=>x.id!==l.id))}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))(async()=>{await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data)})()}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
