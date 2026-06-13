@@ -1917,6 +1917,9 @@ export default function App() {
               <option value="todos">Todos os Setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
             </select>
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+            {canManage&&<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+          </div>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
             {filtered.filter(p=>filterSetor==='todos'||p.setor===filterSetor).map(p=>{
@@ -1938,7 +1941,7 @@ export default function App() {
                   </div>
                   <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6}}>
                     <span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>
-                    <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>{p.unit}</span>
+                    <span style={{fontSize:12,color:C.grayDark,fontWeight:600}}>{p.unit}</span>{p.embalagem&&p.unid_embalagem&&<span style={{fontSize:11,color:'#1D4ED8',fontWeight:700,marginLeft:6}}>({Math.floor(p.quantity/p.unid_embalagem)} {p.embalagem}s)</span>}
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
@@ -3944,6 +3947,27 @@ export default function App() {
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
                 <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
               </div>
+            </div>
+
+            {/* EMBALAGEM */}
+            <div style={{background:'#EFF6FF',borderRadius:12,padding:14,marginTop:4,border:'1.5px solid #BFDBFE'}}>
+              <p style={{fontSize:12,fontWeight:800,color:'#1D4ED8',marginBottom:6}}>📦 Controle de Embalagem <span style={{fontWeight:400,fontSize:11}}>(opcional)</span></p>
+              <p style={{fontSize:11,color:'#3B82F6',marginBottom:10}}>Use quando o produto é comprado em caixas/fardos mas controlado em unidades</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>NOME DA EMBALAGEM</label>
+                  <input placeholder="Ex: fardo, caixa, PEC" value={prodForm.embalagem||''} onChange={e=>setProdForm(p=>({...p,embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:'#1D4ED8',display:'block',marginBottom:4}}>UNIDADES POR EMBALAGEM</label>
+                  <input type='number' placeholder='Ex: 12' value={prodForm.unid_embalagem||''} onChange={e=>setProdForm(p=>({...p,unid_embalagem:e.target.value}))} style={{...S.input,fontSize:13}} />
+                </div>
+              </div>
+              {prodForm.embalagem&&prodForm.unid_embalagem&&(
+                <div style={{marginTop:8,background:'white',borderRadius:8,padding:'8px 12px',border:'1px solid #BFDBFE'}}>
+                  <p style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>📊 1 {prodForm.embalagem} = {prodForm.unid_embalagem} {prodForm.unit||'un'}{prodForm.quantity?` → Estoque: ${prodForm.quantity} ${prodForm.unit} = ${Math.floor(+prodForm.quantity/(+prodForm.unid_embalagem))} ${prodForm.embalagem}(s)`:''}</p>
+                </div>
+              )}
             </div>
             {/* SCANNER BOTÃO */}
             <div style={{background:C.gray,borderRadius:12,padding:12,display:'flex',alignItems:'center',gap:12}}>
