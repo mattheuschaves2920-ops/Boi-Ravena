@@ -1917,7 +1917,24 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{display:'flex',alignItems:'baseline',gap:5,marginBottom:6,flexWrap:'wrap'}}>
-                    {p.embalagem&&p.unid_embalagem?(()=>{const tot=p.quantity;const upk=+p.unid_embalagem||1;const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);return(<><span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span><span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700,marginRight:2}}>{p.embalagem}(s)</span>{rest>0&&<span style={{fontSize:12,color:C.orange,fontWeight:700}}>+{rest}{p.unit}</span>}<span style={{fontSize:11,color:'#1D4ED8',fontWeight:700,marginLeft:2}}>{'= '+tot+' '+p.unit}</span></>)})():(<><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span><span style={{fontSize:12,color:isLow?C.red:C.grayDark,fontWeight:600,marginLeft:4}}>{p.unit}</span></>)}
+                  <div style={{display:'flex',flexDirection:'column',gap:3,marginBottom:6}}>
+                    <div style={{display:'flex',alignItems:'baseline',gap:5,flexWrap:'wrap'}}>
+                      {p.embalagem&&p.unid_embalagem?(()=>{
+                        const tot=p.quantity;const upk=+p.unid_embalagem||1;
+                        const embs=Math.floor(tot/upk);const rest=+(tot%upk).toFixed(3);
+                        return(<>
+                          <span style={{fontWeight:900,fontSize:26,color:isLow?C.red:C.text,lineHeight:1}}>{embs}</span>
+                          <span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:700}}>{p.embalagem}(s)</span>
+                          {rest>0&&<span style={{fontSize:12,color:C.orange,fontWeight:700,marginLeft:2}}>+{rest} {p.unit}</span>}
+                          <span style={{fontSize:12,color:'#1D4ED8',fontWeight:700,marginLeft:4}}>= {tot} {p.unit}</span>
+                        </>)
+                      })():
+                        <><span style={{fontWeight:900,fontSize:28,color:isLow?C.red:C.text,lineHeight:1}}>{p.quantity}</span>
+                        <span style={{fontSize:13,color:isLow?C.red:C.grayDark,fontWeight:600,marginLeft:3}}>{p.unit}</span></>
+                      }
+                      <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
+                    </div>
+                  </div>
                     <span style={{marginLeft:'auto',fontSize:11,color:C.green,fontWeight:800}}>{fmtCur(p.cost)}/{p.unit}</span>
                   </div>
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}>
