@@ -402,25 +402,6 @@ function AppInner() {
   const [customSetores,setCustomSetores] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_setores')||'[]')}catch(e){return[]}})
   const CATS = [...CATS_BASE,...customCats]
   const SETORES = [...SETORES_BASE,...customSetores]
-  const addCustomCat=(name)=>{
-    const n=name.trim()
-    if(!n||CATS.includes(n)) return false
-    const updated=[...customCats,n]
-    setCustomCats(updated)
-    try{localStorage.setItem('boi_custom_cats',JSON.stringify(updated))}catch(e){}
-    logAudit('CATEGORIA CRIADA',n,'')
-    return true
-  }
-  const addCustomSetor=(name)=>{
-    const n=name.trim()
-    if(!n||SETORES.includes(n)) return false
-    const updated=[...customSetores,n]
-    setCustomSetores(updated)
-    try{localStorage.setItem('boi_custom_setores',JSON.stringify(updated))}catch(e){}
-    SETOR_ICONS[n]='📍'
-    logAudit('SETOR CRIADO',n,'')
-    return true
-  }
   const [cardapio,setCardapio] = useState([])
   const [cardapioForm,setCardapioForm] = useState({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
   const [editCardapio,setEditCardapio] = useState(null)
@@ -575,6 +556,26 @@ function AppInner() {
       })
       if(error) console.error('Erro ao salvar auditoria:',error.message,error)
     }catch(e){ console.error('Erro ao salvar auditoria (catch):',e) }
+  }
+
+  const addCustomCat=(name)=>{
+    const n=name.trim()
+    if(!n||CATS.includes(n)) return false
+    const updated=[...customCats,n]
+    setCustomCats(updated)
+    try{localStorage.setItem('boi_custom_cats',JSON.stringify(updated))}catch(e){}
+    logAudit('CATEGORIA CRIADA',n,'')
+    return true
+  }
+  const addCustomSetor=(name)=>{
+    const n=name.trim()
+    if(!n||SETORES.includes(n)) return false
+    const updated=[...customSetores,n]
+    setCustomSetores(updated)
+    try{localStorage.setItem('boi_custom_setores',JSON.stringify(updated))}catch(e){}
+    SETOR_ICONS[n]='📍'
+    logAudit('SETOR CRIADO',n,'')
+    return true
   }
 
   // ── CARDÁPIO ───────────────────────────────────────────────────
