@@ -1428,9 +1428,7 @@ function AppInner() {
     setTimeout(()=>{
       if(!videoRef.current) return
       try{
-        const hints=new Map()
-        hints.set(2,true) // TRY_HARDER
-        const reader=new BrowserMultiFormatReader(hints,{delayBetweenScanAttempts:80,delayBetweenScanSuccess:500})
+        const reader=new BrowserMultiFormatReader()
         zxingRef.current=reader
         const tryDecode=(constraints)=>reader.decodeFromConstraints(constraints,videoRef.current,(result,err)=>{
           if(result){
