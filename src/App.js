@@ -3957,7 +3957,7 @@ function AppInner() {
               <div style={{gridColumn:'1/-1',marginTop:4}}>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CÓDIGOS DE BARRAS</label>
                 <div style={{display:'flex',gap:6,marginBottom:6}}>
-                  <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} placeholder="Escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
+                  <input value={prodForm.barcode} onChange={e=>setProdForm(f=>({...f,barcode:e.target.value}))} onFocus={e=>{e.target.blur();setScanForProduct(true);startScanner()}} placeholder="Toque para escanear ou digitar código..." style={{...S.input,flex:1,fontSize:12}} />
                   <button onClick={()=>{if(prodForm.barcode&&!prodForm.barcodes.includes(prodForm.barcode)){setProdForm(f=>({...f,barcodes:[...f.barcodes,f.barcode],barcode:''}))}}} style={{...S.btnRed,padding:'8px 12px',fontSize:12}}>+ Add</button>
                 </div>
                 {prodForm.barcodes.length>0&&(
