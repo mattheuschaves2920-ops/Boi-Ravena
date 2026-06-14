@@ -1401,10 +1401,12 @@ function AppInner() {
     setTimeout(()=>{
       if(!videoRef.current) return
       try{
-        const reader=new BrowserMultiFormatReader()
+        const hints=new Map()
+        hints.set(2,true) // TRY_HARDER
+        const reader=new BrowserMultiFormatReader(hints,{delayBetweenScanAttempts:80,delayBetweenScanSuccess:500})
         zxingRef.current=reader
         reader.decodeFromConstraints(
-          {video:{facingMode:'environment'}},
+          {video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},advanced:[{focusMode:'continuous'},{zoom:1.5}]}},
           videoRef.current,
           (result,err)=>{
             if(result){
@@ -1417,6 +1419,16 @@ function AppInner() {
           // Save stream reference for stop
           if(videoRef.current&&videoRef.current.srcObject){
             streamRef.current=videoRef.current.srcObject
+            // Try to apply continuous autofocus via track constraints
+            try{
+              const track=videoRef.current.srcObject.getVideoTracks()[0]
+              if(track&&track.getCapabilities){
+                const caps=track.getCapabilities()
+                const constraints={}
+                if(caps.focusMode&&caps.focusMode.includes('continuous')) constraints.focusMode='continuous'
+                if(Object.keys(constraints).length) track.applyConstraints({advanced:[constraints]}).catch(()=>{})
+              }
+            }catch(e3){}
           }
         }).catch(e=>{
           showToast('Não foi possível acessar a câmera','err')
