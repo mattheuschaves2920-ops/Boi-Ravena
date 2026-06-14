@@ -1432,16 +1432,16 @@ function AppInner() {
         hints.set(2,true) // TRY_HARDER
         const reader=new BrowserMultiFormatReader(hints,{delayBetweenScanAttempts:80,delayBetweenScanSuccess:500})
         zxingRef.current=reader
-        reader.decodeFromConstraints(
-          {video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},advanced:[{focusMode:'continuous'},{zoom:1.5}]}},
-          videoRef.current,
-          (result,err)=>{
-            if(result){
-              const text=result.getText()
-              if(text) handleBarcodeInput(text)
-            }
+        const tryDecode=(constraints)=>reader.decodeFromConstraints(constraints,videoRef.current,(result,err)=>{
+          if(result){
+            const text=result.getText()
+            if(text) handleBarcodeInput(text)
           }
-        ).then(controls=>{
+        })
+        tryDecode({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720},advanced:[{focusMode:'continuous'}]}})
+        .catch(()=>tryDecode({video:{facingMode:'environment'}}))
+        .catch(()=>tryDecode({video:true}))
+        .then(controls=>{
           zxingControlsRef.current=controls
           // Save stream reference for stop
           if(videoRef.current&&videoRef.current.srcObject){
@@ -1458,11 +1458,13 @@ function AppInner() {
             }catch(e3){}
           }
         }).catch(e=>{
-          showToast('Não foi possível acessar a câmera','err')
+          console.error('Erro câmera:',e)
+          showToast('Câmera: '+(e?.message||e?.name||'erro desconhecido'),'err')
           setScannerOpen(false)
         })
       }catch(e2){
-        showToast('Não foi possível acessar a câmera','err')
+        console.error('Erro câmera (catch):',e2)
+        showToast('Câmera: '+(e2?.message||e2?.name||'erro desconhecido'),'err')
         setScannerOpen(false)
       }
     },150)
