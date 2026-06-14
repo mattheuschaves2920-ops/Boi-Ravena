@@ -457,6 +457,7 @@ function AppInner() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const zxingRef = useRef(null)
+  const zxingControlsRef = useRef(null)
 
   // Auto-login from saved session
   useEffect(()=>{
@@ -1394,35 +1395,43 @@ function AppInner() {
   }
 
   const startScanner=async()=>{
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
-      streamRef.current=stream
-      setScannerOpen(true)
-      setTimeout(()=>{
-        if(videoRef.current){
-          videoRef.current.srcObject=stream
-          videoRef.current.play()
-          // Auto-detect barcode with zxing
-          try{
-            const reader=new BrowserMultiFormatReader()
-            zxingRef.current=reader
-            reader.decodeFromVideoElement(videoRef.current,(result,err)=>{
-              if(result){
-                const text=result.getText()
-                if(text) handleBarcodeInput(text)
-              }
-            })
-          }catch(e2){}
-        }
-      },100)
-    }catch(e){
-      showToast('Não foi possível acessar a câmera','err')
-    }
+    setScannerOpen(true)
+    setTimeout(()=>{
+      if(!videoRef.current) return
+      try{
+        const reader=new BrowserMultiFormatReader()
+        zxingRef.current=reader
+        reader.decodeFromConstraints(
+          {video:{facingMode:'environment'}},
+          videoRef.current,
+          (result,err)=>{
+            if(result){
+              const text=result.getText()
+              if(text) handleBarcodeInput(text)
+            }
+          }
+        ).then(controls=>{
+          zxingControlsRef.current=controls
+          // Save stream reference for stop
+          if(videoRef.current&&videoRef.current.srcObject){
+            streamRef.current=videoRef.current.srcObject
+          }
+        }).catch(e=>{
+          showToast('Não foi possível acessar a câmera','err')
+          setScannerOpen(false)
+        })
+      }catch(e2){
+        showToast('Não foi possível acessar a câmera','err')
+        setScannerOpen(false)
+      }
+    },150)
   }
 
   const stopScanner=()=>{
-    if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop())
-    if(zxingRef.current){ try{zxingRef.current.reset()}catch(e){}; zxingRef.current=null }
+    if(zxingRef.current){ try{zxingRef.current.reset()}catch(e){} }
+    if(streamRef.current){ try{streamRef.current.getTracks().forEach(t=>t.stop())}catch(e){} }
+    zxingRef.current=null
+    streamRef.current=null
     setScannerOpen(false)
   }
 
