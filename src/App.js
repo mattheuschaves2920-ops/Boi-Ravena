@@ -9,6 +9,8 @@ const USERS = [
   { id:3, name:'Gerente',      email:'gerente@restaurante.com', password:'1234', role:'gerente',  avatar:'G' },
 ]
 const CATS_BASE = ['Carnes','Hortifruti','Laticínios','Grãos/Cereais','Temperos','Bebidas Alcoólicas','Bebidas Não Alcoólicas','Sucos/Refrescos','Descartáveis/Embalagens','Doces/Chocolates','Salgadinhos','Limpeza','Higiene','Outros']
+const TIPOS = ['Consumo','Produção','Revenda']
+const TIPO_ICONS = { 'Consumo':'🍳', 'Produção':'🏭', 'Revenda':'🛒' }
 const SETORES_BASE = ['Cozinha','Lanchonete','Salão','Churrasco','Bebidas','Descartáveis','Bomboniere','Estoque Geral']
 const TURNOS  = [
   { id:'T1', label:'Turno 1', sub:'07:00 – 15:00', icon:'🌅', start:7,  end:15 },
@@ -372,6 +374,7 @@ function AppInner() {
   const [filterDate,setFilterDate] = useState(todayStr())
   const [filterTurno,setFilterTurno] = useState('todos')
   const [filterSetor,setFilterSetor] = useState('todos')
+  const [filterTipo,setFilterTipo] = useState('todos')
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
@@ -1427,6 +1430,8 @@ function AppInner() {
     setScannerOpen(true)
     setTimeout(()=>{
       if(!videoRef.current) return
+      // Give the video element time to fully mount
+      
       try{
         const reader=new BrowserMultiFormatReader()
         zxingRef.current=reader
@@ -1625,7 +1630,7 @@ function AppInner() {
 
   const handleSaveProd=async()=>{
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
-    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:prodForm.unid_embalagem?+prodForm.unid_embalagem:null}
+    const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:prodForm.unid_embalagem?+prodForm.unid_embalagem:null,tipo:prodForm.tipo||'Consumo'}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
@@ -1633,7 +1638,7 @@ function AppInner() {
     logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
   }
 
-  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||''}); setModal('produto') }
+  const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual()}); setMovSearch(''); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
@@ -2036,7 +2041,7 @@ function AppInner() {
         {/* ══ ESTOQUE ══ */}
         {tab==='estoque'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
-            {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+            {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>📥 Entrada</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
@@ -2045,9 +2050,13 @@ function AppInner() {
               <option value="todos">Todos os Setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
             </select>
+            <select value={filterTipo} onChange={e=>setFilterTipo(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
+              <option value="todos">Todos os Tipos</option>
+              {TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}
+            </select>
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>
-            {filtered.filter(p=>filterSetor==='todos'||p.setor===filterSetor).map(p=>{
+            {filtered.filter(p=>(filterSetor==='todos'||p.setor===filterSetor)&&(filterTipo==='todos'||(p.tipo||'Consumo')===filterTipo)).map(p=>{
               const isLow=p.quantity<=p.min_stock; const pct=Math.min(100,(p.quantity/(p.max_stock||1))*100); const isExp=p.expiry&&(new Date(p.expiry)-new Date())/86400000<=7
               return(
                 <div key={p.id} onClick={()=>openEdit(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
@@ -2057,6 +2066,7 @@ function AppInner() {
                       <div style={{display:'flex',gap:5,alignItems:'center'}}>
                         <p style={{fontSize:11,color:C.grayDark,fontWeight:600}}>{p.category}</p>
                         {p.setor&&<span style={{fontSize:9,background:SETOR_COLORS[p.setor]+'22',color:SETOR_COLORS[p.setor],padding:'1px 6px',borderRadius:10,fontWeight:700}}>{SETOR_ICONS[p.setor]} {p.setor}</span>}
+                        {p.tipo&&p.tipo!=='Consumo'&&<span style={{fontSize:9,background:'#8B5CF622',color:'#8B5CF6',padding:'1px 6px',borderRadius:10,fontWeight:700}}>{TIPO_ICONS[p.tipo]} {p.tipo}</span>}
                       </div>
                     </div>
                     <div style={{display:'flex',gap:4}}>
@@ -4211,6 +4221,10 @@ function AppInner() {
               <div style={{gridColumn:'1/-1'}}>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
                 <select value={prodForm.setor} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome do novo setor:');if(n&&addCustomSetor(n))setProdForm(p=>({...p,setor:n.trim()}))}else{setProdForm(p=>({...p,setor:e.target.value}))}}} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]||'📍'} {s}</option>)}<option value="__new__">+ Criar novo setor...</option></select>
+              </div>
+              <div style={{gridColumn:'1/-1'}}>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TIPO</label>
+                <select value={prodForm.tipo||'Consumo'} onChange={e=>setProdForm(p=>({...p,tipo:e.target.value}))} style={S.input}>{TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}</select>
               </div>
             </div>
             <div style={{background:'#EFF6FF',borderRadius:12,padding:14,border:'1.5px solid #BFDBFE'}}>
