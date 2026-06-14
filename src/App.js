@@ -395,6 +395,8 @@ function AppInner() {
   const [filterCat,setFilterCat] = useState('todas')
   const [sortBy,setSortBy] = useState('nome')
   const [scanForProduct,setScanForProduct] = useState(false)
+  const [entradaForm,setEntradaForm] = useState({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''})
+  const [entradaSearch,setEntradaSearch] = useState('')
   const [cardapio,setCardapio] = useState([])
   const [cardapioForm,setCardapioForm] = useState({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
   const [editCardapio,setEditCardapio] = useState(null)
@@ -1446,6 +1448,13 @@ function AppInner() {
     }
     const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
     if(p){
+      if(modal==='entrada'){
+        setEntradaForm(f=>({...f,productId:p.id}))
+        setEntradaSearch(p.name)
+        stopScanner()
+        showToast('✓ Produto encontrado: '+p.name)
+        return
+      }
       setMovForm(f=>({...f,productId:p.id}))
       stopScanner()
       setModal('movimento')
@@ -1512,6 +1521,34 @@ function AppInner() {
 
   const custoDia  = todayMov.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const custoMes  = movements.filter(m=>{ const d=new Date(m.created_at); const n=new Date(); return d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()&&m.type==='saida' }).reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+
+  const handleEntrada=async()=>{
+    const pid=entradaForm.productId
+    if(!pid) return showToast('Selecione um produto','err')
+    const product=products.find(p=>p.id===pid)
+    if(!product) return
+    const upk=+product.unid_embalagem||1
+    const qtdFardo=parseFloat(entradaForm.qtdFardo)||0
+    const qtdUn=parseFloat(entradaForm.qtdUn)||0
+    const totalUn=+(qtdFardo*upk+qtdUn).toFixed(3)
+    if(totalUn<=0) return showToast('Informe a quantidade de entrada','err')
+    const newQty=+(product.quantity+totalUn).toFixed(3)
+    const newCost=entradaForm.newCost!==''&&entradaForm.newCost!==null?parseFloat(entradaForm.newCost):product.cost
+    const costChanged=entradaForm.newCost!==''&&Math.abs(newCost-product.cost)>0.001
+    const updateData={quantity:newQty}
+    if(costChanged) updateData.cost=newCost
+    const[{error:e1},{error:e2}]=await Promise.all([
+      supabase.from('produtos').update(updateData).eq('id',pid),
+      supabase.from('movimentos').insert({product_id:pid,type:'entrada',quantity:totalUn,note:entradaForm.fornecedor?`Entrada - Fornecedor: ${entradaForm.fornecedor}`:'Entrada de estoque',user_name:user.name,cost_unit:newCost,setor:entradaForm.setor,turno:getTurnoAtual()}),
+    ])
+    if(e1||e2) return showToast('Erro ao salvar','err')
+    setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty,cost:newCost}:p))
+    logAudit('ENTRADA DE ESTOQUE',product.name,`+${totalUn} ${product.unit} (novo total: ${newQty} ${product.unit})${costChanged?` | Custo alterado: R$${product.cost.toFixed(2)} → R$${newCost.toFixed(2)}`:''}`)
+    setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''})
+    setEntradaSearch('')
+    setModal(null)
+    showToast(`✓ +${totalUn} ${product.unit} adicionado ao estoque!`)
+  }
 
   const handleMovement=async()=>{
     const pid=movForm.productId; const qty=parseFloat(movForm.qty)
@@ -1958,6 +1995,7 @@ function AppInner() {
         {tab==='estoque'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
             {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:''});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
+            <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>📥 Entrada</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
             <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,flex:1,minWidth:200}} />
@@ -3861,6 +3899,108 @@ function AppInner() {
       <button onClick={()=>openMov('entrada')} style={{position:'fixed',bottom:20,right:20,width:54,height:54,background:C.red,color:C.white,border:'none',borderRadius:'50%',fontSize:26,cursor:'pointer',boxShadow:'0 4px 20px rgba(234,29,44,0.4)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900}}>+</button>
 
       {/* MODAL MOVIMENTO */}
+      {modal==='entrada'&&(
+        <Overlay onClose={()=>setModal(null)}>
+          <MHead title="📥 Entrada de Estoque" color={C.green} onClose={()=>setModal(null)} />
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>BUSCAR PRODUTO</label>
+              <div style={{display:'flex',gap:6}}>
+                <input value={entradaSearch} onChange={e=>setEntradaSearch(e.target.value)} placeholder="Digite o nome ou escaneie o código..." style={{...S.input,fontSize:13,flex:1}} />
+                <button onClick={()=>startScanner()} style={{...S.btnGray,padding:'8px 12px',fontSize:16}}>📷</button>
+              </div>
+            </div>
+            {entradaSearch&&!entradaForm.productId&&(()=>{
+              const term=entradaSearch.toLowerCase()
+              const matches=products.filter(p=>p.name.toLowerCase().includes(term)||(p.barcodes||[]).includes(entradaSearch.trim())||p.barcode===entradaSearch.trim()).slice(0,8)
+              if(matches.length===0) return <p style={{fontSize:12,color:C.grayDark}}>Nenhum produto encontrado</p>
+              return(<div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto'}}>
+                {matches.map(p=>(
+                  <div key={p.id} onClick={()=>{setEntradaForm(f=>({...f,productId:p.id}));setEntradaSearch(p.name)}} style={{...S.input,cursor:'pointer',padding:'8px 12px'}}>
+                    <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                    <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.category} · {p.setor||'Estoque Geral'}</p>
+                  </div>
+                ))}
+              </div>)
+            })()}
+            {entradaForm.productId&&(()=>{
+              const p=products.find(x=>x.id===entradaForm.productId)
+              if(!p) return null
+              const upk=+p.unid_embalagem||1
+              const embs=Math.floor(p.quantity/upk)
+              const rest=+(p.quantity%upk).toFixed(3)
+              const qtdFardo=parseFloat(entradaForm.qtdFardo)||0
+              const qtdUn=parseFloat(entradaForm.qtdUn)||0
+              const totalUn=+(qtdFardo*upk+qtdUn).toFixed(3)
+              const newQty=+(p.quantity+totalUn).toFixed(3)
+              const newEmbs=p.embalagem?Math.floor(newQty/upk):0
+              const newRest=p.embalagem?+(newQty%upk).toFixed(3):0
+              const newCost=entradaForm.newCost!==''&&entradaForm.newCost!==null?parseFloat(entradaForm.newCost):null
+              const costChanged=newCost!==null&&Math.abs(newCost-p.cost)>0.001
+              return(<>
+                <div style={{background:'#EFF6FF',borderRadius:10,padding:'10px 12px',border:'1.5px solid #BFDBFE'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                    <div>
+                      <p style={{fontWeight:800,fontSize:14,margin:0}}>{p.name}</p>
+                      <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{p.category} · {p.setor||'Estoque Geral'}</p>
+                    </div>
+                    <button onClick={()=>{setEntradaForm(f=>({...f,productId:''}));setEntradaSearch('')}} style={{...S.btnGray,padding:'3px 8px',fontSize:11}}>✕</button>
+                  </div>
+                  <p style={{fontSize:12,color:'#1D4ED8',fontWeight:700,marginTop:6,marginBottom:0}}>
+                    Estoque atual: {p.embalagem?`${embs} ${p.embalagem}(s)${rest>0?` +${rest} ${p.unit}`:''} = `:''}{p.quantity} {p.unit}{p.embalagem?` (cada ${p.embalagem} = ${upk} ${p.unit})`:''}
+                  </p>
+                  <p style={{fontSize:12,color:C.grayDark,marginTop:2,marginBottom:0}}>Custo atual: {fmtCur(p.cost)}/{p.unit}</p>
+                </div>
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  {p.embalagem&&<div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QTD EM {p.embalagem.toUpperCase()}(S)</label>
+                    <input type="number" inputMode="decimal" placeholder="Ex: 2" value={entradaForm.qtdFardo} onChange={e=>setEntradaForm(f=>({...f,qtdFardo:e.target.value}))} style={{...S.input,fontSize:14,fontWeight:700}} />
+                  </div>}
+                  <div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>{p.embalagem?`OU EM ${p.unit.toUpperCase()}`:`QUANTIDADE (${p.unit})`}</label>
+                    <input type="number" inputMode="decimal" placeholder={p.embalagem?`Ex: ${upk}`:'Ex: 10'} value={entradaForm.qtdUn} onChange={e=>setEntradaForm(f=>({...f,qtdUn:e.target.value}))} style={{...S.input,fontSize:14,fontWeight:700}} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>NOVO CUSTO UNITÁRIO (R$) - OPCIONAL</label>
+                  <input type="number" step="0.01" inputMode="decimal" placeholder={p.cost?p.cost.toFixed(2):'0.00'} value={entradaForm.newCost} onChange={e=>setEntradaForm(f=>({...f,newCost:e.target.value}))} style={{...S.input,fontSize:13}} />
+                  <p style={{fontSize:10,color:C.grayDark,marginTop:4}}>Deixe em branco para manter o custo atual</p>
+                </div>
+
+                {costChanged&&(
+                  <div style={{background:'#FEF3C7',borderRadius:10,padding:'10px 12px',border:'1.5px solid #FDE68A'}}>
+                    <p style={{fontSize:12,color:'#92400E',fontWeight:700,margin:0}}>⚠️ Custo mudou: {fmtCur(p.cost)} → {fmtCur(newCost)}/{p.unit}</p>
+                    <p style={{fontSize:11,color:'#92400E',margin:'4px 0 0'}}>O sistema vai atualizar o custo do produto e registrar na auditoria.</p>
+                  </div>
+                )}
+
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
+                    <select value={entradaForm.setor} onChange={e=>setEntradaForm(f=>({...f,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>FORNECEDOR (OPCIONAL)</label>
+                    <input value={entradaForm.fornecedor} onChange={e=>setEntradaForm(f=>({...f,fornecedor:e.target.value}))} placeholder="Ex: Distribuidora ABC" style={{...S.input,fontSize:13}} />
+                  </div>
+                </div>
+
+                {totalUn>0&&(
+                  <div style={{...S.input,background:'#F0FDF4',border:'1.5px solid #BBF7D0'}}>
+                    <p style={{fontSize:13,margin:0}}>Entrada: <span style={{color:'#16A34A',fontWeight:800}}>+{totalUn} {p.unit}</span>{newCost!==null&&<> · Valor total: <span style={{fontWeight:800}}>{fmtCur(totalUn*(newCost||p.cost))}</span></>}</p>
+                    <p style={{fontSize:13,margin:'4px 0 0'}}>Novo estoque: <span style={{color:'#1D4ED8',fontWeight:800}}>{p.embalagem?`${newEmbs} ${p.embalagem}(s)${newRest>0?` +${newRest} ${p.unit}`:''} = `:''}{newQty} {p.unit}</span></p>
+                  </div>
+                )}
+
+                <button onClick={handleEntrada} style={{background:'#22c55e',color:'white',border:'none',borderRadius:10,padding:14,fontSize:14,fontWeight:800,cursor:'pointer'}}>✓ Confirmar Entrada</button>
+              </>)
+            })()}
+          </div>
+        </Overlay>
+      )}
+
       {modal==='movimento'&&(
         <Overlay onClose={()=>setModal(null)}>
           <MHead title={movForm.type==='entrada'?'📥 Registrar Entrada':'📤 Registrar Saída'} color={movForm.type==='entrada'?C.green:C.red} onClose={()=>setModal(null)} />
