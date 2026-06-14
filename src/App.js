@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { BrowserMultiFormatReader } from '@zxing/library'
 import { supabase } from './supabase'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -455,6 +456,7 @@ function AppInner() {
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const zxingRef = useRef(null)
 
   // Auto-login from saved session
   useEffect(()=>{
@@ -1400,6 +1402,17 @@ function AppInner() {
         if(videoRef.current){
           videoRef.current.srcObject=stream
           videoRef.current.play()
+          // Auto-detect barcode with zxing
+          try{
+            const reader=new BrowserMultiFormatReader()
+            zxingRef.current=reader
+            reader.decodeFromVideoElement(videoRef.current,(result,err)=>{
+              if(result){
+                const text=result.getText()
+                if(text) handleBarcodeInput(text)
+              }
+            })
+          }catch(e2){}
         }
       },100)
     }catch(e){
@@ -1409,6 +1422,7 @@ function AppInner() {
 
   const stopScanner=()=>{
     if(streamRef.current) streamRef.current.getTracks().forEach(t=>t.stop())
+    if(zxingRef.current){ try{zxingRef.current.reset()}catch(e){}; zxingRef.current=null }
     setScannerOpen(false)
   }
 
