@@ -358,6 +358,10 @@ class ErrorBoundary extends React.Component {
 }
 
 function AppInner() {
+  const [customCats,setCustomCats] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')}catch(e){return[]}})
+  const [customSetores,setCustomSetores] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_setores')||'[]')}catch(e){return[]}})
+  const CATS = [...CATS_BASE,...customCats]
+  const SETORES = [...SETORES_BASE,...customSetores]
   const [user,setUser]         = useState(null)
   const [tab,setTab]           = useState('dashboard')
   const [products,setProducts] = useState([])
@@ -398,10 +402,7 @@ function AppInner() {
   const [entradaForm,setEntradaForm] = useState({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''})
   const [entradaSearch,setEntradaSearch] = useState('')
   const [movSearch,setMovSearch] = useState('')
-  const [customCats,setCustomCats] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')}catch(e){return[]}})
-  const [customSetores,setCustomSetores] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_setores')||'[]')}catch(e){return[]}})
-  const CATS = [...CATS_BASE,...customCats]
-  const SETORES = [...SETORES_BASE,...customSetores]
+
   const [cardapio,setCardapio] = useState([])
   const [cardapioForm,setCardapioForm] = useState({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
   const [editCardapio,setEditCardapio] = useState(null)
