@@ -8,8 +8,8 @@ const USERS = [
   { id:2, name:'Cozinheiro',   email:'cozinha@restaurante.com', password:'1234', role:'operador', avatar:'C' },
   { id:3, name:'Gerente',      email:'gerente@restaurante.com', password:'1234', role:'gerente',  avatar:'G' },
 ]
-const CATS    = ['Carnes','Hortifruti','Laticínios','Grãos/Cereais','Temperos','Bebidas Alcoólicas','Bebidas Não Alcoólicas','Sucos/Refrescos','Descartáveis/Embalagens','Doces/Chocolates','Salgadinhos','Limpeza','Higiene','Outros']
-const SETORES = ['Cozinha','Lanchonete','Salão','Churrasco','Bebidas','Descartáveis','Bomboniere','Estoque Geral']
+const CATS_BASE = ['Carnes','Hortifruti','Laticínios','Grãos/Cereais','Temperos','Bebidas Alcoólicas','Bebidas Não Alcoólicas','Sucos/Refrescos','Descartáveis/Embalagens','Doces/Chocolates','Salgadinhos','Limpeza','Higiene','Outros']
+const SETORES_BASE = ['Cozinha','Lanchonete','Salão','Churrasco','Bebidas','Descartáveis','Bomboniere','Estoque Geral']
 const TURNOS  = [
   { id:'T1', label:'Turno 1', sub:'07:00 – 15:00', icon:'🌅', start:7,  end:15 },
   { id:'T2', label:'Turno 2', sub:'15:00 – 23:00', icon:'🌆', start:15, end:23 },
@@ -397,6 +397,30 @@ function AppInner() {
   const [scanForProduct,setScanForProduct] = useState(false)
   const [entradaForm,setEntradaForm] = useState({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''})
   const [entradaSearch,setEntradaSearch] = useState('')
+  const [movSearch,setMovSearch] = useState('')
+  const [customCats,setCustomCats] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')}catch(e){return[]}})
+  const [customSetores,setCustomSetores] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_custom_setores')||'[]')}catch(e){return[]}})
+  const CATS = [...CATS_BASE,...customCats]
+  const SETORES = [...SETORES_BASE,...customSetores]
+  const addCustomCat=(name)=>{
+    const n=name.trim()
+    if(!n||CATS.includes(n)) return false
+    const updated=[...customCats,n]
+    setCustomCats(updated)
+    try{localStorage.setItem('boi_custom_cats',JSON.stringify(updated))}catch(e){}
+    logAudit('CATEGORIA CRIADA',n,'')
+    return true
+  }
+  const addCustomSetor=(name)=>{
+    const n=name.trim()
+    if(!n||SETORES.includes(n)) return false
+    const updated=[...customSetores,n]
+    setCustomSetores(updated)
+    try{localStorage.setItem('boi_custom_setores',JSON.stringify(updated))}catch(e){}
+    SETOR_ICONS[n]='📍'
+    logAudit('SETOR CRIADO',n,'')
+    return true
+  }
   const [cardapio,setCardapio] = useState([])
   const [cardapioForm,setCardapioForm] = useState({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
   const [editCardapio,setEditCardapio] = useState(null)
@@ -543,13 +567,14 @@ function AppInner() {
     setAuditLog(prev=>[entry,...prev].slice(0,500))
     // Salvar no Supabase também
     try{
-      await supabase.from('movimentos').insert({
-        product_id:null,type:'auditoria',quantity:0,
+      const{error}=await supabase.from('movimentos').insert({
+        type:'auditoria',quantity:0,
         note:`[${action}] ${detail} ${extra}`,
         user_name:user?.name||'Sistema',
         setor:'Sistema',turno:getTurnoAtual()
       })
-    }catch(e){}
+      if(error) console.error('Erro ao salvar auditoria:',error.message,error)
+    }catch(e){ console.error('Erro ao salvar auditoria (catch):',e) }
   }
 
   // ── CARDÁPIO ───────────────────────────────────────────────────
@@ -1468,8 +1493,9 @@ function AppInner() {
         return
       }
       setMovForm(f=>({...f,productId:p.id}))
+      setMovSearch('')
       stopScanner()
-      setModal('movimento')
+      if(modal!=='movimento') setModal('movimento')
       showToast('✓ Produto encontrado: '+p.name)
     } else {
       showToast('Código não encontrado. Cadastre o produto primeiro.','warn')
@@ -1568,12 +1594,14 @@ function AppInner() {
     const product=products.find(p=>p.id===pid)
     if(!product) return
     if(movForm.type==='saida'&&product.quantity<qty) return showToast(`Estoque insuficiente! Disponível: ${product.quantity} ${product.unit}`,'err')
-    const newQty=movForm.type==='entrada'?product.quantity+qty:product.quantity-qty
+    const newQty=+(movForm.type==='entrada'?product.quantity+qty:product.quantity-qty).toFixed(3)
     const[{error:e1},{error:e2}]=await Promise.all([
-      supabase.from('produtos').update({quantity:+newQty.toFixed(3)}).eq('id',pid),
+      supabase.from('produtos').update({quantity:newQty}).eq('id',pid),
       supabase.from('movimentos').insert({product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno}),
     ])
-    if(e1||e2) return showToast('Erro ao salvar','err')
+    if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
+    setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
+    logAudit(movForm.type==='entrada'?'ENTRADA':'SAÍDA',product.name,`${qty} ${product.unit} · ${movForm.setor}${movForm.note?' · '+movForm.note:''}`)
     setMovForm(f=>({...f,productId:'',qty:'',note:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
   }
@@ -1604,7 +1632,7 @@ function AppInner() {
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||''}); setModal('produto') }
-  const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:SETORES[0],turno:getTurnoAtual()}); setModal('movimento') }
+  const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual()}); setMovSearch(''); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
 
@@ -2020,7 +2048,7 @@ function AppInner() {
             {filtered.filter(p=>filterSetor==='todos'||p.setor===filterSetor).map(p=>{
               const isLow=p.quantity<=p.min_stock; const pct=Math.min(100,(p.quantity/(p.max_stock||1))*100); const isExp=p.expiry&&(new Date(p.expiry)-new Date())/86400000<=7
               return(
-                <div key={p.id} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white}}>
+                <div key={p.id} onClick={()=>openEdit(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                     <div>
                       <p style={{fontWeight:800,fontSize:14,marginBottom:2}}>{p.name}</p>
@@ -2052,9 +2080,9 @@ function AppInner() {
                   <div style={{background:C.grayMid,borderRadius:6,height:5,marginBottom:10,overflow:'hidden'}}><div style={{width:`${pct}%`,height:'100%',background:isLow?C.red:C.green,borderRadius:6}} /></div>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
                     <div style={{display:'flex',gap:5}}>
-                      <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('entrada',p)}>+</button>
-                      <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={()=>openMov('saida',p)}>−</button>
-                      <button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={()=>openEdit(p)}>✏️</button>
+                      <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('entrada',p)}}>+</button>
+                      <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('saida',p)}}>−</button>
+                      <button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openEdit(p)}}>✏️</button>
                     </div>
                   </div>
                   {p.expiry&&<p style={{fontSize:10,color:isExp?C.orange:C.grayDark,marginTop:7,fontWeight:600}}>📅 Validade: {fmtDate(p.expiry)}</p>}
@@ -4026,10 +4054,40 @@ function AppInner() {
             </div>
             <div>
               <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PRODUTO</label>
-              <select value={movForm.productId} onChange={e=>setMovForm(f=>({...f,productId:e.target.value}))} style={S.input}>
-                <option value="">Selecione...</option>
-                {products.map(p=><option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit})</option>)}
-              </select>
+              {movForm.productId?(()=>{
+                const p=products.find(x=>x.id===movForm.productId)
+                if(!p) return null
+                const upk=+p.unid_embalagem||1
+                const embs=Math.floor(p.quantity/upk)
+                const rest=+(p.quantity%upk).toFixed(3)
+                return(
+                  <div style={{...S.input,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p>
+                      <p style={{fontSize:11,color:C.grayDark,margin:0}}>Estoque: {p.embalagem?`${embs} ${p.embalagem}(s)${rest>0?` +${rest} ${p.unit}`:''} = `:''}{p.quantity} {p.unit}</p>
+                    </div>
+                    <button onClick={()=>{setMovForm(f=>({...f,productId:''}));setMovSearch('')}} style={{...S.btnGray,padding:'4px 9px',fontSize:11}}>✕</button>
+                  </div>
+                )
+              })():(<>
+                <div style={{display:'flex',gap:6}}>
+                  <input value={movSearch} onChange={e=>setMovSearch(e.target.value)} placeholder="Digite o nome ou escaneie o código..." style={{...S.input,fontSize:13,flex:1}} />
+                  <button onClick={()=>startScanner()} style={{...S.btnGray,padding:'8px 12px',fontSize:16}}>📷</button>
+                </div>
+                {movSearch&&(()=>{
+                  const term=movSearch.toLowerCase()
+                  const matches=products.filter(p=>p.name.toLowerCase().includes(term)||(p.barcodes||[]).includes(movSearch.trim())||p.barcode===movSearch.trim()).slice(0,8)
+                  if(matches.length===0) return <p style={{fontSize:12,color:C.grayDark,marginTop:6}}>Nenhum produto encontrado</p>
+                  return(<div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:180,overflowY:'auto',marginTop:6}}>
+                    {matches.map(p=>(
+                      <div key={p.id} onClick={()=>{setMovForm(f=>({...f,productId:p.id}));setMovSearch('')}} style={{...S.input,cursor:'pointer',padding:'8px 12px'}}>
+                        <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.category}</p>
+                      </div>
+                    ))}
+                  </div>)
+                })()}
+              </>)}
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div>
@@ -4122,7 +4180,7 @@ function AppInner() {
               ))}
               <div>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>CATEGORIA</label>
-                <select value={prodForm.category} onChange={e=>setProdForm(p=>({...p,category:e.target.value}))} style={S.input}>{CATS.map(c=><option key={c}>{c}</option>)}</select>
+                <select value={prodForm.category} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome da nova categoria:');if(n&&addCustomCat(n))setProdForm(p=>({...p,category:n.trim()}))}else{setProdForm(p=>({...p,category:e.target.value}))}}} style={S.input}>{CATS.map(c=><option key={c}>{c}</option>)}<option value="__new__">+ Criar nova categoria...</option></select>
               </div>
               <div>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>UNIDADE</label>
@@ -4150,7 +4208,7 @@ function AppInner() {
               </div>
               <div style={{gridColumn:'1/-1'}}>
                 <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
-                <select value={prodForm.setor} onChange={e=>setProdForm(p=>({...p,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
+                <select value={prodForm.setor} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome do novo setor:');if(n&&addCustomSetor(n))setProdForm(p=>({...p,setor:n.trim()}))}else{setProdForm(p=>({...p,setor:e.target.value}))}}} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]||'📍'} {s}</option>)}<option value="__new__">+ Criar novo setor...</option></select>
               </div>
             </div>
             <div style={{background:'#EFF6FF',borderRadius:12,padding:14,border:'1.5px solid #BFDBFE'}}>
