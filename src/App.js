@@ -3902,7 +3902,7 @@ function AppInner() {
       {modal==='entrada'&&(
         <Overlay onClose={()=>setModal(null)}>
           <MHead title="📥 Entrada de Estoque" color={C.green} onClose={()=>setModal(null)} />
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:10}}>
             <div>
               <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>BUSCAR PRODUTO</label>
               <div style={{display:'flex',gap:6}}>
