@@ -11,6 +11,7 @@ const USERS = [
 const CATS_BASE = ['Carnes','Hortifruti','Laticínios','Grãos/Cereais','Temperos','Bebidas Alcoólicas','Bebidas Não Alcoólicas','Sucos/Refrescos','Descartáveis/Embalagens','Doces/Chocolates','Salgadinhos','Limpeza','Higiene','Outros']
 const TIPOS = ['Consumo','Produção','Revenda']
 const TIPO_ICONS = { 'Consumo':'🍳', 'Produção':'🏭', 'Revenda':'🛒' }
+const MOTIVOS_DANO = ['Embalagem rasgada/amassada','Vazamento','Vencido na entrega','Quebrado no transporte','Outro']
 const SETORES_BASE = ['Cozinha','Lanchonete','Salão','Churrasco','Bebidas','Descartáveis','Bomboniere','Estoque Geral']
 const TURNOS  = [
   { id:'T1', label:'Turno 1', sub:'07:00 – 15:00', icon:'🌅', start:7,  end:15 },
@@ -375,6 +376,9 @@ function AppInner() {
   const [filterTurno,setFilterTurno] = useState('todos')
   const [filterSetor,setFilterSetor] = useState('todos')
   const [filterTipo,setFilterTipo] = useState('todos')
+  const [danificadoForm,setDanificadoForm] = useState({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''})
+  const [danificadoSearch,setDanificadoSearch] = useState('')
+  const [danificadoList,setDanificadoList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
@@ -1499,6 +1503,13 @@ function AppInner() {
         showToast('✓ Produto encontrado: '+p.name)
         return
       }
+      if(modal==='danificado'){
+        setDanificadoForm(f=>({...f,productId:p.id}))
+        setDanificadoSearch(p.name)
+        stopScanner()
+        showToast('✓ Produto encontrado: '+p.name)
+        return
+      }
       setMovForm(f=>({...f,productId:p.id}))
       setMovSearch('')
       stopScanner()
@@ -1593,6 +1604,29 @@ function AppInner() {
     setEntradaSearch('')
     setModal(null)
     showToast(`✓ +${totalUn} ${product.unit} adicionado ao estoque!`)
+  }
+
+  const handleDanificado=async()=>{
+    const pid=danificadoForm.productId
+    if(!pid) return showToast('Selecione um produto','err')
+    const product=products.find(p=>p.id===pid)
+    if(!product) return
+    const qty=parseFloat(danificadoForm.qty)
+    if(!qty||qty<=0) return showToast('Informe a quantidade danificada','err')
+    const newQty=+(product.quantity+qty).toFixed(3)
+    const{error:e1}=await supabase.from('produtos').update({quantity:newQty}).eq('id',pid)
+    const{error:e2}=await supabase.from('movimentos').insert({product_id:pid,type:'entrada',quantity:qty,note:`Entrada danificada - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,user_name:user.name,cost_unit:product.cost,setor:product.setor||SETORES[0],turno:getTurnoAtual()})
+    if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
+    setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
+    const entry={id:Date.now(),productId:pid,productName:product.name,qty,motivo:danificadoForm.motivo,obs:danificadoForm.obs,user_name:user.name,created_at:new Date().toISOString()}
+    const updatedList=[entry,...danificadoList]
+    setDanificadoList(updatedList)
+    try{localStorage.setItem('boi_danificados',JSON.stringify(updatedList))}catch(e){}
+    logAudit('ENTRADA DANIFICADA',product.name,`${qty} ${product.unit} · ${danificadoForm.motivo}${danificadoForm.obs?' · '+danificadoForm.obs:''} (novo total: ${newQty} ${product.unit})`)
+    setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''})
+    setDanificadoSearch('')
+    setModal(null)
+    showToast(`✓ +${qty} ${product.unit} (danificado) adicionado ao estoque!`)
   }
 
   const handleMovement=async()=>{
@@ -2043,6 +2077,7 @@ function AppInner() {
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
             {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>📥 Entrada</button>
+            <button onClick={()=>{setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''});setDanificadoSearch('');setModal('danificado')}} style={{background:'#f97316',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>⚠️ Danificado</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
             <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,flex:1,minWidth:200}} />
@@ -3951,6 +3986,88 @@ function AppInner() {
       <button onClick={()=>openMov('entrada')} style={{position:'fixed',bottom:20,right:20,width:54,height:54,background:C.red,color:C.white,border:'none',borderRadius:'50%',fontSize:26,cursor:'pointer',boxShadow:'0 4px 20px rgba(234,29,44,0.4)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900}}>+</button>
 
       {/* MODAL MOVIMENTO */}
+      {modal==='danificado'&&(
+        <Overlay onClose={()=>setModal(null)}>
+          <MHead title="⚠️ Entrada Danificada" color="#f97316" onClose={()=>setModal(null)} />
+          <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:10}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>BUSCAR PRODUTO</label>
+              <div style={{display:'flex',gap:6}}>
+                <input value={danificadoSearch} onChange={e=>setDanificadoSearch(e.target.value)} placeholder="Digite o nome ou escaneie o código..." style={{...S.input,fontSize:13,flex:1}} />
+                <button onClick={()=>startScanner()} style={{...S.btnGray,padding:'8px 12px',fontSize:16}}>📷</button>
+              </div>
+            </div>
+            {danificadoSearch&&!danificadoForm.productId&&(()=>{
+              const term=danificadoSearch.toLowerCase()
+              const matches=products.filter(p=>p.name.toLowerCase().includes(term)||(p.barcodes||[]).includes(danificadoSearch.trim())||p.barcode===danificadoSearch.trim()).slice(0,8)
+              if(matches.length===0) return <p style={{fontSize:12,color:C.grayDark}}>Nenhum produto encontrado</p>
+              return(<div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto'}}>
+                {matches.map(p=>(
+                  <div key={p.id} onClick={()=>{setDanificadoForm(f=>({...f,productId:p.id}));setDanificadoSearch(p.name)}} style={{...S.input,cursor:'pointer',padding:'8px 12px'}}>
+                    <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                    <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.category} · {p.quantity} {p.unit}</p>
+                  </div>
+                ))}
+              </div>)
+            })()}
+            {danificadoForm.productId&&(()=>{
+              const p=products.find(x=>x.id===danificadoForm.productId)
+              if(!p) return null
+              const qty=parseFloat(danificadoForm.qty)||0
+              const newQty=+(p.quantity+qty).toFixed(3)
+              return(<>
+                <div style={{background:'#FFF7ED',borderRadius:10,padding:'10px 12px',border:'1.5px solid #FED7AA'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                    <div>
+                      <p style={{fontWeight:800,fontSize:14,margin:0}}>{p.name}</p>
+                      <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{p.category} · Estoque atual: {p.quantity} {p.unit}</p>
+                    </div>
+                    <button onClick={()=>{setDanificadoForm(f=>({...f,productId:''}));setDanificadoSearch('')}} style={{...S.btnGray,padding:'3px 8px',fontSize:11}}>✕</button>
+                  </div>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QUANTIDADE DANIFICADA</label>
+                  <input type="number" inputMode="decimal" placeholder={`Ex: 3 ${p.unit}`} value={danificadoForm.qty} onChange={e=>setDanificadoForm(f=>({...f,qty:e.target.value}))} style={{...S.input,fontSize:14,fontWeight:700}} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>MOTIVO</label>
+                  <select value={danificadoForm.motivo} onChange={e=>setDanificadoForm(f=>({...f,motivo:e.target.value}))} style={S.input}>
+                    {MOTIVOS_DANO.map(m=><option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO (OPCIONAL)</label>
+                  <input value={danificadoForm.obs} onChange={e=>setDanificadoForm(f=>({...f,obs:e.target.value}))} placeholder="Detalhes adicionais..." style={{...S.input,fontSize:13}} />
+                </div>
+                {qty>0&&(
+                  <div style={{background:'#FFF7ED',borderRadius:10,padding:'10px 12px',border:'1.5px solid #FED7AA'}}>
+                    <p style={{fontSize:13,color:'#9A3412',margin:0}}>⚠️ Estoque vai de {p.quantity} para <strong>{newQty} {p.unit}</strong> ({qty} marcados como danificados)</p>
+                  </div>
+                )}
+                <button onClick={handleDanificado} style={{background:'#f97316',color:'white',border:'none',borderRadius:10,padding:14,fontSize:14,fontWeight:800,cursor:'pointer'}}>✓ Confirmar Entrada Danificada</button>
+              </>)
+            })()}
+            {danificadoList.length>0&&(
+              <div style={{marginTop:8}}>
+                <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:8}}>📋 ITENS DANIFICADOS REGISTRADOS</p>
+                <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:240,overflowY:'auto'}}>
+                  {danificadoList.slice(0,20).map(d=>(
+                    <div key={d.id} style={{...S.input,padding:'8px 12px'}}>
+                      <div style={{display:'flex',justifyContent:'space-between'}}>
+                        <p style={{fontWeight:700,fontSize:13,margin:0}}>{d.productName}</p>
+                        <span style={{fontSize:11,color:C.grayDark}}>{fmtDate(d.created_at)}</span>
+                      </div>
+                      <p style={{fontSize:12,color:'#f97316',margin:'2px 0 0',fontWeight:700}}>{d.qty} un · {d.motivo}{d.obs?' · '+d.obs:''}</p>
+                      <p style={{fontSize:11,color:C.grayDark,margin:0}}>Registrado por {d.user_name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Overlay>
+      )}
+
       {modal==='entrada'&&(
         <Overlay onClose={()=>setModal(null)}>
           <MHead title="📥 Entrada de Estoque" color={C.green} onClose={()=>setModal(null)} />
