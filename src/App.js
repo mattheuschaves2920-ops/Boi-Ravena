@@ -380,6 +380,15 @@ function AppInner() {
   const [danificadoSearch,setDanificadoSearch] = useState('')
   const [dashModal,setDashModal] = useState(null)
   const [dashModalData,setDashModalData] = useState(null)
+  const [relModal,setRelModal] = useState(null)
+  const [relPeriodo,setRelPeriodo] = useState('hoje')
+  const [relTurno,setRelTurno] = useState('todos')
+  const [relSetor,setRelSetor] = useState('todos')
+  const [relTipo,setRelTipo] = useState('todos')
+  const [relDataInicio,setRelDataInicio] = useState('')
+  const [relDataFim,setRelDataFim] = useState('')
+  const [relProdSearch,setRelProdSearch] = useState('')
+  const [relProdId,setRelProdId] = useState(null)
   const [danificadoList,setDanificadoList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
@@ -417,7 +426,6 @@ function AppInner() {
   const [editCardapio,setEditCardapio] = useState(null)
   const [cardapioModal,setCardapioModal] = useState(false)
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
-  const [relPeriodo,setRelPeriodo] = useState('dia')
   const [desperdicioModal,setDesperdicioModal] = useState(false)
   const [pdvPontos,setPdvPontos] = useState([]) // pontos de venda cadastrados
   const [pdvAberturas,setPdvAberturas] = useState([]) // aberturas do dia
@@ -465,10 +473,6 @@ function AppInner() {
   const [desperdicioList,setDesperdicioList] = useState([])
   const desperdicioVideoRef = useRef(null)
   const desperdicioCanvasRef = useRef(null)
-  const [relTurno,setRelTurno] = useState('todos')
-  const [relSetor,setRelSetor] = useState('todos')
-  const [relDataInicio,setRelDataInicio] = useState('')
-  const [relDataFim,setRelDataFim] = useState('')
   const [cmvMeta,setCmvMeta] = useState(40)
   const [dbUsers,setDbUsers] = useState([])
   const videoRef = useRef(null)
@@ -2573,337 +2577,574 @@ function AppInner() {
 
         {/* ══ RELATÓRIOS ══ */}
         {tab==='relatorios'&&<>
-          {/* FILTROS DO RELATÓRIO */}
-          <div style={{...S.card,marginBottom:14,padding:14}}>
-            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔍 FILTROS DO RELATÓRIO</p>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-              <div style={{display:'flex',gap:6,background:C.gray,borderRadius:10,padding:4}}>
-                {[['dia','Hoje'],['semana','7 dias'],['mes','Este mês'],['custom','Personalizado']].map(([k,l])=>(
-                  <button key={k} onClick={()=>setRelPeriodo(k)} style={{...S.btnGray,padding:'6px 12px',fontSize:11,background:relPeriodo===k?C.red:C.gray,color:relPeriodo===k?C.white:C.grayDark,borderRadius:8,fontWeight:relPeriodo===k?800:600}}>{l}</button>
+          {/* FILTROS GLOBAIS */}
+          <div style={{...S.card,marginBottom:12,padding:14}}>
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔍 FILTROS</p>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>PERÍODO</label>
+                <select value={relPeriodo} onChange={e=>setRelPeriodo(e.target.value)} style={S.input}>
+                  <option value="hoje">Hoje</option>
+                  <option value="ontem">Ontem</option>
+                  <option value="7dias">Últimos 7 dias</option>
+                  <option value="30dias">Últimos 30 dias</option>
+                  <option value="mes">Este mês</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TURNO</label>
+                <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={S.input}>
+                  <option value="todos">Todos</option>
+                  {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>SETOR</label>
+                <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={S.input}>
+                  <option value="todos">Todos</option>
+                  {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TIPO</label>
+                <select value={relTipo||'todos'} onChange={e=>setRelTipo(e.target.value)} style={S.input}>
+                  <option value="todos">Todos</option>
+                  {TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}
+                </select>
+              </div>
+            </div>
+            {relPeriodo==='custom'&&(
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>DATA INÍCIO</label>
+                  <input type="date" value={relDataInicio} onChange={e=>setRelDataInicio(e.target.value)} style={S.input} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>DATA FIM</label>
+                  <input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={S.input} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* LISTA DE RELATÓRIOS */}
+          {(()=>{
+            const getDateRange=()=>{
+              const hoje=new Date().toISOString().split('T')[0]
+              const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
+              if(relPeriodo==='hoje') return [hoje,hoje]
+              if(relPeriodo==='ontem') return [ontem,ontem]
+              if(relPeriodo==='7dias') return [new Date(Date.now()-7*86400000).toISOString().split('T')[0],hoje]
+              if(relPeriodo==='30dias') return [new Date(Date.now()-30*86400000).toISOString().split('T')[0],hoje]
+              if(relPeriodo==='mes') return [new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0],hoje]
+              if(relPeriodo==='custom') return [relDataInicio||hoje,relDataFim||hoje]
+              return [hoje,hoje]
+            }
+            const [dateStart,dateEnd]=getDateRange()
+            const relMovs=movements.filter(m=>{
+              if(!m.created_at) return false
+              const d=m.created_at.split('T')[0]
+              if(d<dateStart||d>dateEnd) return false
+              if(m.type==='auditoria') return false
+              if(relTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==relTurno) return false
+              if(relSetor!=='todos'&&m.setor!==relSetor) return false
+              return true
+            })
+            const relProds=products.filter(p=>{
+              if(relSetor!=='todos'&&p.setor!==relSetor) return false
+              if(relTipo&&relTipo!=='todos'&&(p.tipo||'Consumo')!==relTipo) return false
+              return true
+            })
+            const entradas=relMovs.filter(m=>m.type==='entrada')
+            const saidas=relMovs.filter(m=>m.type==='saida')
+            const custoTotal=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const valorEstoque=relProds.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
+
+            const relatorios=[
+              {id:'movimentos',icon:'🔄',title:'Movimentos',sub:`${entradas.length} entradas · ${saidas.length} saídas · ${fmtCur(custoTotal)}`},
+              {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:`Total: ${fmtCur(custoTotal)}`},
+              {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:`Top itens do período`},
+              {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:`${relProds.length} produtos · ${fmtCur(valorEstoque)}`},
+              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:`${products.filter(p=>p.expiry&&p.expiry<=new Date(Date.now()+30*86400000).toISOString().split('T')[0]).length} produtos nos próx. 30 dias`},
+              {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:`Custo: ${fmtCur(custoTotal)}`},
+              {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:`${desperdicioList?.length||0} registros`},
+              {id:'turnos_rel',icon:'🕐',title:'Comparativo de turnos',sub:'Consumo e custo por turno'},
+              {id:'historico_prod',icon:'🔍',title:'Histórico de produto',sub:'Busque um produto específico'},
+              {id:'energia_rel',icon:'⚡',title:'Energia CEMIG',sub:`${energiaLeituras?.length||0} leituras registradas`},
+              {id:'atividade_usuario',icon:'🧑‍💼',title:'Atividade por usuário',sub:`${new Set(relMovs.map(m=>m.user_name)).size} usuários ativos`},
+              {id:'giro_estoque',icon:'📊',title:'Giro de estoque',sub:'Velocidade de saída dos produtos'},
+              {id:'danificados_rel',icon:'⚠️',title:'Itens danificados',sub:`${danificadoList?.length||0} registros`},
+              {id:'sem_mov_rel',icon:'🧊',title:'Produtos sem movimentação',sub:'Itens parados no período'},
+            ]
+
+            const gerarPDF=(tipo)=>{
+              const w=window.open('','_blank')
+              const [dStart,dEnd]=getDateRange()
+              const periodoLabel=relPeriodo==='hoje'?'Hoje':relPeriodo==='ontem'?'Ontem':relPeriodo==='7dias'?'Últimos 7 dias':relPeriodo==='30dias'?'Últimos 30 dias':relPeriodo==='mes'?'Este mês':`${dStart} a ${dEnd}`
+              let conteudo=''
+
+              if(tipo==='movimentos'||tipo==='completo'){
+                conteudo+=`<h2>🔄 Movimentos</h2><p>Período: ${periodoLabel} | Turno: ${relTurno==='todos'?'Todos':relTurno} | Setor: ${relSetor==='todos'?'Todos':relSetor}</p>`
+                conteudo+=`<table border="1" cellpadding="6" style="width:100%;border-collapse:collapse;font-size:12px"><tr style="background:#EA1D2C;color:white"><th>Horário</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Custo Unit.</th><th>Custo Total</th><th>Setor</th><th>Turno</th><th>Usuário</th></tr>`
+                relMovs.slice().reverse().forEach(m=>{
+                  const p=products.find(x=>x.id===m.product_id)
+                  conteudo+=`<tr><td>${new Date(m.created_at).toLocaleString('pt-BR')}</td><td>${p?.name||'—'}</td><td>${m.type==='entrada'?'📥 Entrada':'📤 Saída'}</td><td>${m.quantity} ${p?.unit||''}</td><td>${fmtCur(m.cost_unit||0)}</td><td>${fmtCur((m.quantity||0)*(m.cost_unit||0))}</td><td>${m.setor||'—'}</td><td>${m.turno||'—'}</td><td>${m.user_name||'—'}</td></tr>`
+                })
+                conteudo+=`</table><p><strong>Total entradas: ${entradas.length} | Total saídas: ${saidas.length} | Custo total: ${fmtCur(custoTotal)}</strong></p>`
+              }
+
+              if(tipo==='estoque'||tipo==='completo'){
+                conteudo+=`<h2>📦 Estoque Atual</h2>`
+                conteudo+=`<table border="1" cellpadding="6" style="width:100%;border-collapse:collapse;font-size:12px"><tr style="background:#EA1D2C;color:white"><th>Produto</th><th>Categoria</th><th>Setor</th><th>Tipo</th><th>Qtd</th><th>Mín</th><th>Custo Unit.</th><th>Valor Total</th><th>Status</th></tr>`
+                relProds.sort((a,b)=>a.name.localeCompare(b.name)).forEach(p=>{
+                  const status=p.quantity<=0?'ZERADO':p.quantity<=p.min_stock?'BAIXO':'OK'
+                  const cor=p.quantity<=0?'#FFCCCC':p.quantity<=p.min_stock?'#FFFACC':'#CCFFCC'
+                  conteudo+=`<tr style="background:${cor}"><td>${p.name}</td><td>${p.category}</td><td>${p.setor||'—'}</td><td>${p.tipo||'Consumo'}</td><td>${p.quantity} ${p.unit}</td><td>${p.min_stock}</td><td>${fmtCur(p.cost)}</td><td>${fmtCur(p.quantity*p.cost)}</td><td><strong>${status}</strong></td></tr>`
+                })
+                conteudo+=`</table><p><strong>Total em estoque: ${fmtCur(valorEstoque)}</strong></p>`
+              }
+
+              if(tipo==='ranking'||tipo==='completo'){
+                const countMap={}
+                saidas.forEach(m=>{
+                  const p=products.find(x=>x.id===m.product_id)
+                  if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0};countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=(m.quantity||0)*(m.cost_unit||0)}
+                })
+                const ranking=Object.values(countMap).sort((a,b)=>b.qty-a.qty)
+                conteudo+=`<h2>🏆 Ranking de Consumo</h2>`
+                conteudo+=`<table border="1" cellpadding="6" style="width:100%;border-collapse:collapse;font-size:12px"><tr style="background:#EA1D2C;color:white"><th>#</th><th>Produto</th><th>Qtd Saída</th><th>Custo Total</th></tr>`
+                ranking.forEach((p,i)=>{conteudo+=`<tr><td>${i+1}</td><td>${p.name}</td><td>${p.qty.toFixed(2)} ${p.unit}</td><td>${fmtCur(p.custo)}</td></tr>`})
+                conteudo+=`</table>`
+              }
+
+              w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório Boi de Minas</title><style>body{font-family:Arial,sans-serif;padding:20px;font-size:13px}h1{color:#EA1D2C}h2{color:#EA1D2C;margin-top:24px;border-bottom:2px solid #EA1D2C;padding-bottom:6px}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #ddd;padding:6px;text-align:left}th{background:#EA1D2C;color:white}tr:nth-child(even){background:#f9f9f9}@media print{button{display:none}}</style></head><body><div style="display:flex;align-items:center;gap:16px;margin-bottom:16px"><div style="width:50px;height:50px;background:#EA1D2C;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:18px">BM</div><div><h1 style="margin:0">Boi de Minas Churrascaria</h1><p style="margin:0;color:#666">Relatório gerado em ${new Date().toLocaleString('pt-BR')} | Período: ${periodoLabel}</p></div></div>${conteudo}<br><button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;padding:10px 20px;font-size:14px;border-radius:6px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></body></html>`)
+              w.document.close()
+            }
+
+            return(<>
+              <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+                {relatorios.map(r=>(
+                  <div key={r.id} onClick={()=>setRelModal(r.id)} style={{...S.card,padding:'12px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:20}}>{r.icon}</span>
+                      <div>
+                        <p style={{fontSize:14,fontWeight:700,margin:0}}>{r.title}</p>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{r.sub}</p>
+                      </div>
+                    </div>
+                    <span style={{fontSize:18,color:C.grayDark}}>›</span>
+                  </div>
                 ))}
               </div>
-              {relPeriodo==='custom'&&<>
-                <input type="date" value={relDataInicio} onChange={e=>setRelDataInicio(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}} />
-                <span style={{fontSize:12,color:C.grayDark}}>até</span>
-                <input type="date" value={relDataFim} onChange={e=>setRelDataFim(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}} />
-              </>}
-              <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}}>
-                <option value="todos">Todos os Turnos</option>
-                {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-              </select>
-              <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={{...S.input,width:'auto',fontSize:12,padding:'6px 10px'}}>
-                <option value="todos">Todos os Setores</option>
-                {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
-              </select>
-              <div style={{display:'flex',gap:6,marginLeft:'auto'}}>
-                <button onClick={printReport} style={{...S.btnRed,padding:'8px 14px',fontSize:12}}>🖨️ Imprimir</button>
-                <button onClick={exportCSV} style={{...S.btnGray,padding:'8px 14px',fontSize:12,color:C.green,fontWeight:700}}>📊 CSV</button>
+
+              {/* BOTÕES PDF */}
+              <div style={{...S.card,padding:14,marginBottom:12}}>
+                <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📄 EXPORTAR PDF PERSONALIZADO</p>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <button onClick={()=>gerarPDF('movimentos')} style={{...S.btnGray,padding:10,fontSize:12,fontWeight:700,borderRadius:8}}>📋 Movimentos</button>
+                  <button onClick={()=>gerarPDF('estoque')} style={{...S.btnGray,padding:10,fontSize:12,fontWeight:700,borderRadius:8}}>📦 Estoque</button>
+                  <button onClick={()=>gerarPDF('ranking')} style={{...S.btnGray,padding:10,fontSize:12,fontWeight:700,borderRadius:8}}>🏆 Ranking</button>
+                  <button onClick={()=>gerarPDF('completo')} style={{background:C.red,color:'white',border:'none',borderRadius:8,padding:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 Completo</button>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* CARDS RESUMO */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
-            {[
-              {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:`${products.length} produtos`},
-              {label:'Custo do Período',val:fmtCur(custoRel),color:C.orange,icon:'💸',sub:varCustoRel!==0?`${varCustoRel>0?'+':''}${varCustoRel.toFixed(0)}% vs anterior`:'Sem comparativo'},
-              {label:'Ticket Médio',val:relMovsFiltrados.filter(m=>m.type==='saida').length>0?fmtCur(custoRel/relMovsFiltrados.filter(m=>m.type==='saida').length):'R$ 0,00',color:'#6f42c1',icon:'🎫',sub:`${relMovsFiltrados.filter(m=>m.type==='saida').length} saídas`},
-              {label:'Hora de Pico',val:horaPicoRel.movs>0?horaPicoRel.hora:'—',color:C.blue,icon:'⏰',sub:horaPicoRel.movs>0?`${horaPicoRel.movs} movimentos`:'Sem dados'},
-            ].map(c=>(
-              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
-                <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
-                <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
-              </div>
-            ))}
-          </div>
+              {/* MODAL DO RELATÓRIO */}
+              {relModal&&(
+                <Overlay onClose={()=>setRelModal(null)}>
+                  <MHead title={relatorios.find(r=>r.id===relModal)?.icon+' '+relatorios.find(r=>r.id===relModal)?.title||'Relatório'} onClose={()=>setRelModal(null)} />
+                  <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:10,maxHeight:'75vh',overflowY:'auto'}}>
 
-          {/* GRÁFICOS */}
-          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:12,marginBottom:14}}>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📈 MOVIMENTOS — ÚLTIMOS 7 DIAS</p>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={last7} barCategoryGap="30%">
-                  <XAxis dataKey="date" tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fill:C.grayDark,fontSize:9}} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:10,fontSize:11}} />
-                  <Bar dataKey="entradas" fill={C.green} radius={[4,4,0,0]} name="Entradas" />
-                  <Bar dataKey="saidas" fill={C.red} radius={[4,4,0,0]} name="Saídas" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🥧 CUSTO POR CATEGORIA</p>
-              {custoCatArrRel.length===0
-                ? <p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'30px 0'}}>Sem dados</p>
-                : custoCatArrRel.map(([cat,val],i)=>{
-                  const colors=['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14']
-                  return(
-                    <div key={cat} style={{marginBottom:8}}>
-                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                        <span style={{fontSize:11,fontWeight:700}}>{cat}</span>
-                        <span style={{fontSize:11,fontWeight:800,color:colors[i%colors.length]}}>{fmtCur(val)}</span>
+                    {/* MOVIMENTOS */}
+                    {relModal==='movimentos'&&(<>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:4}}>
+                        {[{l:'Entradas',v:entradas.length,c:'#22c55e'},{l:'Saídas',v:saidas.length,c:C.red},{l:'Custo',v:fmtCur(custoTotal),c:C.text}].map(k=>(
+                          <div key={k.l} style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
+                            <p style={{fontSize:10,color:C.grayDark,margin:0}}>{k.l}</p>
+                            <p style={{fontSize:16,fontWeight:900,color:k.c,margin:'3px 0 0'}}>{k.v}</p>
+                          </div>
+                        ))}
                       </div>
-                      <div style={{background:C.grayMid,borderRadius:4,height:5,overflow:'hidden'}}>
-                        <div style={{width:`${(val/maxCustoCatRel)*100}%`,height:'100%',background:colors[i%colors.length],borderRadius:4}} />
-                      </div>
-                    </div>
-                  )
-                })
-              }
-            </div>
-          </div>
+                      {relMovs.slice().reverse().map((m,i)=>{
+                        const p=products.find(x=>x.id===m.product_id)
+                        return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p>
+                            <span style={{color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800,fontSize:13}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span>
+                          </div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno} · {m.user_name}</p>
+                          {m.cost_unit>0&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Custo: {fmtCur(m.quantity*(m.cost_unit||0))}</p>}
+                        </div>)
+                      })}
+                      <button onClick={()=>gerarPDF('movimentos')} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer',marginTop:4}}>📄 Exportar PDF</button>
+                    </>)}
 
-          {/* COMPARATIVO TURNOS E SETORES */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
-            <div style={{...S.card,padding:16}}>
-              <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🔄 POR TURNO</p>
-              {statsPorTurno.map(t=>(
-                <div key={t.id} style={{background:C.gray,borderRadius:10,padding:12,marginBottom:8}}>
-                  <p style={{fontWeight:800,fontSize:12,marginBottom:6}}>{t.icon} {t.label} · {t.sub}</p>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:6}}>
-                    {[{l:'Entradas',v:`+${t.entradas}`,c:C.green},{l:'Saídas',v:`-${t.saidas}`,c:C.red},{l:'Custo',v:fmtCur(t.custo).replace('R$ ','R$'),c:'#6f42c1'}].map(x=>(
-                      <div key={x.l} style={{background:C.white,borderRadius:6,padding:'6px 4px',textAlign:'center'}}>
-                        <p style={{fontWeight:900,fontSize:12,color:x.c}}>{x.v}</p>
-                        <p style={{fontSize:8,color:C.grayDark,fontWeight:700}}>{x.l.toUpperCase()}</p>
+                    {/* CUSTO POR SETOR E CATEGORIA */}
+                    {relModal==='custo_setor'&&(<>
+                      <div style={{background:'#EFF6FF',borderRadius:12,padding:12,marginBottom:4}}>
+                        <p style={{fontSize:13,color:C.grayDark,margin:0}}>Custo total no período</p>
+                        <p style={{fontSize:22,fontWeight:900,color:'#1D4ED8',margin:'4px 0 0'}}>{fmtCur(custoTotal)}</p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{...S.card,padding:16}}>
-              <p style={{fontSize:12,fontWeight:800,marginBottom:10}}>🏢 POR SETOR</p>
-              {statsPorSetor.map(s=>(
-                <div key={s.setor} style={{background:SETOR_COLORS[s.setor]+'11',border:`1px solid ${SETOR_COLORS[s.setor]}22`,borderRadius:10,padding:12,marginBottom:8}}>
-                  <p style={{fontWeight:800,fontSize:12,marginBottom:6,color:SETOR_COLORS[s.setor]}}>{SETOR_ICONS[s.setor]} {s.setor}</p>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11}}>
-                    <span style={{color:C.green,fontWeight:700}}>+{s.entradas}</span>
-                    <span style={{color:C.red,fontWeight:700}}>-{s.saidas}</span>
-                    <span style={{color:'#6f42c1',fontWeight:800}}>{fmtCur(s.custo)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* GIRO DE ESTOQUE + VARIAÇÃO DE PREÇO */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔄 GIRO DE ESTOQUE (MÊS)</p>
-              {giroEstoqueRel.slice(0,8).map((p,i)=>(
-                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:11,fontWeight:900,color:'#6f42c1',width:16}}>{i+1}</span>
-                    <div>
-                      <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                      <p style={{fontSize:10,color:C.grayDark}}>{p.reposicoes}x reposto</p>
-                    </div>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:800,color:'#6f42c1'}}>{p.giro.toFixed(1)}x</span>
-                </div>
-              ))}
-              {giroEstoqueRel.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem dados suficientes</p>}
-            </div>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>📊 VARIAÇÃO DE CUSTO</p>
-              {variacaoCustoRel.slice(0,8).map((p,i)=>(
-                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                  <div>
-                    <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                    <p style={{fontSize:10,color:C.grayDark}}>Atual: {fmtCur(p.custoAtual)}/{p.unit}</p>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:800,color:p.var>0?C.red:p.var<0?C.green:C.grayDark}}>
-                    {p.var>0?'↑':'↓'}{Math.abs(p.var).toFixed(1)}%
-                  </span>
-                </div>
-              ))}
-              {variacaoCustoRel.length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem histórico disponível</p>}
-            </div>
-          </div>
-
-          {/* TOP 10 + PARADOS */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔥 TOP 10 — MAIOR CUSTO</p>
-              {topProdsRel.filter(p=>p.custoTotal>0).slice(0,10).map((p,i)=>(
-                <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8}}>
-                    <span style={{fontSize:11,fontWeight:900,color:C.red,width:16}}>{i+1}</span>
-                    <div>
-                      <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                      <p style={{fontSize:10,color:C.grayDark}}>{p.totalSaida} {p.unit} · Margem: {p.custoTotal>0&&p.preco_venda>0?((1-p.cost/p.preco_venda)*100).toFixed(0)+'%':'—'}</p>
-                    </div>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:800,color:C.red}}>{fmtCur(p.custoTotal)}</span>
-                </div>
-              ))}
-              {topProdsRel.filter(p=>p.custoTotal>0).length===0&&<p style={{color:C.grayDark,fontSize:12,textAlign:'center',padding:'20px 0'}}>Sem saídas no período</p>}
-            </div>
-            <div style={S.card}>
-              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>😴 PRODUTOS PARADOS (+7 dias)</p>
-              {prodParadosRel.length===0
-                ? <div style={{textAlign:'center',padding:'20px 0'}}>
-                    <p style={{fontSize:24,marginBottom:6}}>✅</p>
-                    <p style={{fontWeight:700,fontSize:12,color:C.green}}>Todos em uso!</p>
-                  </div>
-                : prodParadosRel.slice(0,8).map(p=>(
-                    <div key={p.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:`1px solid ${C.gray}`}}>
-                      <div>
-                        <p style={{fontSize:12,fontWeight:700}}>{p.name}</p>
-                        <p style={{fontSize:10,color:C.grayDark}}>{p.category}</p>
-                      </div>
-                      <div style={{textAlign:'right'}}>
-                        <p style={{fontSize:12,fontWeight:800,color:C.orange}}>{p.quantity} {p.unit}</p>
-                        <p style={{fontSize:10,color:C.grayDark}}>{fmtCur(p.quantity*p.cost)}</p>
-                      </div>
-                    </div>
-                  ))
-              }
-            </div>
-          </div>
-
-          {/* VENCIMENTOS */}
-          <div style={{...S.card,marginBottom:14,padding:16}}>
-            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📅 RELATÓRIO DE VENCIMENTOS</p>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
-              {[
-                {label:'Vencendo em 7 dias',days:7,color:C.red,icon:'🚨'},
-                {label:'Vencendo em 15 dias',days:15,color:C.orange,icon:'⚠️'},
-                {label:'Vencendo em 30 dias',days:30,color:C.blue,icon:'📋'},
-              ].map(({label,days,color,icon})=>{
-                const prods=products.filter(p=>p.expiry&&((new Date(p.expiry)-new Date())/86400000)<=days&&((new Date(p.expiry)-new Date())/86400000)>0)
-                return(
-                  <div key={days} style={{background:color+'11',border:`1px solid ${color}33`,borderRadius:12,padding:12}}>
-                    <p style={{fontSize:11,fontWeight:800,color,marginBottom:8}}>{icon} {label.toUpperCase()}</p>
-                    {prods.length===0
-                      ? <p style={{fontSize:11,color:C.grayDark}}>Nenhum produto</p>
-                      : prods.map(p=>{
-                          const d=Math.ceil((new Date(p.expiry)-new Date())/86400000)
-                          return(
-                            <div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',borderBottom:`1px solid ${color}22`}}>
-                              <span style={{fontSize:11,fontWeight:700}}>{p.name}</span>
-                              <span style={{fontSize:11,color,fontWeight:800}}>{d}d</span>
-                            </div>
-                          )
+                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,margin:'4px 0'}}>POR SETOR</p>
+                      {SETORES.map(s=>{
+                        const val=saidas.filter(m=>m.setor===s).reduce((sum,m)=>sum+(m.quantity||0)*(m.cost_unit||0),0)
+                        if(val===0) return null
+                        const pct=Math.round((val/custoTotal)*100)||0
+                        return(<div key={s} style={{...S.input,padding:'10px 12px',marginBottom:4}}>
+                          <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                            <p style={{fontWeight:700,fontSize:13,margin:0}}>{SETOR_ICONS[s]} {s}</p>
+                            <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(val)} <span style={{fontSize:11,color:C.grayDark}}>({pct}%)</span></span>
+                          </div>
+                          <div style={{background:C.grayMid,borderRadius:4,height:4}}><div style={{width:`${pct}%`,height:'100%',background:C.red,borderRadius:4}}></div></div>
+                        </div>)
+                      })}
+                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,margin:'8px 0 4px'}}>POR CATEGORIA</p>
+                      {(()=>{
+                        const byCat={}
+                        saidas.forEach(m=>{
+                          const p=products.find(x=>x.id===m.product_id)
+                          const cat=p?.category||'Outros'
+                          byCat[cat]=(byCat[cat]||0)+(m.quantity||0)*(m.cost_unit||0)
                         })
-                    }
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+                        return Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>{
+                          const pct=Math.round((val/custoTotal)*100)||0
+                          return(<div key={cat} style={{...S.input,padding:'10px 12px',marginBottom:4}}>
+                            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                              <p style={{fontWeight:700,fontSize:13,margin:0}}>{cat}</p>
+                              <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(val)} <span style={{fontSize:11,color:C.grayDark}}>({pct}%)</span></span>
+                            </div>
+                            <div style={{background:C.grayMid,borderRadius:4,height:4}}><div style={{width:`${pct}%`,height:'100%',background:C.red,borderRadius:4}}></div></div>
+                          </div>)
+                        })
+                      })()}
+                      <button onClick={()=>gerarPDF('completo')} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer',marginTop:4}}>📄 Exportar PDF</button>
+                    </>)}
 
-          {/* LISTA DE COMPRAS SUGERIDA */}
-          <div style={{...S.card,marginBottom:14,padding:16}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <p style={{fontSize:12,fontWeight:800}}>🛒 LISTA DE COMPRAS SUGERIDA</p>
-              <button onClick={()=>{
-                const itens=products.filter(p=>p.quantity<=p.min_stock)
-                if(!itens.length){showToast('Nenhum produto abaixo do mínimo!','warn');return}
-                const w=window.open('','_blank')
-                w.document.write('<html><head><title>Lista de Compras</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
-                w.document.write('<button onclick="window.print()">Imprimir</button>')
-                w.document.write('<h2>🛒 Lista de Compras — Boi de Minas</h2>')
-                w.document.write('<p>Data: '+new Date().toLocaleDateString('pt-BR')+'</p>')
-                w.document.write('<table><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Comprar</th><th>Fornecedor</th></tr>')
-                itens.forEach(p=>{w.document.write('<tr><td>'+p.name+'</td><td>'+p.quantity+' '+p.unit+'</td><td>'+p.min_stock+' '+p.unit+'</td><td><strong>'+(p.max_stock-p.quantity)+' '+p.unit+'</strong></td><td>'+(p.supplier||'—')+'</td></tr>')})
-                w.document.write('</table></body></html>')
-                w.document.close()
-              }} style={{...S.btnRed,padding:'6px 14px',fontSize:12}}>🖨️ Imprimir Lista</button>
-            </div>
-            {products.filter(p=>p.quantity<=p.min_stock).length===0
-              ? <div style={{textAlign:'center',padding:'16px 0',color:C.green}}>
-                  <p style={{fontSize:20,marginBottom:4}}>✅</p>
-                  <p style={{fontWeight:700,fontSize:12}}>Estoque OK! Nenhum produto abaixo do mínimo.</p>
-                </div>
-              : <div style={{overflowX:'auto'}}>
-                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
-                    <thead><tr style={{background:C.gray}}>{['Produto','Estoque Atual','Mínimo','Qtd Sugerida','Custo Estimado','Fornecedor'].map(h=><th key={h} style={{padding:'8px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
-                    <tbody>
-                      {products.filter(p=>p.quantity<=p.min_stock).map(p=>(
-                        <tr key={p.id} style={{borderBottom:`1px solid ${C.gray}`,background:C.redLight}}>
-                          <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
-                          <td style={{padding:'8px 12px',color:C.red,fontWeight:800}}>{p.quantity} {p.unit}</td>
-                          <td style={{padding:'8px 12px',color:C.grayDark}}>{p.min_stock} {p.unit}</td>
-                          <td style={{padding:'8px 12px',color:C.green,fontWeight:900}}>{Math.max(0,p.max_stock-p.quantity)} {p.unit}</td>
-                          <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:700}}>{fmtCur(Math.max(0,p.max_stock-p.quantity)*p.cost)}</td>
-                          <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{p.supplier||'—'}</td>
-                        </tr>
+                    {/* RANKING */}
+                    {relModal==='ranking'&&(<>
+                      {(()=>{
+                        const countMap={}
+                        saidas.forEach(m=>{
+                          const p=products.find(x=>x.id===m.product_id)
+                          if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0,setor:p.setor,cat:p.category};countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=(m.quantity||0)*(m.cost_unit||0)}
+                        })
+                        const ranking=Object.values(countMap).sort((a,b)=>b.qty-a.qty)
+                        if(ranking.length===0) return <p style={{color:C.grayDark,textAlign:'center'}}>Nenhuma saída no período</p>
+                        return ranking.map((p,i)=>(
+                          <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                <span style={{width:24,height:24,background:i<3?C.red:'#888',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:800}}>{i+1}</span>
+                                <div>
+                                  <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                                  <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.cat} · {p.setor}</p>
+                                </div>
+                              </div>
+                              <div style={{textAlign:'right'}}>
+                                <p style={{fontSize:13,fontWeight:800,color:C.red,margin:0}}>{p.qty.toFixed(2)} {p.unit}</p>
+                                <p style={{fontSize:11,color:C.grayDark,margin:0}}>{fmtCur(p.custo)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                      <button onClick={()=>gerarPDF('ranking')} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer',marginTop:4}}>📄 Exportar PDF</button>
+                    </>)}
+
+                    {/* ESTOQUE COM VALOR */}
+                    {relModal==='estoque_valor'&&(<>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                        <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>Total em estoque</p>
+                          <p style={{fontSize:16,fontWeight:900,color:'#1D4ED8',margin:'3px 0 0'}}>{fmtCur(valorEstoque)}</p>
+                        </div>
+                        <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>Produtos</p>
+                          <p style={{fontSize:16,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{relProds.length}</p>
+                        </div>
+                      </div>
+                      {relProds.sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
+                        <div key={i} style={{...S.input,padding:'10px 12px',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                            <span style={{fontSize:13,fontWeight:800,color:'#1D4ED8'}}>{fmtCur(p.quantity*p.cost)}</span>
+                          </div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {fmtCur(p.cost)}/un · {p.setor} · {p.tipo||'Consumo'}</p>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-            }
-          </div>
+                      <button onClick={()=>gerarPDF('estoque')} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer',marginTop:4}}>📄 Exportar PDF</button>
+                    </>)}
 
-          {/* HORA DE PICO */}
-          <div style={{...S.card,marginBottom:14}}>
-            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>⏰ MOVIMENTOS POR HORA — HOJE</p>
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart data={movsPorHoraRel.filter((_,i)=>i>=6&&i<=23)} barCategoryGap="20%">
-                <XAxis dataKey="hora" tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill:C.grayDark,fontSize:8}} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{background:C.white,border:`1px solid ${C.grayMid}`,borderRadius:8,fontSize:11}} />
-                <Bar dataKey="movs" fill={C.red} radius={[3,3,0,0]} name="Movimentos" />
-              </BarChart>
-            </ResponsiveContainer>
-            <p style={{fontSize:11,color:C.grayDark,textAlign:'center',marginTop:4}}>Hora de pico: <strong style={{color:C.red}}>{horaPicoRel.movs>0?`${horaPicoRel.hora} (${horaPicoRel.movs} movimentos)`:'Sem dados hoje'}</strong></p>
-          </div>
+                    {/* VENCIMENTOS */}
+                    {relModal==='vencimentos'&&(<>
+                      {products.filter(p=>p.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).map((p,i)=>{
+                        const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
+                        return(<div key={i} style={{...S.input,padding:'10px 12px',background:dias<=0?C.redLight:dias<=7?'#FEF3C7':C.white}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                            <span style={{fontSize:11,background:dias<=0?C.red:dias<=7?'#F97316':'#22c55e',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':`${dias}d`}</span>
+                          </div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · Vence: {fmtDate(p.expiry)} · {p.setor}</p>
+                        </div>)
+                      })}
+                    </>)}
 
-          {/* COMPARATIVO MÊS A MÊS */}
-          <div style={{...S.card,marginBottom:14,padding:16}}>
-            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📆 COMPARATIVO MÊS A MÊS</p>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
-                <thead><tr style={{background:C.gray}}>{['Mês','Entradas','Saídas','Custo Total','Dia Mais Caro'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
-                <tbody>
-                  {comparativoMesesRel.map((m,i)=>(
-                    <tr key={i} style={{borderBottom:`1px solid ${C.gray}`,background:i===0?'#FFF8F0':'transparent'}}>
-                      <td style={{padding:'8px 12px',fontWeight:i===0?800:600}}>{m.label}{i===0?' (atual)':''}</td>
-                      <td style={{padding:'8px 12px',color:C.green,fontWeight:700}}>+{m.entradas}</td>
-                      <td style={{padding:'8px 12px',color:C.red,fontWeight:700}}>-{m.saidas}</td>
-                      <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:800}}>{fmtCur(m.custo)}</td>
-                      <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{m.diaMaisCaro}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    {/* CMV */}
+                    {relModal==='cmv_rel'&&(<>
+                      <div style={{background:'#EFF6FF',borderRadius:12,padding:12,marginBottom:4}}>
+                        <p style={{fontSize:13,color:C.grayDark,margin:0}}>Custo total de saídas</p>
+                        <p style={{fontSize:22,fontWeight:900,color:C.red,margin:'4px 0 0'}}>{fmtCur(custoTotal)}</p>
+                        <p style={{fontSize:12,color:C.grayDark,margin:'4px 0 0'}}>{saidas.length} saídas registradas no período</p>
+                      </div>
+                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,margin:'4px 0'}}>CMV POR DIA</p>
+                      {(()=>{
+                        const [dS,dE]=getDateRange()
+                        const dias=[]
+                        let current=new Date(dS)
+                        const end=new Date(dE)
+                        while(current<=end){
+                          const ds=current.toISOString().split('T')[0]
+                          const movsDia=saidas.filter(m=>m.created_at?.startsWith(ds))
+                          const custo=movsDia.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                          if(custo>0) dias.push({ds,custo,qtd:movsDia.length})
+                          current.setDate(current.getDate()+1)
+                        }
+                        return dias.map((d,i)=>(
+                          <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}>
+                              <p style={{fontWeight:700,fontSize:13,margin:0}}>{new Date(d.ds+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}</p>
+                              <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(d.custo)}</span>
+                            </div>
+                            <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qtd} saídas</p>
+                          </div>
+                        ))
+                      })()}
+                    </>)}
 
-          {/* TABELA COMPLETA */}
-          <div style={{...S.card,padding:0,overflow:'hidden'}}>
-            <div style={{padding:'14px 18px',borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontSize:13,fontWeight:800}}>📋 Resumo Completo do Estoque</p>
-              <p style={{fontSize:13,color:C.red,fontWeight:900}}>{fmtCur(totalCost)}</p>
-            </div>
-            <div style={{overflowX:'auto'}}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:500}}>
-                <thead><tr style={{background:C.gray}}>{['Produto','Categoria','Setor','Qtd','Custo','Total','Giro','Status'].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
-                <tbody>
-                  {[...products].sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map(p=>{
-                    const giro=giroEstoqueRel.find(g=>g.id===p.id)
-                    return(
-                      <tr key={p.id} className="rh" style={{borderBottom:`1px solid ${C.gray}`}}>
-                        <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
-                        <td style={{padding:'8px 12px',color:C.grayDark,fontSize:11}}>{p.category}</td>
-                        <td style={{padding:'8px 12px'}}>{p.setor&&<span style={{fontSize:9,background:SETOR_COLORS[p.setor]+'22',color:SETOR_COLORS[p.setor],padding:'2px 7px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[p.setor]} {p.setor}</span>}</td>
-                        <td style={{padding:'8px 12px',fontWeight:800}}>{p.quantity} {p.unit}</td>
-                        <td style={{padding:'8px 12px',color:C.grayDark}}>{fmtCur(p.cost)}</td>
-                        <td style={{padding:'8px 12px',color:C.green,fontWeight:800}}>{fmtCur(p.quantity*p.cost)}</td>
-                        <td style={{padding:'8px 12px',color:'#6f42c1',fontWeight:700}}>{giro?giro.giro.toFixed(1)+'x':'—'}</td>
-                        <td style={{padding:'8px 12px'}}><span style={{background:p.quantity<=p.min_stock?C.redLight:'#F0FFF6',color:p.quantity<=p.min_stock?C.red:C.green,fontSize:9,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{p.quantity<=p.min_stock?'Baixo':'OK'}</span></td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>}
+                    {/* DESPERDÍCIOS */}
+                    {relModal==='desperdicios_rel'&&(<>
+                      {(desperdicioList||[]).length===0?<p style={{color:C.grayDark,textAlign:'center'}}>Nenhum desperdício registrado</p>:
+                      (()=>{
+                        const total=(desperdicioList||[]).reduce((s,d)=>s+(d.custo||0),0)
+                        return(<>
+                          <div style={{background:C.redLight,borderRadius:12,padding:12,marginBottom:4}}>
+                            <p style={{fontSize:13,color:C.grayDark,margin:0}}>Custo total de desperdícios</p>
+                            <p style={{fontSize:22,fontWeight:900,color:C.red,margin:'4px 0 0'}}>{fmtCur(total)}</p>
+                          </div>
+                          {(desperdicioList||[]).map((d,i)=>(
+                            <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                              <div style={{display:'flex',justifyContent:'space-between'}}>
+                                <p style={{fontWeight:700,fontSize:13,margin:0}}>{d.produto||'—'}</p>
+                                <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(d.custo||0)}</span>
+                              </div>
+                              <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qty} un · {d.motivo} · {fmtDate(d.created_at)}</p>
+                            </div>
+                          ))}
+                        </>)
+                      })()}
+                    </>)}
 
-                {tab==='cmv' ? (()=>{
+                    {/* TURNOS */}
+                    {relModal==='turnos_rel'&&TURNOS.map(t=>{
+                      const movsTurno=relMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
+                      const entT=movsTurno.filter(m=>m.type==='entrada')
+                      const saiT=movsTurno.filter(m=>m.type==='saida')
+                      const custoT=saiT.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                      const byCat={}
+                      saiT.forEach(m=>{const p=products.find(x=>x.id===m.product_id);const cat=p?.category||'Outros';byCat[cat]=(byCat[cat]||0)+(m.quantity||0)*(m.cost_unit||0)})
+                      return(<div key={t.id} style={{...S.card,padding:14,marginBottom:8}}>
+                        <p style={{fontWeight:900,fontSize:15,margin:'0 0 10px',color:C.text}}>{t.icon} {t.label} <span style={{fontSize:12,color:C.grayDark}}>({t.sub})</span></p>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
+                          {[{l:'Entradas',v:entT.length,c:'#22c55e'},{l:'Saídas',v:saiT.length,c:C.red},{l:'Custo',v:fmtCur(custoT),c:C.text}].map(k=>(
+                            <div key={k.l} style={{background:C.gray,borderRadius:8,padding:8,textAlign:'center'}}>
+                              <p style={{fontSize:10,color:C.grayDark,margin:0}}>{k.l}</p>
+                              <p style={{fontSize:14,fontWeight:900,color:k.c,margin:'2px 0 0'}}>{k.v}</p>
+                            </div>
+                          ))}
+                        </div>
+                        {Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>(
+                          <div key={cat} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.grayMid}`}}>
+                            <span style={{fontSize:12}}>{cat}</span>
+                            <span style={{fontSize:12,fontWeight:700,color:C.red}}>{fmtCur(val)}</span>
+                          </div>
+                        ))}
+                      </div>)
+                    })}
+
+                    {/* HISTÓRICO DE PRODUTO */}
+                    {relModal==='historico_prod'&&(<>
+                      <div style={{display:'flex',gap:6}}>
+                        <input value={relProdSearch||''} onChange={e=>setRelProdSearch(e.target.value)} placeholder="Buscar produto..." style={{...S.input,flex:1,fontSize:13}} />
+                      </div>
+                      {relProdSearch&&(()=>{
+                        const term=relProdSearch.toLowerCase()
+                        const matches=products.filter(p=>p.name.toLowerCase().includes(term)).slice(0,5)
+                        if(!relProdId) return(<div style={{display:'flex',flexDirection:'column',gap:6,marginTop:6}}>
+                          {matches.map(p=>(
+                            <div key={p.id} onClick={()=>setRelProdId(p.id)} style={{...S.input,padding:'8px 12px',cursor:'pointer'}}>
+                              <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                              <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.setor}</p>
+                            </div>
+                          ))}
+                        </div>)
+                        const prod=products.find(p=>p.id===relProdId)
+                        if(!prod) return null
+                        const hist=movements.filter(m=>m.product_id===relProdId&&m.type!=='auditoria').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
+                        const totalEnt=hist.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
+                        const totalSai=hist.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
+                        return(<>
+                          <div style={{background:'#EFF6FF',borderRadius:12,padding:12}}>
+                            <p style={{fontWeight:800,fontSize:14,margin:0}}>{prod.name}</p>
+                            <p style={{fontSize:12,color:C.grayDark,margin:'4px 0 0'}}>{prod.category} · {prod.setor} · Estoque: {prod.quantity} {prod.unit}</p>
+                            <div style={{display:'flex',gap:8,marginTop:8}}>
+                              <span style={{fontSize:12,background:'#EAF3DE',color:'#27500A',padding:'3px 10px',borderRadius:20,fontWeight:700}}>+{totalEnt.toFixed(2)} {prod.unit} entradas</span>
+                              <span style={{fontSize:12,background:C.redLight,color:C.red,padding:'3px 10px',borderRadius:20,fontWeight:700}}>-{totalSai.toFixed(2)} {prod.unit} saídas</span>
+                            </div>
+                          </div>
+                          {hist.map((m,i)=>(
+                            <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                              <div style={{display:'flex',justifyContent:'space-between'}}>
+                                <p style={{fontWeight:700,fontSize:13,color:m.type==='entrada'?'#22c55e':C.red,margin:0}}>{m.type==='entrada'?'📥 Entrada':'📤 Saída'}</p>
+                                <span style={{fontSize:13,fontWeight:800,color:m.type==='entrada'?'#22c55e':C.red}}>{m.type==='entrada'?'+':'-'}{m.quantity} {prod.unit}</span>
+                              </div>
+                              <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno} · {m.user_name}</p>
+                              {m.cost_unit>0&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Custo: {fmtCur(m.quantity*(m.cost_unit||0))}</p>}
+                              {m.note&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Obs: {m.note}</p>}
+                            </div>
+                          ))}
+                          <button onClick={()=>setRelProdId(null)} style={{...S.btnGray,padding:10,fontSize:12,marginTop:4}}>← Buscar outro produto</button>
+                        </>)
+                      })()}
+                    </>)}
+
+                    {/* ENERGIA */}
+                    {relModal==='energia_rel'&&(<>
+                      {(energiaLeituras||[]).length===0?<p style={{color:C.grayDark,textAlign:'center'}}>Nenhuma leitura registrada</p>:
+                      (()=>{
+                        const leituras=[...(energiaLeituras||[])].sort((a,b)=>a.data.localeCompare(b.data))
+                        return leituras.map((l,i)=>{
+                          const prev=leituras[i-1]
+                          const consumo=prev?+(l.leitura-prev.leitura).toFixed(1):null
+                          const dias=prev?Math.ceil((new Date(l.data)-new Date(prev.data))/(1000*60*60*24)):null
+                          const custo=consumo!=null?(consumo*(energiaConfig?.tarifa||1.13)).toFixed(2):null
+                          return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}>
+                              <p style={{fontWeight:700,fontSize:13,margin:0}}>{fmtDate(l.data)}</p>
+                              <span style={{fontSize:13,fontWeight:800,color:'#1D4ED8'}}>{l.leitura} kWh</span>
+                            </div>
+                            {consumo!=null&&<p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>Consumo: {consumo} kWh em {dias}d · Custo est: R${custo}</p>}
+                            {l.obs&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Obs: {l.obs}</p>}
+                          </div>)
+                        })
+                      })()}
+                    </>)}
+
+                    {/* ATIVIDADE POR USUÁRIO */}
+                    {relModal==='atividade_usuario'&&(<>
+                      {(()=>{
+                        const byUser={}
+                        relMovs.forEach(m=>{
+                          const u=m.user_name||'Sistema'
+                          if(!byUser[u])byUser[u]={name:u,entradas:0,saidas:0,custo:0}
+                          if(m.type==='entrada')byUser[u].entradas+=m.quantity
+                          if(m.type==='saida'){byUser[u].saidas+=m.quantity;byUser[u].custo+=(m.quantity||0)*(m.cost_unit||0)}
+                        })
+                        return Object.values(byUser).sort((a,b)=>(b.entradas+b.saidas)-(a.entradas+a.saidas)).map((u,i)=>(
+                          <div key={i} style={{...S.card,padding:14,marginBottom:8}}>
+                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                              <span style={{width:36,height:36,background:C.red,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,color:'white',fontWeight:800}}>{u.name[0]}</span>
+                              <p style={{fontWeight:800,fontSize:14,margin:0}}>{u.name}</p>
+                            </div>
+                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                              {[{l:'Entradas',v:u.entradas.toFixed(1),c:'#22c55e'},{l:'Saídas',v:u.saidas.toFixed(1),c:C.red},{l:'Custo',v:fmtCur(u.custo),c:C.text}].map(k=>(
+                                <div key={k.l} style={{background:C.gray,borderRadius:8,padding:8,textAlign:'center'}}>
+                                  <p style={{fontSize:10,color:C.grayDark,margin:0}}>{k.l}</p>
+                                  <p style={{fontSize:13,fontWeight:900,color:k.c,margin:'2px 0 0'}}>{k.v}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      })()}
+                    </>)}
+
+                    {/* GIRO DE ESTOQUE */}
+                    {relModal==='giro_estoque'&&(<>
+                      {(()=>{
+                        const giro=products.map(p=>{
+                          const totalSai=movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0)
+                          const giroVal=p.quantity>0?+(totalSai/p.quantity).toFixed(2):0
+                          return{...p,totalSai,giroVal}
+                        }).filter(p=>p.totalSai>0).sort((a,b)=>b.giroVal-a.giroVal)
+                        return giro.map((p,i)=>(
+                          <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                            <div style={{display:'flex',justifyContent:'space-between'}}>
+                              <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                              <span style={{fontSize:13,fontWeight:800,color:p.giroVal>2?C.red:p.giroVal>1?C.orange:'#22c55e'}}>Giro: {p.giroVal}x</span>
+                            </div>
+                            <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>Saídas: {p.totalSai.toFixed(2)} {p.unit} · Estoque: {p.quantity} {p.unit} · {p.setor}</p>
+                          </div>
+                        ))
+                      })()}
+                    </>)}
+
+                    {/* DANIFICADOS */}
+                    {relModal==='danificados_rel'&&(<>
+                      {(danificadoList||[]).length===0?<p style={{color:C.grayDark,textAlign:'center'}}>Nenhum item danificado registrado</p>:
+                      (()=>{
+                        const total=(danificadoList||[]).reduce((s,d)=>{const p=products.find(x=>x.id===d.productId);return s+(d.qty||0)*(p?.cost||0)},0)
+                        return(<>
+                          <div style={{background:'#FFF7ED',borderRadius:12,padding:12,marginBottom:4}}>
+                            <p style={{fontSize:13,color:C.grayDark,margin:0}}>Total de itens danificados</p>
+                            <p style={{fontSize:22,fontWeight:900,color:'#f97316',margin:'4px 0 0'}}>{(danificadoList||[]).length} registros</p>
+                            <p style={{fontSize:12,color:C.grayDark,margin:'4px 0 0'}}>Valor estimado: {fmtCur(total)}</p>
+                          </div>
+                          {(danificadoList||[]).map((d,i)=>(
+                            <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                              <div style={{display:'flex',justifyContent:'space-between'}}>
+                                <p style={{fontWeight:700,fontSize:13,margin:0}}>{d.productName}</p>
+                                <span style={{fontSize:12,color:'#f97316',fontWeight:700}}>{d.qty} un</span>
+                              </div>
+                              <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.motivo}{d.obs?' · '+d.obs:''} · {fmtDate(d.created_at)} · {d.user_name}</p>
+                            </div>
+                          ))}
+                        </>)
+                      })()}
+                    </>)}
+
+                    {/* SEM MOVIMENTAÇÃO */}
+                    {relModal==='sem_mov_rel'&&(<>
+                      {(()=>{
+                        const [dS]=getDateRange()
+                        const movidosIds=new Set(movements.filter(m=>m.created_at>=dS).map(m=>m.product_id))
+                        const parados=relProds.filter(p=>p.quantity>0&&!movidosIds.has(p.id))
+                        if(parados.length===0) return <p style={{color:C.grayDark,textAlign:'center'}}>Todos os produtos foram movimentados no período</p>
+                        const valorParado=parados.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
+                        return(<>
+                          <div style={{background:'#EFF6FF',borderRadius:12,padding:12,marginBottom:4}}>
+                            <p style={{fontSize:13,color:C.grayDark,margin:0}}>{parados.length} produtos sem movimentação</p>
+                            <p style={{fontSize:18,fontWeight:900,color:'#1D4ED8',margin:'4px 0 0'}}>{fmtCur(valorParado)} imobilizado</p>
+                          </div>
+                          {parados.sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
+                            <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                              <div style={{display:'flex',justifyContent:'space-between'}}>
+                                <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                                <span style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>{fmtCur(p.quantity*p.cost)}</span>
+                              </div>
+                              <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {p.category}</p>
+                            </div>
+                          ))}
+                        </>)
+                      })()}
+                    </>)}
+
+                    <button onClick={()=>gerarPDF('completo')} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer',marginTop:8}}>📄 Exportar PDF Completo</button>
+                  </div>
+                </Overlay>
+              )}
+            </>)
+          })()}
+        </>}                {tab==='cmv' ? (()=>{
           const {custoTotal,categoriasTotais,movsFiltrados}=getCmvData(cmvPeriodo)
           const totalReceita=cardapio.reduce((s,c)=>{
             const movsC=movsFiltrados.filter(m=>{const p=products.find(x=>x.id===m.product_id);return p&&p.category===c.categoria})
