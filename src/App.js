@@ -396,6 +396,9 @@ function AppInner() {
   const [relFiltroVenc,setRelFiltroVenc] = useState('30') // 7/15/30/vencido
   const [relFiltroUser,setRelFiltroUser] = useState('todos')
   const [relFiltroMovTipo,setRelFiltroMovTipo] = useState('todos')
+  const [prevFiltroStatus,setPrevFiltroStatus] = useState('todos')
+  const [prevFiltroSetor,setPrevFiltroSetor] = useState('todos')
+  const [prevFiltroCategoria,setPrevFiltroCategoria] = useState('todos')
   const [danificadoList,setDanificadoList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
@@ -3566,90 +3569,200 @@ function AppInner() {
                               <span style={{color:p.diferenca<0?C.red:C.green,fontWeight:800}}>{p.diferenca>0?'+':''}{p.diferenca.toFixed(1)} {p.unit} ({fmtCur(Math.abs(p.custoDiferenca))})</span>
                             </div>
                           ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-              }
-            </div>
-          )}
-        </>}
-
-        {/* ══ PREVISÃO ══ */}
         {tab==='previsao'&&(()=>{
           const previsao=calcPrevisao()
+          const filtrados=previsao.filter(p=>{
+            if(prevFiltroStatus!=='todos'&&p.urgencia!==prevFiltroStatus) return false
+            if(prevFiltroSetor!=='todos'&&p.setor!==prevFiltroSetor) return false
+            if(prevFiltroCategoria!=='todos'&&p.category!==prevFiltroCategoria) return false
+            return true
+          })
           const criticos=previsao.filter(p=>p.urgencia==='critico')
           const urgentes=previsao.filter(p=>p.urgencia==='urgente')
-          const custoTotalRepor=previsao.filter(p=>p.precisaRepor).reduce((s,p)=>s+p.custoRepor,0)
+          const atencao=previsao.filter(p=>p.urgencia==='atencao')
+          const paraRepor=previsao.filter(p=>p.precisaRepor)
+          const custoTotalRepor=paraRepor.reduce((s,p)=>s+p.custoRepor,0)
+
+          const gerarPedido=()=>{
+            const w=window.open('','_blank')
+            const grupos={}
+            paraRepor.forEach(p=>{
+              const s=p.setor||'Geral'
+              if(!grupos[s]) grupos[s]=[]
+              grupos[s].push(p)
+            })
+            let html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;padding:20px;max-width:800px;margin:0 auto}h1{color:#EA1D2C;border-bottom:3px solid #EA1D2C;padding-bottom:8px}h2{color:#EA1D2C;margin-top:24px;border-left:4px solid #EA1D2C;padding-left:10px}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#EA1D2C;color:white;padding:8px;text-align:left}td{border-bottom:1px solid #eee;padding:8px}tr:nth-child(even){background:#f9f9f9}.critico{background:#FFEEEE}.urgente{background:#FFFAEE}.total{background:#EA1D2C;color:white;font-weight:bold}@media print{button{display:none}}</style></head><body>`
+            html+=`<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px"><div style="width:60px;height:60px;background:#EA1D2C;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:20px">BM</div><div><h1 style="margin:0;border:none">Boi de Minas Churrascaria</h1><p style="margin:4px 0 0;color:#666">Lista de Compras gerada em ${new Date().toLocaleString('pt-BR')}</p></div></div>`
+            html+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin:16px 0"><div style="background:#FFEEEE;padding:12px;border-radius:8px;text-align:center"><p style="font-size:12px;color:#666;margin:0">Críticos</p><p style="font-size:24px;font-weight:bold;color:#EA1D2C;margin:4px 0">${criticos.length}</p></div><div style="background:#FFF8EE;padding:12px;border-radius:8px;text-align:center"><p style="font-size:12px;color:#666;margin:0">Urgentes</p><p style="font-size:24px;font-weight:bold;color:#f97316;margin:4px 0">${urgentes.length}</p></div><div style="background:#f5f5f5;padding:12px;border-radius:8px;text-align:center"><p style="font-size:12px;color:#666;margin:0">Itens</p><p style="font-size:24px;font-weight:bold;margin:4px 0">${paraRepor.length}</p></div><div style="background:#f5f5f5;padding:12px;border-radius:8px;text-align:center"><p style="font-size:12px;color:#666;margin:0">Custo est.</p><p style="font-size:18px;font-weight:bold;color:#1D4ED8;margin:4px 0">R$${custoTotalRepor.toFixed(2)}</p></div></div>`
+            Object.entries(grupos).sort().forEach(([setor,itens])=>{
+              html+=`<h2>${SETOR_ICONS[setor]||'📦'} ${setor}</h2><table><tr><th>#</th><th>Produto</th><th>Estoque Atual</th><th>Consumo/dia</th><th>Dias restantes</th><th>Qtd Sugerida</th><th>Custo Unit.</th><th>Custo Total</th><th>Status</th></tr>`
+              itens.forEach((p,i)=>{
+                const cls=p.urgencia==='critico'?'critico':p.urgencia==='urgente'?'urgente':''
+                const icon=p.urgencia==='critico'?'🚨':p.urgencia==='urgente'?'⚠️':'👀'
+                html+=`<tr class="${cls}"><td>${i+1}</td><td><strong>${p.name}</strong></td><td>${p.quantity} ${p.unit}</td><td>${p.consumoDiario}/dia</td><td>${p.diasRestantes>=999?'∞':p.diasRestantes+'d'}</td><td><strong>${p.qtdSugerida} ${p.unit}</strong></td><td>R$${p.cost.toFixed(2)}</td><td><strong>R$${p.custoRepor.toFixed(2)}</strong></td><td>${icon} ${p.urgencia}</td></tr>`
+              })
+              html+=`</table>`
+            })
+            html+=`<table style="margin-top:20px"><tr class="total"><td colspan="7"><strong>TOTAL GERAL</strong></td><td><strong>R$${custoTotalRepor.toFixed(2)}</strong></td><td></td></tr></table>`
+            html+=`<br><button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;padding:12px 24px;font-size:15px;border-radius:8px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></body></html>`
+            w.document.write(html)
+            w.document.close()
+            logAudit('PEDIDO GERADO','Lista de compras',`${paraRepor.length} itens · R$${custoTotalRepor.toFixed(2)}`)
+          }
+
+          const enviarWhatsApp=()=>{
+            const tel=localStorage.getItem('boi_whatsapp')||''
+            const linhas=paraRepor.map(p=>`• ${p.name}: ${p.qtdSugerida} ${p.unit} (${p.urgencia==='critico'?'🚨 CRÍTICO':'⚠️ urgente'})`)
+            const msg=`🐂 *BOI DE MINAS - LISTA DE COMPRAS*\n📅 ${new Date().toLocaleDateString('pt-BR')}\n\n${linhas.join('\n')}\n\n💰 Custo estimado: R$${custoTotalRepor.toFixed(2)}\n_Gerado automaticamente_`
+          }
+
           return<>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-              <p style={{fontWeight:800,fontSize:14}}>🔮 Previsão de Compras</p>
-              <button onClick={()=>{
-                const itens=previsao.filter(p=>p.precisaRepor)
-                if(!itens.length){showToast('Nenhum item para repor esta semana!','warn');return}
-                const w=window.open('','_blank')
-                w.document.write('<html><head><title>Previsão de Compras</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}.critico{color:red;font-weight:bold}.urgente{color:orange;font-weight:bold}@media print{button{display:none}}</style></head><body>')
-                w.document.write('<button onclick="window.print()">Imprimir</button>')
-                w.document.write('<h2>🔮 Previsão de Compras — Boi de Minas</h2>')
-                w.document.write('<p>Gerado em: '+new Date().toLocaleDateString('pt-BR')+'</p>')
-                w.document.write('<table><tr><th>Produto</th><th>Estoque</th><th>Consumo/dia</th><th>Dias restantes</th><th>COMPRAR</th><th>Custo Est.</th></tr>')
-                itens.forEach(p=>{w.document.write('<tr><td>'+p.name+'</td><td>'+p.quantity+' '+p.unit+'</td><td>'+p.consumoDiario+' '+p.unit+'</td><td class="'+(p.urgencia==='critico'?'critico':'urgente')+'">'+p.diasRestantes+' dias</td><td><strong>'+p.qtdSugerida+' '+p.unit+'</strong></td><td>'+fmtCur(p.custoRepor)+'</td></tr>')})
-                w.document.write('</table></body></html>')
-                w.document.close()
-              }} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>🖨️ Gerar Pedido</button>
+            {/* HEADER */}
+            <div style={{background:C.red,borderRadius:16,padding:'14px 16px',marginBottom:14,color:C.white}}>
+              <p style={{fontSize:16,fontWeight:900,margin:0}}>🔮 Previsão & Lista de Compras</p>
+              <p style={{fontSize:12,opacity:0.85,margin:'4px 0 0'}}>Baseado nos últimos 30 dias de consumo</p>
             </div>
 
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+            {/* KPI CARDS */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
               {[
-                {label:'Crítico (≤3 dias)',val:criticos.length,color:C.red,icon:'🚨'},
-                {label:'Urgente (≤7 dias)',val:urgentes.length,color:C.orange,icon:'⚠️'},
-                {label:'Precisam Repor',val:previsao.filter(p=>p.precisaRepor).length,color:'#6f42c1',icon:'🛒'},
-                {label:'Custo Estimado',val:fmtCur(custoTotalRepor),color:C.green,icon:'💰'},
-              ].map(c=>(
-                <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
-                  <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                  <div style={{fontWeight:900,fontSize:26,color:c.color}}>{c.val}</div>
+                {l:'🚨 Críticos',v:criticos.length,sub:'acabam em ≤3 dias',c:C.red,onClick:()=>setPrevFiltroStatus('critico')},
+                {l:'⚠️ Urgentes',v:urgentes.length,sub:'acabam em ≤7 dias',c:C.orange,onClick:()=>setPrevFiltroStatus('urgente')},
+                {l:'💰 Custo estimado',v:`R$${Math.round(custoTotalRepor)}`,sub:'para repor tudo',c:'#1D4ED8',onClick:()=>{}},
+                {l:'📦 Para repor',v:paraRepor.length,sub:'itens na lista',c:C.text,onClick:()=>setPrevFiltroStatus('todos')},
+              ].map(k=>(
+                <div key={k.l} onClick={k.onClick} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer'}}>
+                  <p style={{fontSize:11,color:C.grayDark,fontWeight:600,margin:'0 0 4px'}}>{k.l}</p>
+                  <p style={{fontSize:20,fontWeight:900,color:k.c,margin:0}}>{k.v}</p>
+                  <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{k.sub}</p>
                 </div>
               ))}
             </div>
 
-            <div style={{...S.card,padding:0,overflow:'hidden'}}>
-              <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`}}>
-                <p style={{fontSize:12,fontWeight:800}}>📊 ANÁLISE POR PRODUTO (baseado nos últimos 30 dias)</p>
+            {/* FILTROS */}
+            <div style={{...S.card,padding:14,marginBottom:12}}>
+              <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:8}}>🔍 FILTROS</p>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>STATUS</label>
+                  <select value={prevFiltroStatus} onChange={e=>setPrevFiltroStatus(e.target.value)} style={S.input}>
+                    <option value="todos">Todos</option>
+                    <option value="critico">🚨 Crítico</option>
+                    <option value="urgente">⚠️ Urgente</option>
+                    <option value="atencao">👀 Atenção</option>
+                    <option value="ok">✅ OK</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>SETOR</label>
+                  <select value={prevFiltroSetor} onChange={e=>setPrevFiltroSetor(e.target.value)} style={S.input}>
+                    <option value="todos">Todos</option>
+                    {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>CATEGORIA</label>
+                  <select value={prevFiltroCategoria} onChange={e=>setPrevFiltroCategoria(e.target.value)} style={S.input}>
+                    <option value="todos">Todas</option>
+                    {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>AÇÃO</label>
+                  <button onClick={()=>{setPrevFiltroStatus('todos');setPrevFiltroSetor('todos');setPrevFiltroCategoria('todos')}} style={{...S.btnGray,width:'100%',padding:8,fontSize:12}}>Limpar filtros</button>
+                </div>
               </div>
-              {previsao.length===0
-                ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
-                    <p style={{fontSize:28,marginBottom:8}}>🔮</p>
-                    <p style={{fontWeight:700,fontSize:13}}>Dados insuficientes</p>
-                    <p style={{fontSize:11,marginTop:4}}>Registre movimentos por pelo menos 7 dias para gerar previsões</p>
+            </div>
+
+            {/* LISTA DE PRODUTOS */}
+            {filtrados.length===0?<div style={{...S.card,padding:20,textAlign:'center'}}><p style={{color:C.grayDark}}>Nenhum produto encontrado com esses filtros</p></div>:
+            ['critico','urgente','atencao','ok'].map(status=>{
+              const grupo=filtrados.filter(p=>p.urgencia===status)
+              if(grupo.length===0) return null
+              const statusInfo={
+                critico:{label:'🚨 Críticos — acabam em até 3 dias',bg:C.redLight,cor:C.red,badge:'#EA1D2C'},
+                urgente:{label:'⚠️ Urgentes — acabam em até 7 dias',bg:'#FEF3C7',cor:'#92400E',badge:'#f97316'},
+                atencao:{label:'👀 Atenção — acabam em até 14 dias',bg:'#EFF6FF',cor:'#1D4ED8',badge:'#3B82F6'},
+                ok:{label:'✅ OK — estoque suficiente',bg:'#F0FFF4',cor:'#166534',badge:'#22c55e'},
+              }[status]
+              return(
+                <div key={status} style={{...S.card,padding:14,marginBottom:12}}>
+                  <p style={{fontWeight:800,fontSize:13,marginBottom:10,color:statusInfo.cor}}>{statusInfo.label}</p>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {grupo.map((p,i)=>{
+                      const pct=Math.min(100,Math.round((p.diasRestantes/14)*100))
+                      return(
+                        <div key={i} style={{background:statusInfo.bg,borderRadius:10,padding:'10px 12px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                            <div style={{flex:1,marginRight:8}}>
+                              <p style={{fontWeight:800,fontSize:13,color:statusInfo.cor,margin:0}}>{p.name}</p>
+                              <p style={{fontSize:11,color:statusInfo.cor,margin:'3px 0 0',opacity:0.8}}>{SETOR_ICONS[p.setor]||'📦'} {p.setor} · {p.category}</p>
+                              <p style={{fontSize:11,color:statusInfo.cor,margin:'3px 0 0'}}>
+                                Estoque: <strong>{p.quantity} {p.unit}</strong> · Consumo: <strong>{p.consumoDiario}/dia</strong>
+                              </p>
+                              {p.precisaRepor&&<p style={{fontSize:11,color:statusInfo.cor,margin:'2px 0 0'}}>
+                                Sugestão: comprar <strong>{p.qtdSugerida} {p.unit}</strong> · Est: <strong>{fmtCur(p.custoRepor)}</strong>
+                              </p>}
+                            </div>
+                            <span style={{background:statusInfo.badge,color:'white',fontSize:11,padding:'3px 8px',borderRadius:20,fontWeight:800,whiteSpace:'nowrap'}}>
+                              {p.diasRestantes>=999?'∞':p.diasRestantes+'d'}
+                            </span>
+                          </div>
+                          <div style={{marginTop:8,background:'rgba(0,0,0,0.1)',borderRadius:4,height:4}}>
+                            <div style={{width:`${Math.min(100,pct)}%`,height:'100%',background:statusInfo.badge,borderRadius:4}}></div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                : <div style={{overflowX:'auto'}}>
-                    <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:600}}>
-                      <thead>
-                        <tr style={{background:C.gray}}>
-                          {['Produto','Estoque','Cons./dia','Dias Restantes','Previsão/sem','Comprar','Custo','Status'].map(h=>(
-                            <th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previsao.map(p=>{
-                          const cor=p.urgencia==='critico'?C.red:p.urgencia==='urgente'?C.orange:p.urgencia==='atencao'?C.blue:C.green
-                          const bg=p.urgencia==='critico'?C.redLight:p.urgencia==='urgente'?'#FFF8F0':'transparent'
-                          return(
-                            <tr key={p.id} style={{borderBottom:`1px solid ${C.gray}`,background:bg}}>
-                              <td style={{padding:'8px 12px',fontWeight:700}}>{p.name}</td>
-                              <td style={{padding:'8px 12px'}}>{p.quantity} {p.unit}</td>
-                              <td style={{padding:'8px 12px',color:C.grayDark}}>{p.consumoDiario} {p.unit}</td>
-                              <td style={{padding:'8px 12px',fontWeight:800,color:cor}}>{p.diasRestantes>=999?'∞':p.diasRestantes+' dias'}</td>
-                              <td style={{padding:'8px 12px',color:C.grayDark}}>{p.previsaoSemana} {p.unit}</td>
-                              <td style={{padding:'8px 12px',fontWeight:800,color:p.precisaRepor?'#6f42c1':C.grayDark}}>{p.precisaRepor?p.qtdSugerida+' '+p.unit:'—'}</td>
-                              <td style={{padding:'8px 12px',color:C.green,fontWeight:700}}>{p.precisaRepor?fmtCur(p.custoRepor):'—'}</td>
-                              <td style={{padding:'8px 12px'}}>
-                                <span style={{background:cor+'22',color:cor,fontSize:9,padding:'3px 8px',borderRadius:20,fontWeight:800}}>{p.urgencia==='critico'?'🚨 CRÍTICO':p.urgencia==='urgente'?'⚠️ URGENTE':p.urgencia==='atencao'?'📋 ATENÇÃO':'✅ OK'}</span>
-                              </td>
-                            </tr>
-                          )
+                </div>
+              )
+            })}
+
+            {/* LISTA DE COMPRAS */}
+            {paraRepor.length>0&&(
+              <div style={{...S.card,padding:14,marginBottom:12}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0}}>📋 Lista de Compras</p>
+                  <span style={{fontSize:12,color:C.grayDark}}>{paraRepor.length} itens · {fmtCur(custoTotalRepor)}</span>
+                </div>
+                {SETORES.map(s=>{
+                  const itens=paraRepor.filter(p=>p.setor===s)
+                  if(itens.length===0) return null
+                  return(
+                    <div key={s} style={{marginBottom:12}}>
+                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:6}}>{SETOR_ICONS[s]||'📦'} {s.toUpperCase()}</p>
+                      {itens.map((p,i)=>(
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:p.urgencia==='critico'?C.redLight:p.urgencia==='urgente'?'#FEF3C7':C.gray,borderRadius:8,marginBottom:4}}>
+                          <div>
+                            <p style={{fontSize:13,fontWeight:700,margin:0}}>{p.name}</p>
+                            <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{p.urgencia==='critico'?'🚨':'⚠️'} {p.diasRestantes>=999?'sem consumo':p.diasRestantes+'d restantes'}</p>
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                            <p style={{fontSize:13,fontWeight:800,margin:0}}>{p.qtdSugerida} {p.unit}</p>
+                            <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{fmtCur(p.custoRepor)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+                <div style={{borderTop:`1px solid ${C.grayMid}`,paddingTop:10,marginTop:4}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                    <p style={{fontWeight:800,fontSize:14,margin:0}}>Total estimado</p>
+                    <p style={{fontWeight:900,fontSize:16,color:C.red,margin:0}}>{fmtCur(custoTotalRepor)}</p>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    <button onClick={gerarPedido} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>🖨️ Imprimir PDF</button>
+                    <button onClick={enviarWhatsApp} style={{background:'#25D366',color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        })()}
+
+                                  )
                         })}
                       </tbody>
                     </table>
