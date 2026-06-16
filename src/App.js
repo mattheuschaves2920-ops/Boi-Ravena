@@ -618,10 +618,10 @@ function AppInner() {
     if(editCardapio!==null){
       const updated=cardapio.map((c,i)=>i===editCardapio?{...cardapioForm}:c)
       saveCardapio(updated)
-      showToast('✓ Item atualizado!')
+      logAudit('CARDÁPIO ATUALIZADO','item','atualizado');showToast('✓ Item atualizado!')
     } else {
       saveCardapio([...cardapio,{...cardapioForm,id:Date.now()}])
-      showToast('✓ Item cadastrado!')
+      logAudit('ITEM CADASTRADO',sepForm?.produto||cardForm?.name||'—','registrado');showToast('✓ Item cadastrado!')
     }
     setCardapioForm({name:'',categoria:'Churrasco',preco_venda:0,custo_estimado:0,unidade:'kg',meta_cmv:40,ativo:true})
     setEditCardapio(null)
@@ -786,7 +786,7 @@ function AppInner() {
     setDesperdicioFoto(null)
     setDesperdicioFotoStep('form')
     setDesperdicioModal(false)
-    showToast('✓ Desperdício registrado com sucesso!')
+    logAudit('DESPERDÍCIO REGISTRADO','Desperdício','registrado');showToast('✓ Desperdício registrado com sucesso!')
   }
 
   const MOTIVOS_DESPERDICIO=[
@@ -887,7 +887,7 @@ function AppInner() {
 
     logAudit('PDV ABERTURA',abertura.pontoName,`${itensValidos.length} produtos`)
     setPdvModal(null)
-    showToast('✓ Abertura registrada! Estoque atualizado.')
+    logAudit('PDV ABERTURA','Abertura registrada','estoque atualizado');showToast('✓ Abertura registrada! Estoque atualizado.')
   }
 
   const initContagem=(pontoId)=>{
@@ -994,7 +994,7 @@ function AppInner() {
     const url=URL.createObjectURL(blob)
     const a=document.createElement('a');a.href=url;a.download='boi-minas-backup-'+todayStr()+'.json';a.click()
     URL.revokeObjectURL(url)
-    showToast('✓ Backup exportado!')
+    logAudit('BACKUP EXPORTADO','Backup completo',new Date().toLocaleString('pt-BR'));showToast('✓ Backup exportado!')
   }
 
   // ── PWA ─────────────────────────────────────────────────────────
@@ -1406,7 +1406,7 @@ function AppInner() {
     const{error}=await supabase.from('movimentos').insert({product_id:null,type:'nota',quantity:0,note:turnNote,user_name:user.name,setor:dashSetor==='todos'?'Geral':dashSetor,turno:getTurnoAtual()})
     if(error) return showToast('Erro ao salvar nota','err')
     setTurnNote('')
-    showToast('✓ Observação registrada!')
+    logAudit('OBSERVAÇÃO DE TURNO','Turno '+getTurnoAtual(),movForm.note||'');showToast('✓ Observação registrada!')
   }
 
   // ── SCANNER CÓDIGO DE BARRAS ───────────────────────────────────
@@ -1455,7 +1455,7 @@ function AppInner() {
     logAudit('MOVIMENTO EDITADO',product?.name||'',changes.length>0?changes.join(' | '):'Sem alterações')
     setEditMovModal(false)
     setEditMovItem(null)
-    showToast('✓ Movimento atualizado!')
+    logAudit('MOVIMENTO EDITADO',editMovItem?.product_id||'—',changes?.join(' | ')||'editado');showToast('✓ Movimento atualizado!')
   }
 
   const startScanner=async()=>{
@@ -1696,7 +1696,7 @@ function AppInner() {
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
-    showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
+    (()=>{if(editProd){const old=products.find(p=>p.id===editProd);const ch=[];if(old){if(old.name!==prodForm.name)ch.push('Nome: '+old.name+'→'+prodForm.name);if(String(old.quantity)!==String(+prodForm.quantity))ch.push('Qtd: '+old.quantity+'→'+prodForm.quantity);if(String(old.cost)!==String(+prodForm.cost))ch.push('Custo: R$'+old.cost+'→R$'+prodForm.cost);if(old.setor!==prodForm.setor)ch.push('Setor: '+old.setor+'→'+prodForm.setor)}logAudit('PRODUTO EDITADO',prodForm.name,ch.length>0?ch.join(' | '):'Sem alterações')}else{logAudit('PRODUTO CRIADO',prodForm.name,'Cat: '+prodForm.category+' | Setor: '+prodForm.setor+' | Qtd: '+prodForm.quantity+' | Custo: R$'+prodForm.cost)}})();showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
     (()=>{
       if(editProd){
         const old=products.find(p=>p.id===editProd)
@@ -3455,7 +3455,7 @@ function AppInner() {
                               <td style={{padding:'10px 14px'}}>
                                 <div style={{display:'flex',gap:5}}>
                                   <button onClick={()=>{setEditCardapio(i);setCardapioForm({...item});setCardapioModal(true)}} style={{...S.btnGray,padding:'4px 8px',fontSize:11}}>✏️</button>
-                                  <button onClick={()=>{if(window.confirm('Excluir '+item.name+'?')){saveCardapio(cardapio.filter((_,x)=>x!==i));showToast('✓ Item excluído!')}}} style={{...S.btnGray,padding:'4px 8px',fontSize:11,color:C.red}}>🗑️</button>
+                                  <button onClick={()=>{if(window.confirm('Excluir '+item.name+'?')){saveCardapio(cardapio.filter((_,x)=>x!==i));logAudit('ITEM EXCLUÍDO','Item','excluído');showToast('✓ Item excluído!')}}} style={{...S.btnGray,padding:'4px 8px',fontSize:11,color:C.red}}>🗑️</button>
                                 </div>
                               </td>
                             </tr>
@@ -4657,7 +4657,7 @@ function AppInner() {
                             </td>
                             <td style={{padding:'8px 12px',color:C.grayDark,maxWidth:150}}>{l.obs||'—'}</td>
                             <td style={{padding:'8px 12px'}}>
-                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))(async()=>{await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data)})()}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              <button onClick={()=>{if(window.confirm('Excluir esta leitura?'))(async()=>{await supabase.from('energia_leituras').delete().eq('id',l.id);const{data}=await supabase.from('energia_leituras').select('*').order('data',{ascending:false});if(data)setEnergiaLeituras(data);logAudit('ENERGIA EXCLUÍDA','Leitura: '+l.leitura+' kWh',l.data)})()}} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
                             </td>
                           </tr>
                         )
