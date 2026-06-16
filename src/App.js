@@ -389,6 +389,13 @@ function AppInner() {
   const [relDataFim,setRelDataFim] = useState('')
   const [relProdSearch,setRelProdSearch] = useState('')
   const [relProdId,setRelProdId] = useState(null)
+  const [relFiltroTipo,setRelFiltroTipo] = useState('todos') // entradas/saidas
+  const [relFiltroCat,setRelFiltroCat] = useState('todos')
+  const [relFiltroStatus,setRelFiltroStatus] = useState('todos') // zerado/baixo/normal
+  const [relFiltroOrdem,setRelFiltroOrdem] = useState('qty') // qty/custo/nome/valor
+  const [relFiltroVenc,setRelFiltroVenc] = useState('30') // 7/15/30/vencido
+  const [relFiltroUser,setRelFiltroUser] = useState('todos')
+  const [relFiltroMovTipo,setRelFiltroMovTipo] = useState('todos')
   const [danificadoList,setDanificadoList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
@@ -2711,7 +2718,7 @@ function AppInner() {
                   const p=products.find(x=>x.id===m.product_id)
                   if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0};countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=(m.quantity||0)*(m.cost_unit||0)}
                 })
-                const ranking=Object.values(countMap).sort((a,b)=>b.qty-a.qty)
+                const ranking=Object.values(countMap).filter(p=>relFiltroCat==='todos'||p.cat===relFiltroCat).sort((a,b)=>relFiltroOrdem==='custo'?b.custo-a.custo:b.qty-a.qty)
                 conteudo+=`<h2>🏆 Ranking de Consumo</h2>`
                 conteudo+=`<table border="1" cellpadding="6" style="width:100%;border-collapse:collapse;font-size:12px"><tr style="background:#EA1D2C;color:white"><th>#</th><th>Produto</th><th>Qtd Saída</th><th>Custo Total</th></tr>`
                 ranking.forEach((p,i)=>{conteudo+=`<tr><td>${i+1}</td><td>${p.name}</td><td>${p.qty.toFixed(2)} ${p.unit}</td><td>${fmtCur(p.custo)}</td></tr>`})
@@ -2725,7 +2732,7 @@ function AppInner() {
             return(<>
               <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
                 {relatorios.map(r=>(
-                  <div key={r.id} onClick={()=>setRelModal(r.id)} style={{...S.card,padding:'12px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <div key={r.id} onClick={()=>{setRelModal(r.id);setRelFiltroTipo('todos');setRelFiltroCat('todos');setRelFiltroStatus('todos');setRelFiltroOrdem('qty');setRelFiltroVenc('30');setRelFiltroUser('todos');setRelFiltroMovTipo('todos')}} style={{...S.card,padding:'12px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div style={{display:'flex',alignItems:'center',gap:10}}>
                       <span style={{fontSize:20}}>{r.icon}</span>
                       <div>
@@ -2757,6 +2764,23 @@ function AppInner() {
 
                     {/* MOVIMENTOS */}
                     {relModal==='movimentos'&&(<>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TIPO</label>
+                          <select value={relFiltroMovTipo} onChange={e=>setRelFiltroMovTipo(e.target.value)} style={S.input}>
+                            <option value="todos">Todos</option>
+                            <option value="entrada">Só Entradas</option>
+                            <option value="saida">Só Saídas</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>CATEGORIA</label>
+                          <select value={relFiltroCat} onChange={e=>setRelFiltroCat(e.target.value)} style={S.input}>
+                            <option value="todos">Todas</option>
+                            {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                      </div>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:4}}>
                         {[{l:'Entradas',v:entradas.length,c:'#22c55e'},{l:'Saídas',v:saidas.length,c:C.red},{l:'Custo',v:fmtCur(custoTotal),c:C.text}].map(k=>(
                           <div key={k.l} style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
@@ -2765,7 +2789,7 @@ function AppInner() {
                           </div>
                         ))}
                       </div>
-                      {relMovs.slice().reverse().map((m,i)=>{
+                      {relMovs.filter(m=>(relFiltroMovTipo==='todos'||m.type===relFiltroMovTipo)&&(relFiltroCat==='todos'||(()=>{const p=products.find(x=>x.id===m.product_id);return p?.category===relFiltroCat})())).slice().reverse().map((m,i)=>{
                         const p=products.find(x=>x.id===m.product_id)
                         return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
                           <div style={{display:'flex',justifyContent:'space-between'}}>
@@ -2822,6 +2846,22 @@ function AppInner() {
 
                     {/* RANKING */}
                     {relModal==='ranking'&&(<>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>CATEGORIA</label>
+                          <select value={relFiltroCat} onChange={e=>setRelFiltroCat(e.target.value)} style={S.input}>
+                            <option value="todos">Todas</option>
+                            {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ORDENAR POR</label>
+                          <select value={relFiltroOrdem} onChange={e=>setRelFiltroOrdem(e.target.value)} style={S.input}>
+                            <option value="qty">Quantidade</option>
+                            <option value="custo">Custo total</option>
+                          </select>
+                        </div>
+                      </div>
                       {(()=>{
                         const countMap={}
                         saidas.forEach(m=>{
@@ -2853,6 +2893,26 @@ function AppInner() {
 
                     {/* ESTOQUE COM VALOR */}
                     {relModal==='estoque_valor'&&(<>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>STATUS</label>
+                          <select value={relFiltroStatus} onChange={e=>setRelFiltroStatus(e.target.value)} style={S.input}>
+                            <option value="todos">Todos</option>
+                            <option value="zerado">Zerados</option>
+                            <option value="baixo">Estoque baixo</option>
+                            <option value="normal">Normal</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ORDENAR POR</label>
+                          <select value={relFiltroOrdem} onChange={e=>setRelFiltroOrdem(e.target.value)} style={S.input}>
+                            <option value="valor">Maior valor</option>
+                            <option value="qty">Maior quantidade</option>
+                            <option value="nome">Nome A-Z</option>
+                            <option value="custo">Maior custo unit.</option>
+                          </select>
+                        </div>
+                      </div>
                       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
                         <div style={{background:C.gray,borderRadius:10,padding:10}}>
                           <p style={{fontSize:11,color:C.grayDark,margin:0}}>Total em estoque</p>
@@ -2863,7 +2923,7 @@ function AppInner() {
                           <p style={{fontSize:16,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{relProds.length}</p>
                         </div>
                       </div>
-                      {relProds.sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
+                      {relProds.filter(p=>relFiltroStatus==='todos'||(relFiltroStatus==='zerado'&&p.quantity<=0)||(relFiltroStatus==='baixo'&&p.quantity>0&&p.quantity<=p.min_stock)||(relFiltroStatus==='normal'&&p.quantity>p.min_stock)).sort((a,b)=>relFiltroOrdem==='nome'?a.name.localeCompare(b.name):relFiltroOrdem==='qty'?b.quantity-a.quantity:relFiltroOrdem==='custo'?b.cost-a.cost:(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
                         <div key={i} style={{...S.input,padding:'10px 12px',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
                           <div style={{display:'flex',justifyContent:'space-between'}}>
                             <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
@@ -2877,7 +2937,23 @@ function AppInner() {
 
                     {/* VENCIMENTOS */}
                     {relModal==='vencimentos'&&(<>
-                      {products.filter(p=>p.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry)).map((p,i)=>{
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>PRAZO</label>
+                        <select value={relFiltroVenc} onChange={e=>setRelFiltroVenc(e.target.value)} style={S.input}>
+                          <option value="vencido">Já vencidos</option>
+                          <option value="7">Vencem em 7 dias</option>
+                          <option value="15">Vencem em 15 dias</option>
+                          <option value="30">Vencem em 30 dias</option>
+                          <option value="todos">Todos com validade</option>
+                        </select>
+                      </div>
+                      {products.filter(p=>{
+                        if(!p.expiry) return false
+                        const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
+                        if(relFiltroVenc==='vencido') return dias<=0
+                        if(relFiltroVenc==='todos') return true
+                        return dias>0&&dias<=parseInt(relFiltroVenc)
+                      }).sort((a,b)=>a.expiry.localeCompare(b.expiry)).map((p,i)=>{
                         const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
                         return(<div key={i} style={{...S.input,padding:'10px 12px',background:dias<=0?C.redLight:dias<=7?'#FEF3C7':C.white}}>
                           <div style={{display:'flex',justifyContent:'space-between'}}>
@@ -2976,6 +3052,14 @@ function AppInner() {
                       <div style={{display:'flex',gap:6}}>
                         <input value={relProdSearch||''} onChange={e=>setRelProdSearch(e.target.value)} placeholder="Buscar produto..." style={{...S.input,flex:1,fontSize:13}} />
                       </div>
+                      {relProdId&&<div style={{marginBottom:10}}>
+                        <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TIPO DE MOVIMENTO</label>
+                        <select value={relFiltroMovTipo} onChange={e=>setRelFiltroMovTipo(e.target.value)} style={S.input}>
+                          <option value="todos">Todos</option>
+                          <option value="entrada">Só Entradas</option>
+                          <option value="saida">Só Saídas</option>
+                        </select>
+                      </div>}
                       {relProdSearch&&(()=>{
                         const term=relProdSearch.toLowerCase()
                         const matches=products.filter(p=>p.name.toLowerCase().includes(term)).slice(0,5)
@@ -2989,7 +3073,7 @@ function AppInner() {
                         </div>)
                         const prod=products.find(p=>p.id===relProdId)
                         if(!prod) return null
-                        const hist=movements.filter(m=>m.product_id===relProdId&&m.type!=='auditoria').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
+                        const hist=movements.filter(m=>m.product_id===relProdId&&m.type!=='auditoria'&&(relFiltroMovTipo==='todos'||m.type===relFiltroMovTipo)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
                         const totalEnt=hist.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
                         const totalSai=hist.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
                         return(<>
@@ -3041,9 +3125,16 @@ function AppInner() {
 
                     {/* ATIVIDADE POR USUÁRIO */}
                     {relModal==='atividade_usuario'&&(<>
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>USUÁRIO</label>
+                        <select value={relFiltroUser} onChange={e=>setRelFiltroUser(e.target.value)} style={S.input}>
+                          <option value="todos">Todos</option>
+                          {[...new Set(relMovs.map(m=>m.user_name).filter(Boolean))].map(u=><option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
                       {(()=>{
                         const byUser={}
-                        relMovs.forEach(m=>{
+                        relMovs.filter(m=>relFiltroUser==='todos'||m.user_name===relFiltroUser).forEach(m=>{
                           const u=m.user_name||'Sistema'
                           if(!byUser[u])byUser[u]={name:u,entradas:0,saidas:0,custo:0}
                           if(m.type==='entrada')byUser[u].entradas+=m.quantity
@@ -3070,12 +3161,20 @@ function AppInner() {
 
                     {/* GIRO DE ESTOQUE */}
                     {relModal==='giro_estoque'&&(<>
+                      <div style={{marginBottom:10}}>
+                        <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ORDENAR POR</label>
+                        <select value={relFiltroOrdem} onChange={e=>setRelFiltroOrdem(e.target.value)} style={S.input}>
+                          <option value="giro_maior">Maior giro (mais saídas)</option>
+                          <option value="giro_menor">Menor giro (parados)</option>
+                          <option value="qty">Maior quantidade saída</option>
+                        </select>
+                      </div>
                       {(()=>{
                         const giro=products.map(p=>{
                           const totalSai=movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0)
                           const giroVal=p.quantity>0?+(totalSai/p.quantity).toFixed(2):0
                           return{...p,totalSai,giroVal}
-                        }).filter(p=>p.totalSai>0).sort((a,b)=>b.giroVal-a.giroVal)
+                        }).filter(p=>p.totalSai>0).sort((a,b)=>relFiltroOrdem==='giro_menor'?a.giroVal-b.giroVal:relFiltroOrdem==='qty'?b.totalSai-a.totalSai:b.giroVal-a.giroVal)
                         return giro.map((p,i)=>(
                           <div key={i} style={{...S.input,padding:'10px 12px'}}>
                             <div style={{display:'flex',justifyContent:'space-between'}}>
