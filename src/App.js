@@ -3569,6 +3569,16 @@ function AppInner() {
                               <span style={{color:p.diferenca<0?C.red:C.green,fontWeight:800}}>{p.diferenca>0?'+':''}{p.diferenca.toFixed(1)} {p.unit} ({fmtCur(Math.abs(p.custoDiferenca))})</span>
                             </div>
                           ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+              }
+            </div>
+          )}
+        </>}
+
+        {/* ══ PREVISÃO ══ */}
         {tab==='previsao'&&(()=>{
           const previsao=calcPrevisao()
           const filtrados=previsao.filter(p=>{
