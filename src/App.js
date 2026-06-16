@@ -1424,8 +1424,14 @@ function AppInner() {
     }
 
     // Update local movements list
-    setMovements(prev=>prev.map(m=>m.id===editMovItem.id?{...m,quantity:newQty,cost_unit:newCost,note:editMovForm.note}:m))
-    logAudit('MOVIMENTO EDITADO',product?.name||'',`${oldQty}→${newQty} ${product?.unit||''} · Custo: ${fmtCur(newCost)}`)
+    setMovements(prev=>prev.map(m=>m.id===editMovItem.id?{...m,quantity:newQty,cost_unit:newCost,note:editMovForm.note,turno:editMovForm.turno}:m))
+    // Build detailed audit log showing what changed
+    const changes=[]
+    if(oldQty!==newQty) changes.push(`Qtd: ${oldQty}→${newQty} ${product?.unit||''}`)
+    if((editMovItem.cost_unit||0)!==newCost) changes.push(`Custo: ${fmtCur(editMovItem.cost_unit||0)}→${fmtCur(newCost)}`)
+    if((editMovItem.turno||getTurnoFromDate(editMovItem.created_at))!==editMovForm.turno) changes.push(`Turno: ${editMovItem.turno||getTurnoFromDate(editMovItem.created_at)}→${editMovForm.turno}`)
+    if((editMovItem.note||'')!==(editMovForm.note||'')) changes.push(`Obs: "${editMovItem.note||''}"→"${editMovForm.note||''}"`)
+    logAudit('MOVIMENTO EDITADO',product?.name||'',changes.length>0?changes.join(' | '):'Sem alterações')
     setEditMovModal(false)
     setEditMovItem(null)
     showToast('✓ Movimento atualizado!')
@@ -1670,7 +1676,24 @@ function AppInner() {
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
-    logAudit(editProd?'PRODUTO EDITADO':'PRODUTO CRIADO',prodForm.name,`Categoria: ${prodForm.category} · Custo: R$${prodForm.cost}`)
+    (()=>{
+      if(editProd){
+        const old=products.find(p=>p.id===editProd)
+        const changes=[]
+        if(old){
+          if(old.name!==prodForm.name) changes.push(`Nome: "${old.name}"→"${prodForm.name}"`)
+          if(String(old.quantity)!==String(+prodForm.quantity)) changes.push(`Qtd: ${old.quantity}→${prodForm.quantity}`)
+          if(String(old.cost)!==String(+prodForm.cost)) changes.push(`Custo: ${fmtCur(old.cost)}→${fmtCur(+prodForm.cost)}`)
+          if(old.category!==prodForm.category) changes.push(`Cat: ${old.category}→${prodForm.category}`)
+          if((old.setor||'')!==(prodForm.setor||'')) changes.push(`Setor: ${old.setor}→${prodForm.setor}`)
+          if((old.embalagem||'')!==(prodForm.embalagem||'')) changes.push(`Embalagem: ${old.embalagem||'nenhuma'}→${prodForm.embalagem||'nenhuma'}`)
+          if((old.tipo||'Consumo')!==(prodForm.tipo||'Consumo')) changes.push(`Tipo: ${old.tipo||'Consumo'}→${prodForm.tipo||'Consumo'}`)
+        }
+        logAudit('PRODUTO EDITADO',prodForm.name,changes.length>0?changes.join(' | '):'Sem alterações')
+      } else {
+        logAudit('PRODUTO CRIADO',prodForm.name,`Cat: ${prodForm.category} | Setor: ${prodForm.setor} | Qtd: ${prodForm.quantity} ${prodForm.unit} | Custo: ${fmtCur(+prodForm.cost||0)}`)
+      }
+    })()
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
