@@ -2084,6 +2084,117 @@ function AppInner() {
                 </div>
               </div>
 
+              {/* VENCIMENTOS PRÓXIMOS */}
+              {(()=>{
+                const hoje=new Date()
+                const em7dias=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]
+                const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7dias&&p.quantity>0).sort((a,b)=>a.expiry.localeCompare(b.expiry))
+                if(vencendo.length===0) return null
+                return(
+                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('vencimentos')}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                      <p style={{fontWeight:800,fontSize:13,margin:0}}>📅 Vencimentos próximos</p>
+                      <span style={{background:'#FEF3C7',color:'#92400E',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{vencendo.length} itens</span>
+                    </div>
+                    {vencendo.slice(0,3).map((p,i)=>{
+                      const dias=Math.ceil((new Date(p.expiry)-hoje)/(1000*60*60*24))
+                      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:dias<=2?C.redLight:'#FEF3C7',borderRadius:10,marginBottom:6}}>
+                        <div>
+                          <p style={{fontWeight:700,fontSize:13,color:dias<=2?C.red:'#92400E',margin:0}}>{p.name}</p>
+                          <p style={{fontSize:11,color:dias<=2?C.red:'#92400E',margin:0}}>{p.quantity} {p.unit} · {fmtDate(p.expiry)}</p>
+                        </div>
+                        <span style={{fontSize:10,background:dias<=2?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':`${dias}d`}</span>
+                      </div>)
+                    })}
+                    {vencendo.length>3&&<p style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({vencendo.length}) →</p>}
+                  </div>
+                )
+              })()}
+
+              {/* CMV DO DIA */}
+              {(()=>{
+                const saidas=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type==='saida')
+                const custoTotal=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                const receitaEst=saidas.reduce((s,m)=>{const p=products.find(x=>x.id===m.product_id);return s+(m.quantity||0)*(p?.cost||0)*2.5},0)
+                const cmv=receitaEst>0?Math.round((custoTotal/receitaEst)*100):0
+                const ontemStr=new Date(Date.now()-86400000).toISOString().split('T')[0]
+                const custoOntem=movements.filter(m=>m.created_at?.startsWith(ontemStr)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                const diff=custoTotal-custoOntem
+                return(
+                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('cmv_dia')}>
+                    <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>📈 Comparativo de custo</p>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Hoje</p>
+                        <p style={{fontSize:18,fontWeight:900,color:C.red,margin:'3px 0 0'}}>{fmtCur(custoTotal)}</p>
+                      </div>
+                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ontem</p>
+                        <p style={{fontSize:18,fontWeight:900,color:C.grayDark,margin:'3px 0 0'}}>{fmtCur(custoOntem)}</p>
+                      </div>
+                    </div>
+                    <div style={{marginTop:8,padding:'8px 12px',background:diff>0?C.redLight:'#EAF3DE',borderRadius:8}}>
+                      <p style={{fontSize:12,fontWeight:700,color:diff>0?C.red:'#22c55e',margin:0}}>{diff>0?'▲':'▼'} {fmtCur(Math.abs(diff))} vs ontem {diff>0?'(custo maior)':'(custo menor)'}</p>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* PRODUTOS SEM MOVIMENTAÇÃO */}
+              {(()=>{
+                const semanas7atras=new Date(Date.now()-7*24*60*60*1000).toISOString()
+                const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7atras).map(m=>m.product_id))
+                const parados=products.filter(p=>p.quantity>0&&!movidosIds.has(p.id))
+                if(parados.length===0) return null
+                return(
+                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('sem_mov')}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                      <p style={{fontWeight:800,fontSize:13,margin:0}}>📦 Sem movimentação (7 dias)</p>
+                      <span style={{background:'#EFF6FF',color:'#1D4ED8',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{parados.length} itens</span>
+                    </div>
+                    {parados.slice(0,3).map((p,i)=>(
+                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:C.gray,borderRadius:10,marginBottom:6}}>
+                        <div>
+                          <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.setor}</p>
+                        </div>
+                        <span style={{fontSize:11,color:'#1D4ED8',fontWeight:700}}>{fmtCur(p.quantity*p.cost)}</span>
+                      </div>
+                    ))}
+                    {parados.length>3&&<p style={{fontSize:12,color:'#1D4ED8',fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({parados.length}) →</p>}
+                  </div>
+                )
+              })()}
+
+              {/* RESUMO AUDITORIA */}
+              {(()=>{
+                const todayAudits=auditLog.filter(a=>a.created_at?.startsWith(todayStr()))
+                const usuarios=new Set(todayAudits.map(a=>a.user_name))
+                if(todayAudits.length===0) return null
+                return(
+                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('auditoria_dia')}>
+                    <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>🔔 Atividade de hoje</p>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ações registradas</p>
+                        <p style={{fontSize:20,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{todayAudits.length}</p>
+                      </div>
+                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Usuários ativos</p>
+                        <p style={{fontSize:20,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{usuarios.size}</p>
+                      </div>
+                    </div>
+                    {[...usuarios].map(u=>{
+                      const acoes=todayAudits.filter(a=>a.user_name===u)
+                      return(<div key={u} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.gray,borderRadius:8,marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:700}}>{u}</span>
+                        <span style={{fontSize:12,color:C.grayDark}}>{acoes.length} ações</span>
+                      </div>)
+                    })}
+                  </div>
+                )
+              })()}
+
               {/* MODAIS DO DASHBOARD */}
               {dashModal&&(
                 <Overlay onClose={()=>setDashModal(null)}>
@@ -2098,6 +2209,10 @@ function AppInner() {
                     dashModal==='setor_detalhe'?`📦 ${dashModalData}`:
                     dashModal==='turnos'?'🕐 Movimentos por Turno':
                     dashModal==='ultimas_movs'?'🔄 Movimentações de Hoje':
+                    dashModal==='vencimentos'?'📅 Vencimentos Próximos':
+                    dashModal==='cmv_dia'?'📈 Comparativo de Custo':
+                    dashModal==='sem_mov'?'📦 Sem Movimentação (7 dias)':
+                    dashModal==='auditoria_dia'?'🔔 Atividade de Hoje':
                     '📋 Detalhes'
                   } onClose={()=>setDashModal(null)} />
                   <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:10,maxHeight:'70vh',overflowY:'auto'}}>
@@ -2249,6 +2364,70 @@ function AppInner() {
                         </div>
                       </div>)
                     })}
+
+                    {/* VENCIMENTOS DETALHE */}
+                    {dashModal==='vencimentos'&&(()=>{
+                      const hoje=new Date()
+                      const em7dias=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]
+                      return products.filter(p=>p.expiry&&p.expiry<=em7dias&&p.quantity>0).sort((a,b)=>a.expiry.localeCompare(b.expiry)).map((p,i)=>{
+                        const dias=Math.ceil((new Date(p.expiry)-hoje)/(1000*60*60*24))
+                        return(<div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:dias<=2?C.redLight:'#FEF3C7'}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:800,fontSize:13,color:dias<=2?C.red:'#92400E',margin:0}}>{p.name}</p>
+                            <span style={{fontSize:11,background:dias<=2?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':`${dias}d`}</span>
+                          </div>
+                          <p style={{fontSize:11,color:dias<=2?C.red:'#92400E',margin:'3px 0 0'}}>{p.quantity} {p.unit} · Vence: {fmtDate(p.expiry)} · {p.setor}</p>
+                        </div>)
+                      })
+                    })()}
+
+                    {/* CMV DIA DETALHE */}
+                    {dashModal==='cmv_dia'&&(()=>{
+                      const dias=[]
+                      for(let i=6;i>=0;i--){
+                        const d=new Date();d.setDate(d.getDate()-i)
+                        const ds=d.toISOString().split('T')[0]
+                        const movs=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type==='saida')
+                        const custo=movs.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                        dias.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),custo,qtd:movs.length,isToday:i===0})
+                      }
+                      return dias.map((d,i)=>(
+                        <div key={i} style={{...S.input,padding:'10px 12px',background:d.isToday?C.redLight:C.white}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:d.isToday?800:600,fontSize:13,margin:0,color:d.isToday?C.red:C.text}}>{d.label}{d.isToday?' (hoje)':''}</p>
+                            <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(d.custo)}</span>
+                          </div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qtd} saídas registradas</p>
+                        </div>
+                      ))
+                    })()}
+
+                    {/* SEM MOV DETALHE */}
+                    {dashModal==='sem_mov'&&(()=>{
+                      const semanas7atras=new Date(Date.now()-7*24*60*60*1000).toISOString()
+                      const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7atras).map(m=>m.product_id))
+                      return products.filter(p=>p.quantity>0&&!movidosIds.has(p.id)).sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
+                        <div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer'}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}>
+                            <p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p>
+                            <span style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>{fmtCur(p.quantity*p.cost)}</span>
+                          </div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {p.category}</p>
+                        </div>
+                      ))
+                    })()}
+
+                    {/* AUDITORIA DIA DETALHE */}
+                    {dashModal==='auditoria_dia'&&auditLog.filter(a=>a.created_at?.startsWith(todayStr())).map((a,i)=>(
+                      <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}>
+                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{a.action}</p>
+                          <span style={{fontSize:11,color:C.grayDark}}>{new Date(a.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+                        </div>
+                        <p style={{fontSize:12,color:C.grayDark,margin:'3px 0 0'}}>{a.detail}{a.extra?' · '+a.extra:''}</p>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{a.user_name}</p>
+                      </div>
+                    ))}
 
                     {/* ÚLTIMAS MOVS DETALHE */}
                     {dashModal==='ultimas_movs'&&todayMovs.map((m,i)=>{
