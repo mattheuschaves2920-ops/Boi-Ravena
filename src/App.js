@@ -509,9 +509,14 @@ function AppInner() {
               if(match){
                 action=match[1]
                 const rest=match[2]||''
-                const parts=rest.split(' ')
-                detail=parts[0]||''
-                extra=parts.slice(1).join(' ')
+                const pipeIdx=rest.indexOf(' | ')
+                if(pipeIdx>-1){
+                  detail=rest.slice(0,pipeIdx)
+                  extra=rest.slice(pipeIdx+3)
+                } else {
+                  detail=rest
+                  extra=''
+                }
               }
             }catch(e2){}
             return{id:m.id,action,detail,extra,user_name:m.user_name||'Sistema',user_role:'',created_at:m.created_at}
@@ -3901,8 +3906,8 @@ function AppInner() {
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:600}}>
                     <thead>
                       <tr style={{background:C.gray}}>
-                        {['HORÁRIO','AÇÃO','DETALHE','EXTRA','USUÁRIO','PERFIL'].map(h=>(
-                          <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h}</th>
+                        {['HORÁRIO','AÇÃO','DETALHE','USUÁRIO','PERFIL'].map(h=>(
+                          <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}} colSpan={h==='DETALHE'?2:1}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -3926,8 +3931,10 @@ function AppInner() {
                               <td style={{padding:'10px 14px'}}>
                                 <span style={{background:bg,color,border:`1px solid ${color}33`,fontSize:10,padding:'3px 8px',borderRadius:20,fontWeight:800,whiteSpace:'nowrap'}}>{a.action}</span>
                               </td>
-                              <td style={{padding:'10px 14px',fontWeight:700,fontSize:12}}>{a.detail}</td>
-                              <td style={{padding:'10px 14px',color:C.grayDark,fontSize:11}}>{a.extra||'—'}</td>
+                              <td style={{padding:'10px 14px'}} colSpan={2}>
+                                <p style={{fontWeight:700,fontSize:12,margin:0}}>{a.detail}</p>
+                                {a.extra&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{a.extra}</p>}
+                              </td>
                               <td style={{padding:'10px 14px'}}>
                                 <span style={{background:C.gray,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700}}>{a.user_name}</span>
                               </td>
