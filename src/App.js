@@ -384,7 +384,7 @@ function AppInner() {
   const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
   const [editMovModal,setEditMovModal] = useState(false)
   const [editMovItem,setEditMovItem] = useState(null)
-  const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:''})
+  const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:'',turno:''})
   const [prodForm,setProdForm] = useState({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]})
   const [dashTurno,setDashTurno] = useState(getTurnoAtual())
   const [dashSetor,setDashSetor] = useState('todos')
@@ -1392,7 +1392,7 @@ function AppInner() {
   // ── EDITAR MOVIMENTO ──────────────────────────────────────────
   const openEditMov=(mov)=>{
     setEditMovItem(mov)
-    setEditMovForm({quantity:mov.quantity,cost_unit:mov.cost_unit||0,note:mov.note||''})
+    setEditMovForm({quantity:mov.quantity,cost_unit:mov.cost_unit||0,note:mov.note||'',turno:mov.turno||getTurnoFromDate(mov.created_at)})
     setEditMovModal(true)
   }
 
@@ -1408,6 +1408,7 @@ function AppInner() {
       quantity:newQty,
       cost_unit:newCost,
       note:editMovForm.note,
+      turno:editMovForm.turno,
     }).eq('id',editMovItem.id)
 
     if(error) return showToast('Erro ao editar movimento','err')
@@ -4897,11 +4898,19 @@ function AppInner() {
                   </span>
                 </div>
 
-                <div>
-                  <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO</label>
-                  <input placeholder="Observação..." value={editMovForm.note}
-                    onChange={e=>setEditMovForm(f=>({...f,note:e.target.value}))}
-                    style={S.input} />
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>TURNO</label>
+                    <select value={editMovForm.turno} onChange={e=>setEditMovForm(f=>({...f,turno:e.target.value}))} style={S.input}>
+                      {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label} ({t.sub})</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>OBSERVAÇÃO</label>
+                    <input placeholder="Observação..." value={editMovForm.note}
+                      onChange={e=>setEditMovForm(f=>({...f,note:e.target.value}))}
+                      style={S.input} />
+                  </div>
                 </div>
 
                 <div style={{background:'#FFF8F0',border:`1px solid ${C.orange}33`,borderRadius:10,padding:10}}>
