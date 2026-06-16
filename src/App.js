@@ -2186,6 +2186,7 @@ function AppInner() {
                         <td style={{padding:'9px 12px'}}>{tInfo&&<span style={{fontSize:10,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700,color:C.text}}>{tInfo.icon} {tInfo.label}</span>}</td>
                         <td style={{padding:'9px 12px'}}>{m.setor&&<span style={{fontSize:10,background:SETOR_COLORS[m.setor]+'22',color:SETOR_COLORS[m.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[m.setor]} {m.setor}</span>}</td>
                         <td style={{padding:'9px 12px'}}><span style={{fontSize:10,color:C.grayDark,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{m.user_name||'—'}</span></td>
+                        <td style={{padding:'9px 12px'}}><button onClick={()=>openEditMov(m)} style={{background:'none',border:'1px solid #ddd',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer'}}>✏️</button></td>
                       </tr>
                     )
                   })}
