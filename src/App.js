@@ -3762,16 +3762,6 @@ function AppInner() {
           </>
         })()}
 
-                                  )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-              }
-            </div>
-          </>
-        })()}
-
         {/* ══ PAINEL DO DONO ══ */}
         {tab==='dono'&&canAdmin&&(()=>{
           const hoje=movements.filter(m=>m.created_at?.startsWith(todayStr()))
