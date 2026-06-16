@@ -1534,7 +1534,7 @@ function AppInner() {
   // Movimentos filtrados por turno e setor
   const movFiltrados = useMemo(()=>{
     let movs = movements.filter(m=>m.created_at?.startsWith(todayStr()))
-    if(dashTurno!=='todos') movs=movs.filter(m=>getTurnoFromDate(m.created_at)===dashTurno)
+    if(dashTurno!=='todos') movs=movs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===dashTurno)
     if(dashSetor!=='todos') movs=movs.filter(m=>m.setor===dashSetor)
     return movs
   },[movements,dashTurno,dashSetor])
@@ -1553,7 +1553,7 @@ function AppInner() {
   // Stats por turno
   const statsPorTurno = useMemo(()=>
     TURNOS.map(t=>{
-      const movs=todayMov.filter(m=>getTurnoFromDate(m.created_at)===t.id)
+      const movs=todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
       return { ...t, entradas:movs.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0), saidas:movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0), custo:movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0), total:movs.length }
     })
   ,[todayMov])
@@ -1723,7 +1723,7 @@ function AppInner() {
       if(relDataInicio&&m.created_at?.split('T')[0]<relDataInicio) return false
       if(relDataFim&&m.created_at?.split('T')[0]>relDataFim) return false
     }
-    if(relTurno!=='todos'&&getTurnoFromDate(m.created_at)!==relTurno) return false
+    if(relTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==relTurno) return false
     if(relSetor!=='todos'&&m.setor!==relSetor) return false
     return true
   })
@@ -1985,7 +1985,7 @@ function AppInner() {
               : <div style={{display:'flex',flexDirection:'column',gap:6}}>
                   {movFiltrados.slice(0,8).map(m=>{
                     const p=products.find(x=>x.id===m.product_id)
-                    const tInfo=TURNOS.find(t=>t.id===getTurnoFromDate(m.created_at))
+                    const tInfo=TURNOS.find(t=>t.id===(m.turno||getTurnoFromDate(m.created_at)))
                     return(
                       <div key={m.id} style={{display:'flex',alignItems:'center',gap:8}}>
                         <div style={{fontSize:11,color:C.grayDark,fontWeight:600,width:36,flexShrink:0}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
@@ -2170,12 +2170,12 @@ function AppInner() {
                 <tbody>
                   {movements.filter(m=>{
                     if(filterDate&&!m.created_at?.startsWith(filterDate)) return false
-                    if(filterTurno!=='todos'&&getTurnoFromDate(m.created_at)!==filterTurno) return false
+                    if(filterTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==filterTurno) return false
                     if(filterSetor!=='todos'&&m.setor!==filterSetor) return false
                     return true
                   }).map(m=>{
                     const p=products.find(x=>x.id===m.product_id)
-                    const tInfo=TURNOS.find(t=>t.id===getTurnoFromDate(m.created_at))
+                    const tInfo=TURNOS.find(t=>t.id===(m.turno||getTurnoFromDate(m.created_at)))
                     return(
                       <tr key={m.id} className="rh" style={{borderBottom:`1px solid ${C.gray}`,transition:'background 0.15s'}}>
                         <td style={{padding:'9px 12px',color:C.grayDark,fontSize:11,fontWeight:600}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
