@@ -1069,13 +1069,15 @@ function AppInner() {
       // Also load from Supabase
       ;(async()=>{
         try{
-          const{data:funcs}=await supabase.from('ponto_funcionarios').select('*').order('nome')
           if(funcs&&funcs.length>0) setPontoFuncionarios(funcs)
           const{data:regs}=await supabase.from('ponto_registros').select('*').order('created_at',{ascending:false})
           if(regs&&regs.length>0) setPontoRegistros(regs)
         }catch(e2){}
       })()
-  const savePontoFuncionarios=async(list)=>{
+        }catch(e2){}
+      })()
+  },[user])
+
     setPontoFuncionarios(list)
     try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(list))}catch(e){}
   }
