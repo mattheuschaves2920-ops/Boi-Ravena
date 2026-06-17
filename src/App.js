@@ -1063,19 +1063,70 @@ function AppInner() {
     try{
       const f=JSON.parse(localStorage.getItem('boi_ponto_funcionarios')||'[]')
       const r=JSON.parse(localStorage.getItem('boi_ponto_registros')||'[]')
-      setPontoFuncionarios(f)
-      setPontoRegistros(r)
+      if(f.length>0) setPontoFuncionarios(f)
+      if(r.length>0) setPontoRegistros(r)
+      // Also load from Supabase
+      try{
+        const{data:funcs}=await supabase.from('ponto_funcionarios').select('*').order('nome')
+        if(funcs&&funcs.length>0) setPontoFuncionarios(funcs)
+        const{data:regs}=await supabase.from('ponto_registros').select('*').order('created_at',{ascending:false})
+        if(regs&&regs.length>0) setPontoRegistros(regs)
+      }catch(e2){}
     }catch(e){}
   },[])
 
-  const savePontoFuncionarios=(list)=>{
+  const savePontoFuncionarios=async(list)=>{
     setPontoFuncionarios(list)
     try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(list))}catch(e){}
+  }
+
+  const saveNewFuncionario=async(func)=>{
+    try{
+      const{data,error}=await supabase.from('ponto_funcionarios').insert({nome:func.nome,cargo:func.cargo||'',pin:func.pin||''}).select().single()
+      if(data){
+        const updated=[...pontoFuncionarios,{...func,id:data.id}]
+        setPontoFuncionarios(updated)
+        try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(updated))}catch(e){}
+        return data
+      }
+    }catch(e){}
+    // Fallback localStorage
+    const updated=[...pontoFuncionarios,func]
+    savePontoFuncionarios(updated)
+    return func
+  }
+
+  const deleteFunc=async(id)=>{
+    try{await supabase.from('ponto_funcionarios').delete().eq('id',id)}catch(e){}
+    savePontoFuncionarios(pontoFuncionarios.filter(f=>f.id!==id))
   }
 
   const savePontoRegistros=(list)=>{
     setPontoRegistros(list)
     try{localStorage.setItem('boi_ponto_registros',JSON.stringify(list))}catch(e){}
+  }
+
+  const saveRegistroPonto=async(reg)=>{
+    try{
+      const{data}=await supabase.from('ponto_registros').insert({
+        funcionario_id:reg.funcionarioId,
+        funcionario_nome:reg.funcionarioNome,
+        tipo:reg.tipo,
+        hora:reg.hora,
+        data:reg.data||new Date().toISOString().split('T')[0],
+        foto:reg.foto||null
+      }).select().single()
+      if(data){
+        const updated=[data,...pontoRegistros]
+        setPontoRegistros(updated)
+        try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated))}catch(e){}
+        return data
+      }
+    }catch(e){}
+    // Fallback
+    const updated=[reg,...pontoRegistros]
+    savePontoRegistros(updated)
+    return reg
   }
 
   const registrarPonto=()=>{
