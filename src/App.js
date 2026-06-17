@@ -23,7 +23,7 @@ const PIE_COLORS  = ['#EA1D2C','#FF8C00','#50A773','#17a2b8','#6f42c1','#fd7e14'
 const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑', 'Churrasco':'🔥', 'Bebidas':'🍺', 'Descartáveis':'🛍️', 'Bomboniere':'🍫', 'Estoque Geral':'📦' }
 const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773', 'Churrasco':'#8B4513', 'Bebidas':'#1565C0', 'Descartáveis':'#00897B', 'Bomboniere':'#E91E8C', 'Estoque Geral':'#546E7A' }
 
-const todayStr  = () => new Date().toISOString().split('T')[0]
+const todayStr  = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 const fmtDate   = d  => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'
 const fmtCur    = v  => `R$ ${(+v||0).toFixed(2).replace('.',',')}`
 const getTurnoAtual = () => { const h=new Date().getHours(); return h>=7&&h<15?'T1':'T2' }
@@ -955,12 +955,17 @@ function AppInner() {
     return products.map(p=>{
       const s30=movements.filter(m=>m.product_id===p.id&&m.type==='saida'&&new Date(m.created_at)>=d30)
       const c30=s30.reduce((s,m)=>s+m.quantity,0)
-      const cd=c30/30
-      const dr=cd>0?Math.floor(p.quantity/cd):999
-      const ps=cd*7
-      const rep=ps>p.quantity
-      const qs=Math.max(0,Math.ceil(ps*1.2)-p.quantity)
-      return{...p,consumo30:c30,consumoDiario:cd.toFixed(2),diasRestantes:dr,previsaoSemana:ps.toFixed(1),precisaRepor:rep,qtdSugerida:qs,custoRepor:qs*p.cost,urgencia:dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'}
+      // Use actual days with movement for more accurate daily average
+      const diasComMov=new Set(s30.map(m=>m.created_at?.split('T')[0])).size
+      const diasBase=Math.max(diasComMov,7) // minimum 7 days for calculation
+      const cd=c30/diasBase
+      const dr=cd>0?Math.max(0,Math.floor(p.quantity/cd)):999
+      const ps=cd*7 // forecast for 7 days
+      const metaEstoque=Math.max(p.min_stock||0,ps*1.3) // 30% safety margin over week
+      const rep=p.quantity<metaEstoque
+      const qs=Math.max(0,Math.ceil(metaEstoque-p.quantity))
+      const urgencia=p.quantity<=0?'critico':dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'
+      return{...p,consumo30:c30,consumoDiario:cd.toFixed(2),diasRestantes:dr,previsaoSemana:ps.toFixed(1),precisaRepor:rep,qtdSugerida:qs,custoRepor:+(qs*p.cost).toFixed(2),urgencia}
     }).filter(p=>p.consumo30>0).sort((a,b)=>a.diasRestantes-b.diasRestantes)
   }
 
