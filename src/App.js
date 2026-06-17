@@ -424,6 +424,9 @@ function AppInner() {
   const [confirmPass,setConfirmPass] = useState('')
   const [confirmErr,setConfirmErr] = useState('')
   const [filterAudit,setFilterAudit] = useState('')
+  const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
+  const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
+  const [filterAuditUser,setFilterAuditUser] = useState('todos')
   const [filterCat,setFilterCat] = useState('todas')
   const [sortBy,setSortBy] = useState('nome')
   const [scanForProduct,setScanForProduct] = useState(false)
@@ -4623,8 +4626,31 @@ function AppInner() {
         {/* ══ AUDITORIA ══ */}
         {tab==='auditoria'&&canAdmin&&<>
           <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap',alignItems:'center'}}>
-            <input placeholder="🔍 Filtrar por ação, usuário ou detalhe..." value={filterAudit} onChange={e=>setFilterAudit(e.target.value)} style={{...S.input,flex:1}} />
-            <button onClick={()=>setFilterAudit('')} style={{...S.btnGray,padding:'10px 16px',fontSize:12}}>Limpar</button>
+            <input placeholder="🔍 Buscar por produto, ação ou detalhe..." value={filterAudit} onChange={e=>setFilterAudit(e.target.value)} style={{...S.input,flex:1,minWidth:180}} />
+            <select value={filterAuditPeriodo} onChange={e=>setFilterAuditPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
+              <option value="todos">Todo período</option>
+              <option value="hoje">Hoje</option>
+              <option value="ontem">Ontem</option>
+              <option value="7dias">7 dias</option>
+              <option value="mes">Este mês</option>
+            </select>
+            <select value={filterAuditAcao} onChange={e=>setFilterAuditAcao(e.target.value)} style={{...S.input,width:'auto'}}>
+              <option value="todos">Todas as ações</option>
+              <option value="ENTRADA">Entradas</option>
+              <option value="SAÍDA">Saídas</option>
+              <option value="PRODUTO">Produtos</option>
+              <option value="MOVIMENTO">Movimentos</option>
+              <option value="ENERGIA">Energia</option>
+              <option value="PONTO">Ponto</option>
+              <option value="USUÁRIO">Usuários</option>
+              <option value="CARDÁPIO">Cardápio</option>
+              <option value="DESPERDÍCIO">Desperdícios</option>
+            </select>
+            <select value={filterAuditUser} onChange={e=>setFilterAuditUser(e.target.value)} style={{...S.input,width:'auto'}}>
+              <option value="todos">Todos usuários</option>
+              {[...new Set(auditLog.map(a=>a.user_name).filter(Boolean))].map(u=><option key={u} value={u}>{u}</option>)}
+            </select>
+            <button onClick={()=>{setFilterAudit('');setFilterAuditPeriodo('todos');setFilterAuditAcao('todos');setFilterAuditUser('todos')}} style={{...S.btnGray,padding:'10px 12px',fontSize:12}}>✕</button>
           </div>
 
           {/* RESUMO */}
@@ -4645,7 +4671,23 @@ function AppInner() {
           <div style={{...S.card,padding:0,overflow:'hidden'}}>
             <div style={{padding:'12px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <p style={{fontSize:12,fontWeight:800,color:C.text}}>🔍 REGISTRO DE AUDITORIA</p>
-              <p style={{fontSize:11,color:C.grayDark}}>{auditLog.filter(a=>!filterAudit||JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase())).length} registros</p>
+              <p style={{fontSize:11,color:C.grayDark}}>{auditLog.filter(a=>{
+                          if(filterAudit&&!JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase())) return false
+                          if(filterAuditUser!=='todos'&&a.user_name!==filterAuditUser) return false
+                          if(filterAuditAcao!=='todos'&&!a.action.includes(filterAuditAcao)) return false
+                          if(filterAuditPeriodo!=='todos'){
+                            const d=a.created_at?.split('T')[0]
+                            const hoje=todayStr()
+                            const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
+                            const dias7=new Date(Date.now()-7*86400000).toISOString().split('T')[0]
+                            const mes=hoje.slice(0,7)
+                            if(filterAuditPeriodo==='hoje'&&d!==hoje) return false
+                            if(filterAuditPeriodo==='ontem'&&d!==ontem) return false
+                            if(filterAuditPeriodo==='7dias'&&d<dias7) return false
+                            if(filterAuditPeriodo==='mes'&&d?.slice(0,7)!==mes) return false
+                          }
+                          return true
+                        }).length} registros</p>
             </div>
             {auditLog.length===0
               ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
@@ -4664,7 +4706,23 @@ function AppInner() {
                     </thead>
                     <tbody>
                       {auditLog
-                        .filter(a=>!filterAudit||JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase()))
+                        .filter(a=>{
+                          if(filterAudit&&!JSON.stringify(a).toLowerCase().includes(filterAudit.toLowerCase())) return false
+                          if(filterAuditUser!=='todos'&&a.user_name!==filterAuditUser) return false
+                          if(filterAuditAcao!=='todos'&&!a.action.includes(filterAuditAcao)) return false
+                          if(filterAuditPeriodo!=='todos'){
+                            const d=a.created_at?.split('T')[0]
+                            const hoje=todayStr()
+                            const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
+                            const dias7=new Date(Date.now()-7*86400000).toISOString().split('T')[0]
+                            const mes=hoje.slice(0,7)
+                            if(filterAuditPeriodo==='hoje'&&d!==hoje) return false
+                            if(filterAuditPeriodo==='ontem'&&d!==ontem) return false
+                            if(filterAuditPeriodo==='7dias'&&d<dias7) return false
+                            if(filterAuditPeriodo==='mes'&&d?.slice(0,7)!==mes) return false
+                          }
+                          return true
+                        })
                         .map(a=>{
                           const isEntry=a.action==='ENTRADA'
                           const isExit=a.action==='SAÍDA'
