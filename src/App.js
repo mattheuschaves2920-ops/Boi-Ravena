@@ -2406,7 +2406,7 @@ function AppInner() {
           })()}
         </>}
 
-        tab==='estoque'&&<>
+        {tab==='estoque'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
             {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>📥 Entrada</button>
