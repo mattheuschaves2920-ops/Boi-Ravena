@@ -1059,28 +1059,29 @@ function AppInner() {
   }
 
   // ── PONTO ELETRÔNICO ─────────────────────────────────────────
+  // ── PONTO ELETRÔNICO ─────────────────────────────────────────
   useEffect(()=>{
     try{
       const f=JSON.parse(localStorage.getItem('boi_ponto_funcionarios')||'[]')
       const r=JSON.parse(localStorage.getItem('boi_ponto_registros')||'[]')
       if(f.length>0) setPontoFuncionarios(f)
       if(r.length>0) setPontoRegistros(r)
-      // Also load from Supabase
-      // Also load from Supabase
-      ;(async()=>{
-        try{
-          if(funcs&&funcs.length>0) setPontoFuncionarios(funcs)
-          const{data:regs}=await supabase.from('ponto_registros').select('*').order('created_at',{ascending:false})
-          if(regs&&regs.length>0) setPontoRegistros(regs)
-        }catch(e2){}
-      })()
-        }catch(e2){}
-      })()
+    }catch(e){}
+    ;(async()=>{
+      try{
+        const{data:funcs}=await supabase.from('ponto_funcionarios').select('*').order('nome')
+        if(funcs&&funcs.length>0) setPontoFuncionarios(funcs)
+        const{data:regs}=await supabase.from('ponto_registros').select('*').order('created_at',{ascending:false})
+        if(regs&&regs.length>0) setPontoRegistros(regs)
+      }catch(e2){}
+    })()
   },[user])
 
+  const savePontoFuncionarios=async(list)=>{
     setPontoFuncionarios(list)
     try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(list))}catch(e){}
   }
+
 
   const saveNewFuncionario=async(func)=>{
     try{
