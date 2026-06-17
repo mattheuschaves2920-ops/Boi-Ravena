@@ -1754,9 +1754,8 @@ function AppInner() {
     const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:prodForm.unid_embalagem?+prodForm.unid_embalagem:null,tipo:prodForm.tipo||'Consumo'}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
-    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
-    showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
-    (()=>{
+    // Log audit BEFORE clearing editProd
+    ;(()=>{
       if(editProd){
         const old=products.find(p=>p.id===editProd)
         const changes=[]
@@ -1774,6 +1773,10 @@ function AppInner() {
         logAudit('PRODUTO CRIADO',prodForm.name,`Cat: ${prodForm.category} | Setor: ${prodForm.setor} | Qtd: ${prodForm.quantity} ${prodForm.unit} | Custo: ${fmtCur(+prodForm.cost||0)}`)
       }
     })()
+    setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'})
+    setEditProd(null)
+    setModal(null)
+    showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
