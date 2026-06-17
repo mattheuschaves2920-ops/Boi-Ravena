@@ -1755,7 +1755,7 @@ function AppInner() {
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
     if(error) return showToast('Erro ao salvar','err')
     setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0]}); setEditProd(null); setModal(null)
-    (()=>{if(editProd){const old=products.find(p=>p.id===editProd);const ch=[];if(old){if(old.name!==prodForm.name)ch.push('Nome: '+old.name+'→'+prodForm.name);if(String(old.quantity)!==String(+prodForm.quantity))ch.push('Qtd: '+old.quantity+'→'+prodForm.quantity);if(String(old.cost)!==String(+prodForm.cost))ch.push('Custo: R$'+old.cost+'→R$'+prodForm.cost);if(old.setor!==prodForm.setor)ch.push('Setor: '+old.setor+'→'+prodForm.setor)}logAudit('PRODUTO EDITADO',prodForm.name,ch.length>0?ch.join(' | '):'Sem alterações')}else{logAudit('PRODUTO CRIADO',prodForm.name,'Cat: '+prodForm.category+' | Setor: '+prodForm.setor+' | Qtd: '+prodForm.quantity+' | Custo: R$'+prodForm.cost)}})();showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
+    showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
     (()=>{
       if(editProd){
         const old=products.find(p=>p.id===editProd)
