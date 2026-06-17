@@ -1935,135 +1935,194 @@ function AppInner() {
         {/* ══ DASHBOARD ══ */}
         {tab==='dashboard'&&<>
           {/* BANNER */}
-          <div style={{background:C.red,borderRadius:16,padding:'16px 18px',marginBottom:14,color:C.white}}>
+          <div style={{background:C.red,borderRadius:16,padding:'14px 16px',marginBottom:12,color:C.white}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
               <div>
-                <p style={{fontSize:12,opacity:0.85,fontWeight:600}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</p>
-                <p style={{fontSize:17,fontWeight:900,marginTop:4}}>Olá, {user?.name?.split(' ')[0]}! 👋</p>
+                <p style={{fontSize:11,opacity:0.85,margin:0}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})} · {TURNOS.find(t=>t.id===getTurnoAtual())?.icon} {TURNOS.find(t=>t.id===getTurnoAtual())?.label}</p>
+                <p style={{fontSize:17,fontWeight:900,margin:'4px 0 0'}}>Olá, {user?.name?.split(' ')[0]}! 👋</p>
               </div>
-              <div style={{textAlign:'right'}}>
-                <p style={{fontSize:11,opacity:0.85}}>Próximo turno em</p>
-                <p style={{fontSize:13,fontWeight:800,marginTop:2}}>{(()=>{const h=new Date().getHours();const m=new Date().getMinutes();if(h>=7&&h<15){const rem=(15-h)*60-m;return `${Math.floor(rem/60)}h${rem%60}m · 🌆 T2`}else{const rem=h<7?(7-h)*60-m:(31-h)*60-m;return `${Math.floor(rem/60)}h${rem%60}m · 🌅 T1`}})()}</p>
+              <div style={{background:'rgba(255,255,255,0.2)',borderRadius:10,padding:'6px 10px',textAlign:'center',cursor:'pointer'}} onClick={()=>setDashModal('turnos')}>
+                <p style={{fontSize:10,margin:0,opacity:0.9}}>próx. turno</p>
+                <p style={{fontSize:13,fontWeight:700,margin:'2px 0 0'}}>{(()=>{const h=new Date().getHours(),m=new Date().getMinutes();const rem=h<15?(15-h)*60-m:(31-h)*60-m;return Math.floor(rem/60)+'h'+String(rem%60).padStart(2,'0')+'m'})()}</p>
               </div>
             </div>
+            {(()=>{
+              const todayMovs=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type!=='auditoria')
+              const saidas=todayMovs.filter(m=>m.type==='saida')
+              const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+              const lowProds=products.filter(p=>p.quantity<=p.min_stock)
+              const em7=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
+              const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7&&p.quantity>0)
+              const valorEstoque=products.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
+              return(
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6,marginTop:10}}>
+                  {[
+                    {l:'🚨 críticos',v:lowProds.filter(p=>p.quantity<=0).length,fn:()=>setDashModal('alertas_todos')},
+                    {l:'📅 vencem',v:vencendo.length,fn:()=>setDashModal('vencimentos')},
+                    {l:'💰 custo',v:'R$'+Math.round(custoHoje),fn:()=>setDashModal('custo')},
+                    {l:'📦 estoque',v:'R$'+Math.round(valorEstoque/1000)+'k',fn:()=>setDashModal('estoque_valor')},
+                  ].map(k=>(
+                    <div key={k.l} onClick={k.fn} style={{background:'rgba(255,255,255,0.15)',borderRadius:8,padding:'6px 4px',textAlign:'center',cursor:'pointer'}}>
+                      <p style={{fontSize:9,margin:0,opacity:0.9,lineHeight:1.3}}>{k.l}</p>
+                      <p style={{fontSize:15,fontWeight:900,margin:'2px 0 0'}}>{k.v}</p>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
 
-          {/* KPI CARDS */}
+          {/* AÇÕES RÁPIDAS */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:12,padding:14,fontSize:14,fontWeight:800,cursor:'pointer'}}>📥 Entrada</button>
+            <button onClick={()=>{setMovForm({productId:'',qty:'',note:'',type:'saida',setor:SETORES[0],turno:getTurnoAtual()});setMovSearch('');setModal('movimento')}} style={{background:C.red,color:'white',border:'none',borderRadius:12,padding:14,fontSize:14,fontWeight:800,cursor:'pointer'}}>📤 Saída</button>
+            <button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{background:C.white,color:C.text,border:`1px solid ${C.grayMid}`,borderRadius:12,padding:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>➕ Produto</button>
+            <button onClick={()=>{setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''});setDanificadoSearch('');setModal('danificado')}} style={{background:C.white,color:C.text,border:`1px solid ${C.grayMid}`,borderRadius:12,padding:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>⚠️ Danificado</button>
+          </div>
+
           {(()=>{
             const todayMovs=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type!=='auditoria')
             const entradas=todayMovs.filter(m=>m.type==='entrada')
             const saidas=todayMovs.filter(m=>m.type==='saida')
-            const custoSaidas=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
             const valorEstoque=products.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
             const lowProds=products.filter(p=>p.quantity<=p.min_stock)
             const zeroProds=products.filter(p=>p.quantity<=0)
+            const em7=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
+            const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7&&p.quantity>0)
+            const ontemStr=new Date(Date.now()-86400000).toISOString().split('T')[0]
+            const custoOntem=movements.filter(m=>m.created_at?.startsWith(ontemStr)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const diff=custoHoje-custoOntem
+            const semanas7=new Date(Date.now()-7*86400000).toISOString()
+            const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7).map(m=>m.product_id))
+            const parados=products.filter(p=>p.quantity>0&&!movidosIds.has(p.id))
+            const valorParado=parados.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
+            const todayAudits=auditLog.filter(a=>a.created_at?.startsWith(todayStr()))
+            const countMap={}
+            saidas.forEach(m=>{const p=products.find(x=>x.id===m.product_id);if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0,setor:p.setor,cat:p.category};countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=(m.quantity||0)*(m.cost_unit||0)}})
+            const top5=Object.values(countMap).sort((a,b)=>b.qty-a.qty).slice(0,5)
             return(<>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-                {[
-                  {label:'Entradas hoje',val:entradas.length,sub:`+${entradas.reduce((s,m)=>s+(m.quantity||0),0).toFixed(1)} un`,color:'#22c55e',onClick:()=>setDashModal('entradas')},
-                  {label:'Saídas hoje',val:saidas.length,sub:`-${saidas.reduce((s,m)=>s+(m.quantity||0),0).toFixed(1)} un`,color:C.red,onClick:()=>setDashModal('saidas')},
-                  {label:'Custo do dia',val:fmtCur(custoSaidas),sub:'em saídas',color:C.text,onClick:()=>setDashModal('custo')},
-                  {label:'Valor em estoque',val:'R$'+Math.round(valorEstoque/1000)+'k',sub:`${products.length} produtos`,color:'#1D4ED8',onClick:()=>setDashModal('estoque_valor')},
-                ].map(k=>(
-                  <div key={k.label} onClick={k.onClick} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer',border:`1.5px solid transparent`,transition:'border 0.2s'}}>
-                    <p style={{fontSize:11,color:C.grayDark,fontWeight:600,marginBottom:4}}>{k.label}</p>
-                    <p style={{fontSize:20,fontWeight:900,color:k.color,margin:0}}>{k.val}</p>
-                    <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{k.sub}</p>
-                  </div>
-                ))}
-              </div>
 
               {/* ALERTAS */}
               {lowProds.length>0&&(
-                <div style={{...S.card,marginBottom:12,padding:14}}>
+                <div onClick={()=>setDashModal('alertas_todos')} style={{...S.card,padding:14,marginBottom:12,border:`1.5px solid ${C.red}44`,cursor:'pointer'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                    <p style={{fontWeight:800,fontSize:13}}>⚠️ Alertas de Estoque</p>
-                    <span style={{background:C.redLight,color:C.red,fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{zeroProds.length} zerados · {lowProds.length-zeroProds.length} baixos</span>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>🚨 Alertas de estoque</p>
+                    <span style={{background:C.redLight,color:C.red,fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{zeroProds.length} zerados · {lowProds.length-zeroProds.length} baixos →</span>
                   </div>
-                  {lowProds.slice(0,3).map(p=>(
-                    <div key={p.id} onClick={()=>{setDashModal('alerta_prod');setDashModalData(p)}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:p.quantity<=0?C.redLight:'#FEF3C7',borderRadius:10,marginBottom:6,cursor:'pointer'}}>
+                  {lowProds.slice(0,2).map((p,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:p.quantity<=0?C.redLight:'#FEF3C7',borderRadius:10,marginBottom:6}}>
                       <div>
                         <p style={{fontWeight:700,fontSize:13,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.name}</p>
-                        <p style={{fontSize:11,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.quantity} {p.unit} · mín: {p.min_stock}</p>
+                        <p style={{fontSize:11,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.quantity} {p.unit} · mín:{p.min_stock} · {p.setor}</p>
                       </div>
                       <span style={{fontSize:10,background:p.quantity<=0?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{p.quantity<=0?'ZERADO':'BAIXO'}</span>
                     </div>
                   ))}
-                  {lowProds.length>3&&<p onClick={()=>setDashModal('alertas_todos')} style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({lowProds.length}) →</p>}
+                  {lowProds.length>2&&<p style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',margin:'4px 0 0'}}>Ver todos ({lowProds.length}) →</p>}
                 </div>
               )}
 
-              {/* GRÁFICO 7 DIAS */}
-              {(()=>{
-                const days=[]
-                for(let i=6;i>=0;i--){
-                  const d=new Date();d.setDate(d.getDate()-i)
-                  const ds=d.toISOString().split('T')[0]
-                  const dayMovs=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type!=='auditoria')
-                  days.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}).slice(0,3),ent:dayMovs.filter(m=>m.type==='entrada').length,sai:dayMovs.filter(m=>m.type==='saida').length,isToday:i===0})
-                }
-                const maxVal=Math.max(...days.map(d=>d.ent+d.sai),1)
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('grafico7dias')}>
-                    <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 Movimentos — últimos 7 dias</p>
-                    <div style={{display:'flex',alignItems:'flex-end',gap:6,height:80}}>
-                      {days.map((d,i)=>(
-                        <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                          <div style={{width:'100%',display:'flex',flexDirection:'column',gap:1,alignItems:'center'}}>
-                            <div style={{width:'100%',background:'#22c55e',borderRadius:'3px 3px 0 0',opacity:d.isToday?1:0.7,height:Math.max(4,Math.round((d.ent/maxVal)*40))+'px'}}></div>
-                            <div style={{width:'100%',background:C.red,borderRadius:'0 0 3px 3px',opacity:d.isToday?1:0.7,height:Math.max(4,Math.round((d.sai/maxVal)*40))+'px'}}></div>
-                          </div>
-                          <p style={{fontSize:10,color:d.isToday?C.text:C.grayDark,fontWeight:d.isToday?800:400,marginTop:2}}>{d.label}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{display:'flex',gap:12,marginTop:8}}>
-                      <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:'#22c55e',borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>Entradas</span></div>
-                      <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:C.red,borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>Saídas</span></div>
-                    </div>
+              {/* KPI CARDS */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                {[
+                  {l:'Entradas hoje',v:entradas.length,sub:'↗ ver lista',c:'#22c55e',fn:()=>setDashModal('entradas')},
+                  {l:'Saídas hoje',v:saidas.length,sub:'↗ ver lista',c:C.red,fn:()=>setDashModal('saidas')},
+                  {l:'Custo do dia',v:fmtCur(custoHoje),sub:'↗ por categoria',c:C.text,fn:()=>setDashModal('custo')},
+                  {l:'Valor estoque',v:'R$'+Math.round(valorEstoque/1000)+'k',sub:'↗ por setor',c:'#1D4ED8',fn:()=>setDashModal('estoque_valor')},
+                ].map(k=>(
+                  <div key={k.l} onClick={k.fn} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer'}}>
+                    <p style={{fontSize:11,color:C.grayDark,fontWeight:600,margin:'0 0 4px'}}>{k.l}</p>
+                    <p style={{fontSize:20,fontWeight:900,color:k.c,margin:0}}>{k.v}</p>
+                    <p style={{fontSize:11,color:C.red,margin:'3px 0 0',fontWeight:600}}>{k.sub}</p>
                   </div>
-                )
-              })()}
+                ))}
+              </div>
+
+              {/* ÚLTIMAS MOVIMENTAÇÕES */}
+              <div onClick={()=>setDashModal('ultimas_movs')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0}}>🔄 Últimas movimentações</p>
+                  <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver todas →</span>
+                </div>
+                {todayMovs.length===0?<p style={{fontSize:12,color:C.grayDark,textAlign:'center'}}>Nenhuma movimentação hoje</p>:
+                todayMovs.slice(0,3).map((m,i)=>{
+                  const p=products.find(x=>x.id===m.product_id)
+                  return(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:i<2?8:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{width:28,height:28,background:m.type==='entrada'?'#EAF3DE':C.redLight,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>{m.type==='entrada'?'+':'−'}</span>
+                        <div>
+                          <p style={{fontSize:13,fontWeight:700,margin:0}}>{p?.name||'Produto'}</p>
+                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno}</p>
+                        </div>
+                      </div>
+                      <span style={{fontSize:13,color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800,flexShrink:0}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span>
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* TOP 5 */}
-              {(()=>{
-                const countMap={}
-                saidas.forEach(m=>{
-                  const p=products.find(x=>x.id===m.product_id)
-                  if(p){countMap[p.id]=(countMap[p.id]||{name:p.name,unit:p.unit,qty:0});countMap[p.id].qty+=m.quantity}
-                })
-                const top5=Object.values(countMap).sort((a,b)=>b.qty-a.qty).slice(0,5)
-                if(top5.length===0) return null
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('top5')}>
-                    <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>🏆 Top 5 mais saídas hoje</p>
-                    {top5.map((p,i)=>(
-                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <span style={{width:22,height:22,background:i<2?C.red:i<4?C.orange:'#888',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:800}}>{i+1}</span>
-                          <p style={{fontSize:13,margin:0}}>{p.name}</p>
-                        </div>
-                        <span style={{fontSize:12,color:C.red,fontWeight:800}}>-{p.qty} {p.unit}</span>
-                      </div>
-                    ))}
+              {top5.length>0&&(
+                <div onClick={()=>setDashModal('top5')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>🏆 Top saídas hoje</p>
+                    <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver ranking →</span>
                   </div>
-                )
-              })()}
+                  {top5.map((p,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:i<top5.length-1?6:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{width:22,height:22,background:i<2?C.red:i<4?C.orange:'#888',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:800,flexShrink:0}}>{i+1}</span>
+                        <div>
+                          <p style={{fontSize:13,margin:0,fontWeight:600}}>{p.name}</p>
+                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.setor} · {p.cat}</p>
+                        </div>
+                      </div>
+                      <span style={{fontSize:12,color:C.red,fontWeight:800,flexShrink:0}}>-{p.qty.toFixed(1)} {p.unit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* TURNOS */}
+              <div onClick={()=>setDashModal('turnos')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0}}>🕐 Comparativo de turnos</p>
+                  <span style={{fontSize:11,color:C.red,fontWeight:700}}>detalhes →</span>
+                </div>
+                {TURNOS.map(t=>{
+                  const movs=todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
+                  const custo=movs.filter(m=>m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                  const maxMovs=Math.max(...TURNOS.map(tt=>todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===tt.id).length),1)
+                  return(
+                    <div key={t.id} style={{marginBottom:8}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                        <span style={{fontSize:12}}>{t.icon} {t.label} · {movs.length} mov</span>
+                        <span style={{fontSize:12,fontWeight:700}}>{fmtCur(custo)}</span>
+                      </div>
+                      <div style={{background:C.grayMid,borderRadius:4,height:5}}><div style={{width:`${Math.round((movs.length/maxMovs)*100)}%`,height:'100%',background:C.red,borderRadius:4}}></div></div>
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* ESTOQUE POR SETOR */}
-              <div style={{...S.card,marginBottom:12,padding:14}}>
-                <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>📦 Estoque por setor</p>
+              <div style={{...S.card,padding:14,marginBottom:12}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0}}>📦 Estoque por setor</p>
+                  <span style={{fontSize:11,color:C.red,fontWeight:700}}>clique no setor →</span>
+                </div>
                 {SETORES.map(s=>{
                   const prods=products.filter(p=>p.setor===s)
                   if(prods.length===0) return null
                   const ok=prods.filter(p=>p.quantity>p.min_stock).length
                   const low=prods.filter(p=>p.quantity<=p.min_stock&&p.quantity>0).length
                   const zero=prods.filter(p=>p.quantity<=0).length
-                  const pct=Math.round((ok/prods.length)*100)
                   return(
-                    <div key={s} onClick={()=>{setDashModal('setor_detalhe');setDashModalData(s)}} style={{marginBottom:10,cursor:'pointer'}}>
+                    <div key={s} onClick={()=>{setDashModal('setor_detalhe');setDashModalData(s)}} style={{marginBottom:8,cursor:'pointer'}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                        <span style={{fontSize:12,color:C.grayDark}}>{SETOR_ICONS[s]||'📍'} {s}</span>
+                        <span style={{fontSize:12}}>{SETOR_ICONS[s]||'📍'} {s}</span>
                         <span style={{fontSize:11,color:C.grayDark}}>{prods.length} itens{zero>0?` · ${zero} ❌`:low>0?` · ${low} ⚠️`:' · ✅'}</span>
                       </div>
                       <div style={{background:C.grayMid,borderRadius:4,height:5,display:'flex',overflow:'hidden'}}>
@@ -2075,190 +2134,135 @@ function AppInner() {
                   )
                 })}
                 <div style={{display:'flex',gap:12,marginTop:4}}>
-                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:'#22c55e',borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>Normal</span></div>
-                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:'#f97316',borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>Baixo</span></div>
-                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:C.red,borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>Zerado</span></div>
+                  {[['#22c55e','Normal'],['#f97316','Baixo'],[C.red,'Zerado']].map(([c,l])=>(
+                    <div key={l} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:c,borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>{l}</span></div>
+                  ))}
                 </div>
               </div>
 
-              {/* TURNOS */}
-              <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('turnos')}>
-                <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>🕐 Movimentos por turno hoje</p>
-                {TURNOS.map(t=>{
-                  const movs=todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
-                  const custo=movs.filter(m=>m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                  const maxMovs=Math.max(...TURNOS.map(tt=>todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===tt.id).length),1)
-                  return(
-                    <div key={t.id} style={{marginBottom:10}}>
-                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                        <span style={{fontSize:12,color:C.grayDark}}>{t.icon} {t.label}</span>
-                        <span style={{fontSize:12,fontWeight:700}}>{movs.length} mov · {fmtCur(custo)}</span>
-                      </div>
-                      <div style={{background:C.grayMid,borderRadius:4,height:6}}>
-                        <div style={{width:`${Math.round((movs.length/maxMovs)*100)}%`,height:'100%',background:C.red,borderRadius:4}}></div>
-                      </div>
+              {/* GRÁFICO 7 DIAS */}
+              {(()=>{
+                const days=[]
+                for(let i=6;i>=0;i--){
+                  const d=new Date();d.setDate(d.getDate()-i)
+                  const ds=d.toISOString().split('T')[0]
+                  const dm=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type!=='auditoria')
+                  days.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}).slice(0,3),ent:dm.filter(m=>m.type==='entrada').length,sai:dm.filter(m=>m.type==='saida').length,isToday:i===0})
+                }
+                const maxVal=Math.max(...days.map(d=>d.ent+d.sai),1)
+                return(
+                  <div onClick={()=>setTab('relatorios')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <p style={{fontWeight:800,fontSize:13,margin:0}}>📊 Movimentos 7 dias</p>
+                      <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver relatório →</span>
                     </div>
-                  )
-                })}
+                    <div style={{display:'flex',alignItems:'flex-end',gap:5,height:65}}>
+                      {days.map((d,i)=>(
+                        <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                          <div style={{width:'100%',background:'#22c55e',borderRadius:'2px 2px 0 0',opacity:d.isToday?1:0.65,height:Math.max(3,Math.round((d.ent/maxVal)*30))+'px'}}></div>
+                          <div style={{width:'100%',background:C.red,borderRadius:'0 0 2px 2px',opacity:d.isToday?1:0.65,height:Math.max(3,Math.round((d.sai/maxVal)*30))+'px'}}></div>
+                          <p style={{fontSize:9,color:d.isToday?C.text:C.grayDark,fontWeight:d.isToday?800:400,margin:'2px 0 0'}}>{d.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{display:'flex',gap:12,marginTop:8}}>
+                      {[['#22c55e','Entradas'],[C.red,'Saídas']].map(([c,l])=>(
+                        <div key={l} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:10,height:10,background:c,borderRadius:2}}></div><span style={{fontSize:11,color:C.grayDark}}>{l}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* VENCIMENTOS */}
+              {vencendo.length>0&&(
+                <div onClick={()=>setDashModal('vencimentos')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>📅 Vencimentos próximos</p>
+                    <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver todos →</span>
+                  </div>
+                  {vencendo.slice(0,2).map((p,i)=>{
+                    const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
+                    return(
+                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:dias<=2?C.redLight:'#FEF3C7',borderRadius:10,marginBottom:i===0?6:0}}>
+                        <div>
+                          <p style={{fontWeight:700,fontSize:13,color:dias<=2?C.red:'#92400E',margin:0}}>{p.name}</p>
+                          <p style={{fontSize:11,color:dias<=2?C.red:'#92400E',margin:0}}>{p.setor} · {p.quantity} {p.unit}</p>
+                        </div>
+                        <span style={{fontSize:11,background:dias<=0?C.red:dias<=2?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':dias===0?'hoje':dias+'d'}</span>
+                      </div>
+                    )
+                  })}
+                  {vencendo.length>2&&<p style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',margin:'4px 0 0'}}>Ver todos ({vencendo.length}) →</p>}
+                </div>
+              )}
+
+              {/* COMPARATIVO CUSTO */}
+              <div onClick={()=>setDashModal('cmv_dia')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0}}>📈 Comparativo de custo</p>
+                  <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver relatório →</span>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                  <div style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
+                    <p style={{fontSize:11,color:C.grayDark,margin:0}}>Hoje</p>
+                    <p style={{fontSize:18,fontWeight:900,color:C.red,margin:'3px 0 0'}}>{fmtCur(custoHoje)}</p>
+                  </div>
+                  <div style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
+                    <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ontem</p>
+                    <p style={{fontSize:18,fontWeight:900,color:C.grayDark,margin:'3px 0 0'}}>{fmtCur(custoOntem)}</p>
+                  </div>
+                </div>
+                {(custoHoje>0||custoOntem>0)&&<div style={{padding:'8px 12px',background:diff>0?C.redLight:'#EAF3DE',borderRadius:8}}>
+                  <p style={{fontSize:12,fontWeight:700,color:diff>0?C.red:'#22c55e',margin:0}}>{diff>0?'▲':'▼'} {fmtCur(Math.abs(diff))} {diff>0?'a mais':'a menos'} que ontem {custoOntem>0?'('+Math.round(Math.abs(diff/custoOntem)*100)+'%)':''}</p>
+                </div>}
               </div>
 
-              {/* ÚLTIMAS MOVIMENTAÇÕES */}
-              <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('ultimas_movs')}>
-                <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>🔄 Últimas movimentações</p>
-                {todayMovs.slice(0,5).map((m,i)=>{
-                  const p=products.find(x=>x.id===m.product_id)
-                  return(
-                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <span style={{width:28,height:28,background:m.type==='entrada'?'#EAF3DE':C.redLight,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13}}>{m.type==='entrada'?'+':'−'}</span>
-                        <div>
-                          <p style={{fontSize:13,fontWeight:700,margin:0}}>{p?.name||'Produto'}</p>
-                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor||'—'}</p>
-                        </div>
-                      </div>
-                      <span style={{fontSize:13,color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit||''}</span>
+              {/* SEM MOVIMENTAÇÃO */}
+              {parados.length>0&&(
+                <div onClick={()=>setDashModal('sem_mov')} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div>
+                      <p style={{fontWeight:800,fontSize:13,margin:0}}>🧊 Sem movimentação (7 dias)</p>
+                      <p style={{fontSize:12,color:C.grayDark,margin:'4px 0 0'}}>{parados.length} produtos · <span style={{fontWeight:700,color:'#1D4ED8'}}>{fmtCur(valorParado)} imobilizado</span></p>
                     </div>
-                  )
-                })}
-                {todayMovs.length>5&&<p style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({todayMovs.length}) →</p>}
-              </div>
+                    <span style={{fontSize:11,color:'#1D4ED8',fontWeight:700}}>ver →</span>
+                  </div>
+                </div>
+              )}
+
+              {/* ATIVIDADE */}
+              {todayAudits.length>0&&(
+                <div onClick={()=>{setTab('auditoria')}} style={{...S.card,padding:14,marginBottom:12,cursor:'pointer'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <p style={{fontWeight:800,fontSize:13,margin:0}}>🔔 Atividade de hoje</p>
+                    <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver auditoria →</span>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    <div style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
+                      <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ações</p>
+                      <p style={{fontSize:20,fontWeight:900,margin:'3px 0 0'}}>{todayAudits.length}</p>
+                    </div>
+                    <div style={{background:C.gray,borderRadius:10,padding:10,textAlign:'center'}}>
+                      <p style={{fontSize:11,color:C.grayDark,margin:0}}>Usuários</p>
+                      <p style={{fontSize:20,fontWeight:900,margin:'3px 0 0'}}>{new Set(todayAudits.map(a=>a.user_name)).size}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* CEMIG */}
               {(()=>{
                 const ultima=energiaLeituras?.[0]
-                const hoje=new Date().toISOString().split('T')[0]
                 const semanaAtras=new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0]
-                const precisaLeitura=!ultima||ultima.data<semanaAtras
-                if(!precisaLeitura) return null
+                if(ultima&&ultima.data>=semanaAtras) return null
                 return(
                   <div onClick={()=>setTab('energia')} style={{background:'#FEF3C7',border:'1.5px solid #FDE68A',borderRadius:12,padding:14,marginBottom:12,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                     <div>
                       <p style={{fontSize:13,fontWeight:800,color:'#92400E',margin:0}}>⚡ Leitura CEMIG pendente</p>
                       <p style={{fontSize:11,color:'#92400E',margin:'4px 0 0'}}>{ultima?`Última: ${fmtDate(ultima.data)}`:'Nenhuma leitura registrada'}</p>
                     </div>
-                    <span style={{fontSize:12,background:'#F97316',color:'white',padding:'6px 12px',borderRadius:8,fontWeight:700}}>Registrar</span>
-                  </div>
-                )
-              })()}
-
-              {/* AÇÕES RÁPIDAS */}
-              <div style={{...S.card,marginBottom:12,padding:14}}>
-                <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>⚡ Ações rápidas</p>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                  <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📥 Entrada</button>
-                  <button onClick={()=>{setMovForm({productId:'',qty:'',note:'',type:'saida',setor:SETORES[0],turno:getTurnoAtual()});setMovSearch('');setModal('movimento')}} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📤 Saída</button>
-                  <button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{...S.btnGray,padding:12,fontSize:13,fontWeight:800,borderRadius:10}}>+ Produto</button>
-                  <button onClick={()=>setTab('relatorios')} style={{...S.btnGray,padding:12,fontSize:13,fontWeight:800,borderRadius:10}}>📋 Relatório</button>
-                </div>
-              </div>
-
-              {/* VENCIMENTOS PRÓXIMOS */}
-              {(()=>{
-                const hoje=new Date()
-                const em7dias=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]
-                const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7dias&&p.quantity>0).sort((a,b)=>a.expiry.localeCompare(b.expiry))
-                if(vencendo.length===0) return null
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('vencimentos')}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                      <p style={{fontWeight:800,fontSize:13,margin:0}}>📅 Vencimentos próximos</p>
-                      <span style={{background:'#FEF3C7',color:'#92400E',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{vencendo.length} itens</span>
-                    </div>
-                    {vencendo.slice(0,3).map((p,i)=>{
-                      const dias=Math.ceil((new Date(p.expiry)-hoje)/(1000*60*60*24))
-                      return(<div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:dias<=2?C.redLight:'#FEF3C7',borderRadius:10,marginBottom:6}}>
-                        <div>
-                          <p style={{fontWeight:700,fontSize:13,color:dias<=2?C.red:'#92400E',margin:0}}>{p.name}</p>
-                          <p style={{fontSize:11,color:dias<=2?C.red:'#92400E',margin:0}}>{p.quantity} {p.unit} · {fmtDate(p.expiry)}</p>
-                        </div>
-                        <span style={{fontSize:10,background:dias<=2?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':`${dias}d`}</span>
-                      </div>)
-                    })}
-                    {vencendo.length>3&&<p style={{fontSize:12,color:C.red,fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({vencendo.length}) →</p>}
-                  </div>
-                )
-              })()}
-
-              {/* CMV DO DIA */}
-              {(()=>{
-                const saidas=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type==='saida')
-                const custoTotal=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                const receitaEst=saidas.reduce((s,m)=>{const p=products.find(x=>x.id===m.product_id);return s+(m.quantity||0)*(p?.cost||0)*2.5},0)
-                const cmv=receitaEst>0?Math.round((custoTotal/receitaEst)*100):0
-                const ontemStr=new Date(Date.now()-86400000).toISOString().split('T')[0]
-                const custoOntem=movements.filter(m=>m.created_at?.startsWith(ontemStr)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                const diff=custoTotal-custoOntem
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('cmv_dia')}>
-                    <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>📈 Comparativo de custo</p>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
-                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Hoje</p>
-                        <p style={{fontSize:18,fontWeight:900,color:C.red,margin:'3px 0 0'}}>{fmtCur(custoTotal)}</p>
-                      </div>
-                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
-                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ontem</p>
-                        <p style={{fontSize:18,fontWeight:900,color:C.grayDark,margin:'3px 0 0'}}>{fmtCur(custoOntem)}</p>
-                      </div>
-                    </div>
-                    <div style={{marginTop:8,padding:'8px 12px',background:diff>0?C.redLight:'#EAF3DE',borderRadius:8}}>
-                      <p style={{fontSize:12,fontWeight:700,color:diff>0?C.red:'#22c55e',margin:0}}>{diff>0?'▲':'▼'} {fmtCur(Math.abs(diff))} vs ontem {diff>0?'(custo maior)':'(custo menor)'}</p>
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* PRODUTOS SEM MOVIMENTAÇÃO */}
-              {(()=>{
-                const semanas7atras=new Date(Date.now()-7*24*60*60*1000).toISOString()
-                const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7atras).map(m=>m.product_id))
-                const parados=products.filter(p=>p.quantity>0&&!movidosIds.has(p.id))
-                if(parados.length===0) return null
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('sem_mov')}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                      <p style={{fontWeight:800,fontSize:13,margin:0}}>📦 Sem movimentação (7 dias)</p>
-                      <span style={{background:'#EFF6FF',color:'#1D4ED8',fontSize:11,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{parados.length} itens</span>
-                    </div>
-                    {parados.slice(0,3).map((p,i)=>(
-                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',background:C.gray,borderRadius:10,marginBottom:6}}>
-                        <div>
-                          <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
-                          <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.setor}</p>
-                        </div>
-                        <span style={{fontSize:11,color:'#1D4ED8',fontWeight:700}}>{fmtCur(p.quantity*p.cost)}</span>
-                      </div>
-                    ))}
-                    {parados.length>3&&<p style={{fontSize:12,color:'#1D4ED8',fontWeight:700,textAlign:'center',cursor:'pointer',marginTop:4}}>Ver todos ({parados.length}) →</p>}
-                  </div>
-                )
-              })()}
-
-              {/* RESUMO AUDITORIA */}
-              {(()=>{
-                const todayAudits=auditLog.filter(a=>a.created_at?.startsWith(todayStr()))
-                const usuarios=new Set(todayAudits.map(a=>a.user_name))
-                if(todayAudits.length===0) return null
-                return(
-                  <div style={{...S.card,marginBottom:12,padding:14}} onClick={()=>setDashModal('auditoria_dia')}>
-                    <p style={{fontWeight:800,fontSize:13,marginBottom:10}}>🔔 Atividade de hoje</p>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
-                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
-                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Ações registradas</p>
-                        <p style={{fontSize:20,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{todayAudits.length}</p>
-                      </div>
-                      <div style={{background:C.gray,borderRadius:10,padding:10}}>
-                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>Usuários ativos</p>
-                        <p style={{fontSize:20,fontWeight:900,color:C.text,margin:'3px 0 0'}}>{usuarios.size}</p>
-                      </div>
-                    </div>
-                    {[...usuarios].map(u=>{
-                      const acoes=todayAudits.filter(a=>a.user_name===u)
-                      return(<div key={u} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',background:C.gray,borderRadius:8,marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:700}}>{u}</span>
-                        <span style={{fontSize:12,color:C.grayDark}}>{acoes.length} ações</span>
-                      </div>)
-                    })}
+                    <span style={{fontSize:12,background:'#F97316',color:'white',padding:'6px 12px',borderRadius:8,fontWeight:700}}>Registrar →</span>
                   </div>
                 )
               })()}
@@ -2271,243 +2275,129 @@ function AppInner() {
                     dashModal==='saidas'?'📤 Saídas de Hoje':
                     dashModal==='custo'?'💰 Custo de Hoje':
                     dashModal==='estoque_valor'?'💼 Valor em Estoque':
-                    dashModal==='alertas_todos'||dashModal==='alerta_prod'?'⚠️ Alertas de Estoque':
-                    dashModal==='grafico7dias'?'📊 Últimos 7 Dias':
-                    dashModal==='top5'?'🏆 Mais Movimentados Hoje':
+                    dashModal==='alertas_todos'?'⚠️ Alertas de Estoque':
+                    dashModal==='top5'?'🏆 Mais Saídas Hoje':
                     dashModal==='setor_detalhe'?`📦 ${dashModalData}`:
                     dashModal==='turnos'?'🕐 Movimentos por Turno':
                     dashModal==='ultimas_movs'?'🔄 Movimentações de Hoje':
                     dashModal==='vencimentos'?'📅 Vencimentos Próximos':
                     dashModal==='cmv_dia'?'📈 Comparativo de Custo':
-                    dashModal==='sem_mov'?'📦 Sem Movimentação (7 dias)':
-                    dashModal==='auditoria_dia'?'🔔 Atividade de Hoje':
+                    dashModal==='sem_mov'?'🧊 Sem Movimentação':
                     '📋 Detalhes'
                   } onClose={()=>setDashModal(null)} />
                   <div style={{padding:'16px 20px',display:'flex',flexDirection:'column',gap:10,maxHeight:'70vh',overflowY:'auto'}}>
 
-                    {/* ENTRADAS */}
                     {dashModal==='entradas'&&(entradas.length===0?<p style={{color:C.grayDark,textAlign:'center'}}>Nenhuma entrada hoje</p>:entradas.map((m,i)=>{
                       const p=products.find(x=>x.id===m.product_id)
                       return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p>
-                          <span style={{color:'#22c55e',fontWeight:800,fontSize:13}}>+{m.quantity} {p?.unit}</span>
-                        </div>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.user_name}</p>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p><span style={{color:'#22c55e',fontWeight:800}}>+{m.quantity} {p?.unit}</span></div>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno} · {m.user_name}</p>
                       </div>)
                     }))}
 
-                    {/* SAÍDAS */}
                     {dashModal==='saidas'&&(saidas.length===0?<p style={{color:C.grayDark,textAlign:'center'}}>Nenhuma saída hoje</p>:saidas.map((m,i)=>{
                       const p=products.find(x=>x.id===m.product_id)
                       return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p>
-                          <span style={{color:C.red,fontWeight:800,fontSize:13}}>-{m.quantity} {p?.unit}</span>
-                        </div>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.user_name}</p>
-                        {m.cost_unit>0&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Custo: {fmtCur(m.quantity*m.cost_unit)}</p>}
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p><span style={{color:C.red,fontWeight:800}}>-{m.quantity} {p?.unit}</span></div>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno} · {m.user_name}</p>
+                        {m.cost_unit>0&&<p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>Custo: {fmtCur(m.quantity*(m.cost_unit||0))}</p>}
                       </div>)
                     }))}
 
-                    {/* CUSTO */}
                     {dashModal==='custo'&&(<>
-                      <div style={{...S.input,padding:12,background:'#F0FFF6'}}>
+                      <div style={{background:'#F0FFF6',borderRadius:12,padding:12}}>
                         <p style={{fontSize:13,color:C.grayDark,margin:0}}>Custo total das saídas hoje</p>
-                        <p style={{fontSize:22,fontWeight:900,color:'#22c55e',margin:'4px 0 0'}}>{fmtCur(custoSaidas)}</p>
+                        <p style={{fontSize:22,fontWeight:900,color:'#22c55e',margin:'4px 0 0'}}>{fmtCur(custoHoje)}</p>
                       </div>
-                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,margin:'4px 0'}}>POR CATEGORIA</p>
-                      {(()=>{
-                        const byCat={}
-                        saidas.forEach(m=>{
-                          const p=products.find(x=>x.id===m.product_id)
-                          const cat=p?.category||'Outros'
-                          byCat[cat]=(byCat[cat]||0)+(m.quantity||0)*(m.cost_unit||0)
-                        })
-                        return Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>(
-                          <div key={cat} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:C.gray,borderRadius:8}}>
-                            <span style={{fontSize:13}}>{cat}</span>
-                            <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(val)}</span>
-                          </div>
-                        ))
-                      })()}
+                      {(()=>{const byCat={};saidas.forEach(m=>{const p=products.find(x=>x.id===m.product_id);const c=p?.category||'Outros';byCat[c]=(byCat[c]||0)+(m.quantity||0)*(m.cost_unit||0)});return Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([cat,val])=>(<div key={cat} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:C.gray,borderRadius:8}}><span>{cat}</span><span style={{fontWeight:800,color:C.red}}>{fmtCur(val)}</span></div>))})()}
                     </>)}
 
-                    {/* VALOR EM ESTOQUE */}
                     {dashModal==='estoque_valor'&&(<>
-                      <div style={{...S.input,padding:12,background:'#EFF6FF'}}>
+                      <div style={{background:'#EFF6FF',borderRadius:12,padding:12}}>
                         <p style={{fontSize:13,color:C.grayDark,margin:0}}>Valor total em estoque</p>
                         <p style={{fontSize:22,fontWeight:900,color:'#1D4ED8',margin:'4px 0 0'}}>{fmtCur(valorEstoque)}</p>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'4px 0 0'}}>{products.length} produtos · {products.filter(p=>p.quantity>0).length} com estoque</p>
                       </div>
-                      <p style={{fontSize:11,fontWeight:800,color:C.grayDark,margin:'4px 0'}}>POR SETOR</p>
-                      {SETORES.map(s=>{
-                        const val=products.filter(p=>p.setor===s).reduce((sum,p)=>sum+(p.quantity||0)*(p.cost||0),0)
-                        if(val===0) return null
-                        return(<div key={s} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:C.gray,borderRadius:8}}>
-                          <span style={{fontSize:13}}>{SETOR_ICONS[s]||'📍'} {s}</span>
-                          <span style={{fontSize:13,fontWeight:800,color:'#1D4ED8'}}>{fmtCur(val)}</span>
-                        </div>)
-                      })}
+                      {SETORES.map(s=>{const val=products.filter(p=>p.setor===s).reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0);if(!val)return null;return(<div key={s} style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',background:C.gray,borderRadius:8}}><span>{SETOR_ICONS[s]||'📍'} {s}</span><span style={{fontWeight:800,color:'#1D4ED8'}}>{fmtCur(val)}</span></div>)})}
                     </>)}
 
-                    {/* ALERTAS TODOS */}
-                    {(dashModal==='alertas_todos'||dashModal==='alerta_prod')&&lowProds.map((p,i)=>(
-                      <div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:'#FEF3C7'}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.name}</p>
-                          <span style={{fontSize:10,background:p.quantity<=0?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{p.quantity<=0?'ZERADO':'BAIXO'}</span>
-                        </div>
-                        <p style={{fontSize:11,color:p.quantity<=0?C.red:'#92400E',margin:'3px 0 0'}}>{p.quantity} {p.unit} · mín: {p.min_stock} · {p.setor}</p>
+                    {dashModal==='alertas_todos'&&lowProds.map((p,i)=>(
+                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:'#FEF3C7'}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.name}</p><span style={{fontSize:10,background:p.quantity<=0?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{p.quantity<=0?'ZERADO':'BAIXO'}</span></div>
+                        <p style={{fontSize:11,color:p.quantity<=0?C.red:'#92400E',margin:'3px 0 0'}}>{p.quantity} {p.unit} · mín:{p.min_stock} · {p.setor}</p>
                       </div>
                     ))}
 
-                    {/* GRÁFICO 7 DIAS DETALHE */}
-                    {dashModal==='grafico7dias'&&(()=>{
-                      const days=[]
-                      for(let i=6;i>=0;i--){
-                        const d=new Date();d.setDate(d.getDate()-i)
-                        const ds=d.toISOString().split('T')[0]
-                        const dayMovs=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type!=='auditoria')
-                        const ent=dayMovs.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
-                        const sai=dayMovs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
-                        const custo=dayMovs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
-                        days.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),ent,sai,custo,isToday:i===0})
-                      }
-                      return days.map((d,i)=>(
-                        <div key={i} style={{...S.input,padding:'10px 12px',background:d.isToday?C.redLight:C.white}}>
-                          <div style={{display:'flex',justifyContent:'space-between'}}>
-                            <p style={{fontWeight:d.isToday?800:600,fontSize:13,margin:0,color:d.isToday?C.red:C.text}}>{d.label}{d.isToday?' (hoje)':''}</p>
-                            <span style={{fontSize:12,color:C.grayDark}}>{fmtCur(d.custo)}</span>
+                    {dashModal==='top5'&&Object.values(countMap).sort((a,b)=>b.qty-a.qty).map((p,i)=>(
+                      <div key={i} style={{...S.input,padding:'10px 12px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <span style={{width:24,height:24,background:i<2?C.red:i<4?C.orange:'#888',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:800}}>{i+1}</span>
+                            <div><p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p><p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.setor} · {fmtCur(p.custo)}</p></div>
                           </div>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>+{d.ent.toFixed(1)} entradas · -{d.sai.toFixed(1)} saídas</p>
+                          <span style={{color:C.red,fontWeight:800}}>{p.qty.toFixed(1)} {p.unit}</span>
                         </div>
-                      ))
-                    })()}
+                      </div>
+                    ))}
 
-                    {/* TOP 5 DETALHE */}
-                    {dashModal==='top5'&&(()=>{
-                      const countMap={}
-                      movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type==='saida').forEach(m=>{
-                        const p=products.find(x=>x.id===m.product_id)
-                        if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0,setor:p.setor}; countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=m.quantity*(m.cost_unit||0)}
-                      })
-                      return Object.values(countMap).sort((a,b)=>b.qty-a.qty).map((p,i)=>(
-                        <div key={i} style={{...S.input,padding:'10px 12px'}}>
-                          <div style={{display:'flex',justifyContent:'space-between'}}>
-                            <div style={{display:'flex',alignItems:'center',gap:8}}>
-                              <span style={{width:22,height:22,background:i<2?C.red:i<4?C.orange:'#888',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'white',fontWeight:800}}>{i+1}</span>
-                              <p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p>
-                            </div>
-                            <span style={{color:C.red,fontWeight:800,fontSize:13}}>-{p.qty} {p.unit}</span>
-                          </div>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.setor} · Custo: {fmtCur(p.custo)}</p>
-                        </div>
-                      ))
-                    })()}
-
-                    {/* SETOR DETALHE */}
                     {dashModal==='setor_detalhe'&&products.filter(p=>p.setor===dashModalData).sort((a,b)=>a.quantity-b.quantity).map((p,i)=>(
-                      <div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p>
-                          <span style={{fontSize:13,fontWeight:800,color:p.quantity<=0?C.red:p.quantity<=p.min_stock?'#f97316':'#22c55e'}}>{p.quantity} {p.unit}</span>
-                        </div>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>mín:{p.min_stock} · máx:{p.max_stock} · {fmtCur(p.cost)}/{p.unit}</p>
+                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontWeight:800,color:p.quantity<=0?C.red:p.quantity<=p.min_stock?'#f97316':'#22c55e'}}>{p.quantity} {p.unit}</span></div>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>mín:{p.min_stock} · {fmtCur(p.cost)}/{p.unit} · {p.category}</p>
                       </div>
                     ))}
 
-                    {/* TURNOS DETALHE */}
                     {dashModal==='turnos'&&TURNOS.map(t=>{
                       const movs=todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
-                      const ent=movs.filter(m=>m.type==='entrada')
-                      const sai=movs.filter(m=>m.type==='saida')
+                      const ent=movs.filter(m=>m.type==='entrada'),sai=movs.filter(m=>m.type==='saida')
                       const custo=sai.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                      return(<div key={t.id} style={{...S.input,padding:'12px'}}>
-                        <p style={{fontWeight:900,fontSize:14,margin:'0 0 8px',color:C.text}}>{t.icon} {t.label} ({t.sub})</p>
-                        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                          <span style={{fontSize:12,background:'#EAF3DE',color:'#27500A',padding:'3px 10px',borderRadius:20,fontWeight:700}}>{ent.length} entradas</span>
-                          <span style={{fontSize:12,background:C.redLight,color:C.red,padding:'3px 10px',borderRadius:20,fontWeight:700}}>{sai.length} saídas</span>
-                          <span style={{fontSize:12,background:C.gray,color:C.grayDark,padding:'3px 10px',borderRadius:20,fontWeight:700}}>Custo: {fmtCur(custo)}</span>
+                      return(<div key={t.id} style={{...S.card,padding:14,marginBottom:8}}>
+                        <p style={{fontWeight:900,fontSize:14,margin:'0 0 10px'}}>{t.icon} {t.label} <span style={{fontSize:12,color:C.grayDark}}>({t.sub})</span></p>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                          {[{l:'Entradas',v:ent.length,c:'#22c55e'},{l:'Saídas',v:sai.length,c:C.red},{l:'Custo',v:fmtCur(custo),c:C.text}].map(k=>(
+                            <div key={k.l} style={{background:C.gray,borderRadius:8,padding:8,textAlign:'center'}}><p style={{fontSize:10,color:C.grayDark,margin:0}}>{k.l}</p><p style={{fontSize:14,fontWeight:900,color:k.c,margin:'2px 0 0'}}>{k.v}</p></div>
+                          ))}
                         </div>
                       </div>)
                     })}
 
-                    {/* VENCIMENTOS DETALHE */}
+                    {dashModal==='ultimas_movs'&&todayMovs.map((m,i)=>{
+                      const p=products.find(x=>x.id===m.product_id)
+                      return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p><span style={{color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span></div>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno} · {m.user_name}</p>
+                      </div>)
+                    })}
+
                     {dashModal==='vencimentos'&&(()=>{
-                      const hoje=new Date()
-                      const em7dias=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0]
-                      return products.filter(p=>p.expiry&&p.expiry<=em7dias&&p.quantity>0).sort((a,b)=>a.expiry.localeCompare(b.expiry)).map((p,i)=>{
-                        const dias=Math.ceil((new Date(p.expiry)-hoje)/(1000*60*60*24))
-                        return(<div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:dias<=2?C.redLight:'#FEF3C7'}}>
-                          <div style={{display:'flex',justifyContent:'space-between'}}>
-                            <p style={{fontWeight:800,fontSize:13,color:dias<=2?C.red:'#92400E',margin:0}}>{p.name}</p>
-                            <span style={{fontSize:11,background:dias<=2?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':`${dias}d`}</span>
-                          </div>
-                          <p style={{fontSize:11,color:dias<=2?C.red:'#92400E',margin:'3px 0 0'}}>{p.quantity} {p.unit} · Vence: {fmtDate(p.expiry)} · {p.setor}</p>
+                      const todos=products.filter(p=>p.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry))
+                      return todos.map((p,i)=>{
+                        const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
+                        return(<div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:dias<=2?C.redLight:dias<=7?'#FEF3C7':C.white}}>
+                          <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontSize:11,background:dias<=0?C.red:dias<=3?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':dias+'d'}</span></div>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {fmtDate(p.expiry)}</p>
                         </div>)
                       })
                     })()}
 
-                    {/* CMV DIA DETALHE */}
                     {dashModal==='cmv_dia'&&(()=>{
                       const dias=[]
                       for(let i=6;i>=0;i--){
                         const d=new Date();d.setDate(d.getDate()-i)
                         const ds=d.toISOString().split('T')[0]
-                        const movs=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type==='saida')
-                        const custo=movs.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                        dias.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),custo,qtd:movs.length,isToday:i===0})
+                        const c=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                        dias.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),custo:c,isToday:i===0})
                       }
-                      return dias.map((d,i)=>(
-                        <div key={i} style={{...S.input,padding:'10px 12px',background:d.isToday?C.redLight:C.white}}>
-                          <div style={{display:'flex',justifyContent:'space-between'}}>
-                            <p style={{fontWeight:d.isToday?800:600,fontSize:13,margin:0,color:d.isToday?C.red:C.text}}>{d.label}{d.isToday?' (hoje)':''}</p>
-                            <span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(d.custo)}</span>
-                          </div>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qtd} saídas registradas</p>
-                        </div>
-                      ))
+                      return dias.map((d,i)=>(<div key={i} style={{...S.input,padding:'10px 12px',background:d.isToday?C.redLight:C.white}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:d.isToday?800:600,fontSize:13,margin:0,color:d.isToday?C.red:C.text}}>{d.label}{d.isToday?' (hoje)':''}</p><span style={{fontSize:13,fontWeight:800,color:C.red}}>{fmtCur(d.custo)}</span></div>
+                      </div>))
                     })()}
 
-                    {/* SEM MOV DETALHE */}
-                    {dashModal==='sem_mov'&&(()=>{
-                      const semanas7atras=new Date(Date.now()-7*24*60*60*1000).toISOString()
-                      const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7atras).map(m=>m.product_id))
-                      return products.filter(p=>p.quantity>0&&!movidosIds.has(p.id)).sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
-                        <div key={i} onClick={()=>openEdit(p)} style={{...S.input,padding:'10px 12px',cursor:'pointer'}}>
-                          <div style={{display:'flex',justifyContent:'space-between'}}>
-                            <p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p>
-                            <span style={{fontSize:12,color:'#1D4ED8',fontWeight:700}}>{fmtCur(p.quantity*p.cost)}</span>
-                          </div>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {p.category}</p>
-                        </div>
-                      ))
-                    })()}
-
-                    {/* AUDITORIA DIA DETALHE */}
-                    {dashModal==='auditoria_dia'&&auditLog.filter(a=>a.created_at?.startsWith(todayStr())).map((a,i)=>(
-                      <div key={i} style={{...S.input,padding:'10px 12px'}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{a.action}</p>
-                          <span style={{fontSize:11,color:C.grayDark}}>{new Date(a.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
-                        </div>
-                        <p style={{fontSize:12,color:C.grayDark,margin:'3px 0 0'}}>{a.detail}{a.extra?' · '+a.extra:''}</p>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{a.user_name}</p>
+                    {dashModal==='sem_mov'&&parados.sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
+                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer'}}>
+                        <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontWeight:800,color:'#1D4ED8'}}>{fmtCur(p.quantity*p.cost)}</span></div>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {p.category}</p>
                       </div>
                     ))}
-
-                    {/* ÚLTIMAS MOVS DETALHE */}
-                    {dashModal==='ultimas_movs'&&todayMovs.map((m,i)=>{
-                      const p=products.find(x=>x.id===m.product_id)
-                      return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
-                        <div style={{display:'flex',justifyContent:'space-between'}}>
-                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p>
-                          <span style={{color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800,fontSize:13}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span>
-                        </div>
-                        <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.user_name}</p>
-                      </div>)
-                    })}
 
                   </div>
                 </Overlay>
@@ -2516,8 +2406,7 @@ function AppInner() {
           })()}
         </>}
 
-        {/* ══ ESTOQUE ══ */}
-        {tab==='estoque'&&<>
+        tab==='estoque'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
             {<button onClick={()=>{setEditProd(null);setProdForm({name:'',category:CATS[0],unit:'kg',quantity:'',min_stock:'',max_stock:'',cost:'',barcode:'',barcodes:[],supplier:'',expiry:'',setor:SETORES[0],embalagem:'',unid_embalagem:'',tipo:'Consumo'});setModal('produto')}} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Produto</button>}
             <button onClick={()=>{setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''});setEntradaSearch('');setModal('entrada')}} style={{background:'#22c55e',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>📥 Entrada</button>
