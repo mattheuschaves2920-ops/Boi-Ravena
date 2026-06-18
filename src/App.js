@@ -2676,7 +2676,9 @@ function AppInner() {
                 </select>
               </div>
               <select value={relTipo||'todos'} onChange={e=>setRelTipo(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
-              
+                <option value="todos">Todos os Tipos</option>
+                {TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}
+              </select>
             </div>
             {relPeriodo==='custom'&&(
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
