@@ -4389,7 +4389,7 @@ function AppInner() {
                   <p style={{fontSize:11,marginTop:4}}>Registros ficam salvos por 7 dias</p>
                 </div>
               : desperdicioList.filter(d=>{
-                      if(despSearch&&!d.produto?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo?.toLowerCase().includes(despSearch.toLowerCase())) return false
+                      if(despSearch&&!d.product_name?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo_detail?.toLowerCase().includes(despSearch.toLowerCase())) return false
                       if(despPeriodo==='hoje'&&toLocalDate(d.created_at)!==todayStr()) return false
                       if(despPeriodo==='semana'&&(new Date()-new Date(d.created_at))/86400000>7) return false
                       if(despPeriodo==='mes'&&(new Date()-new Date(d.created_at))/86400000>30) return false
