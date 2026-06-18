@@ -989,25 +989,52 @@ function AppInner() {
   const calcPrevisao=()=>{
     const d30=new Date(Date.now()-30*24*60*60*1000)
     const allProds=products.map(p=>{
+      // Consumo histórico para referência
       const s30=movements.filter(m=>m.product_id===p.id&&m.type==='saida'&&new Date(m.created_at)>=d30)
       const c30=s30.reduce((s,m)=>s+m.quantity,0)
       const diasComMov=new Set(s30.map(m=>toLocalDate(m.created_at))).size
       const diasBase=Math.max(diasComMov,7)
-      const cd=c30/diasBase
+      const cd=+(c30/diasBase).toFixed(2)
       const dr=cd>0?Math.max(0,Math.floor(p.quantity/cd)):999
-      const ps=cd*7
-      // Use max of: forecast need, min_stock, or current quantity if below min
-      const metaEstoque=Math.max(p.min_stock||0,ps*1.3)
-      const rep=p.quantity<metaEstoque||(p.min_stock>0&&p.quantity<=p.min_stock)
-      const qs=Math.max(0,Math.ceil(metaEstoque-p.quantity))
-      const urgencia=p.quantity<=0?'critico':p.min_stock>0&&p.quantity<=p.min_stock?'critico':dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'
-      return{...p,consumo30:c30,consumoDiario:cd.toFixed(2),diasRestantes:dr,previsaoSemana:ps.toFixed(1),precisaRepor:rep,qtdSugerida:qs,custoRepor:+(qs*p.cost).toFixed(2),urgencia}
+
+      // LÓGICA PRINCIPAL: baseada em estoque mín/máx
+      const minStock=p.min_stock||0
+      const maxStock=p.max_stock||0
+      const qtdAtual=p.quantity||0
+
+      // Precisa repor quando abaixo do mínimo
+      const precisaRepor=minStock>0&&qtdAtual<=minStock
+
+      // Quantidade sugerida = máximo - atual (repor até o máximo)
+      const qs=maxStock>0?Math.max(0,Math.ceil(maxStock-qtdAtual)):
+               minStock>0?Math.max(0,Math.ceil(minStock*2-qtdAtual)):0
+
+      // Urgência baseada na relação com mínimo
+      let urgencia='ok'
+      if(qtdAtual<=0) urgencia='critico'
+      else if(minStock>0&&qtdAtual<=minStock*0.5) urgencia='critico'
+      else if(minStock>0&&qtdAtual<=minStock) urgencia='urgente'
+      else if(minStock>0&&qtdAtual<=minStock*1.5) urgencia='atencao'
+
+      return{
+        ...p,
+        consumo30:c30,
+        consumoDiario:cd.toFixed(2),
+        diasRestantes:dr,
+        previsaoSemana:(cd*7).toFixed(1),
+        precisaRepor,
+        qtdSugerida:qs,
+        custoRepor:+(qs*p.cost).toFixed(2),
+        urgencia,
+        pctEstoque:maxStock>0?Math.round((qtdAtual/maxStock)*100):minStock>0?Math.round((qtdAtual/minStock)*100):100
+      }
     })
-    // Include: products with movement history OR products below minimum stock
-    return allProds.filter(p=>p.consumo30>0||(p.min_stock>0&&p.quantity<=p.min_stock)||p.quantity<=0)
+    // Mostrar apenas os que precisam de atenção
+    return allProds
+      .filter(p=>p.urgencia!=='ok'||(p.min_stock>0&&p.quantity<=p.min_stock))
       .sort((a,b)=>{
         const order={critico:0,urgente:1,atencao:2,ok:3}
-        return order[a.urgencia]-order[b.urgencia]||a.diasRestantes-b.diasRestantes
+        return order[a.urgencia]-order[b.urgencia]
       })
   }
 
