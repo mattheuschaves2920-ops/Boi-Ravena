@@ -425,6 +425,7 @@ function AppInner() {
   const [confirmPass,setConfirmPass] = useState('')
   const [confirmErr,setConfirmErr] = useState('')
   const [filterAudit,setFilterAudit] = useState('')
+  const [recalcDate,setRecalcDate] = useState('')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
   const [filterAuditUser,setFilterAuditUser] = useState('todos')
@@ -1560,22 +1561,29 @@ function AppInner() {
     setEditMovModal(true)
   }
 
-  const recalcCustoHoje=async()=>{
-    const hoje=todayStr()
-    const movsHoje=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&(m.cost_unit===0||!m.cost_unit))
-    if(movsHoje.length===0){showToast('Nenhuma saída de hoje com custo zerado','warn');return}
-    if(!window.confirm(`Atualizar custo de ${movsHoje.length} saída(s) de hoje com custo zerado?`)) return
+  const recalcCusto=async(data)=>{
+    const dia=data||todayStr()
+    const movsData=movements.filter(m=>toLocalDate(m.created_at)===dia&&m.type==='saida')
+    const semCusto=movsData.filter(m=>m.cost_unit===0||!m.cost_unit)
+    const total=movsData.length
+    if(total===0){showToast('Nenhuma saída encontrada nessa data','warn');return}
+    const msg=semCusto.length>0
+      ?`Atualizar ${semCusto.length} saída(s) com custo zerado de ${dia}?`
+      :`Recalcular TODAS as ${total} saída(s) de ${dia} com o custo atual dos produtos?`
+    if(!window.confirm(msg)) return
+    const alvo=semCusto.length>0?semCusto:movsData
     let ok=0,err=0
-    for(const m of movsHoje){
+    for(const m of alvo){
       const p=products.find(x=>x.id===m.product_id)
       if(!p||!p.cost) continue
       const{error}=await supabase.from('movimentos').update({cost_unit:p.cost}).eq('id',m.id)
       if(error) err++
       else{ ok++; setMovements(prev=>prev.map(x=>x.id===m.id?{...x,cost_unit:p.cost}:x)) }
     }
-    logAudit('CUSTO RECALCULADO','Saídas de hoje',`${ok} atualizadas, ${err} erros`)
-    showToast(`✓ ${ok} saída(s) atualizadas com custo atual!`)
+    logAudit('CUSTO RECALCULADO',`Saídas de ${dia}`,`${ok} atualizadas, ${err} erros`)
+    showToast(`✓ ${ok} saída(s) atualizadas!`)
   }
+  const recalcCustoHoje=()=>recalcCusto()
 
   const saveEditMov=async()=>{
     if(!editMovForm.quantity||parseFloat(editMovForm.quantity)<=0) return showToast('Quantidade inválida','err')
@@ -2610,7 +2618,10 @@ function AppInner() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
-            {canAdmin&&<button onClick={recalcCustoHoje} style={{...S.btnGray,padding:'10px 14px',fontSize:12,color:'#1D4ED8',fontWeight:700}}>💰 Recalcular custos de hoje</button>}
+            {canAdmin&&<div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <input type="date" value={recalcDate||todayStr()} onChange={e=>setRecalcDate(e.target.value)} style={{...S.input,width:'auto',padding:'8px 10px',fontSize:12}} />
+              <button onClick={()=>recalcCusto(recalcDate||todayStr())} style={{...S.btnGray,padding:'10px 12px',fontSize:12,color:'#1D4ED8',fontWeight:700}}>💰 Recalcular custos</button>
+            </div>}
             
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
