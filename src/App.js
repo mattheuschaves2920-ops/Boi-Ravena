@@ -2653,12 +2653,11 @@ function AppInner() {
         {/* ══ RELATÓRIOS ══ */}
         {tab==='relatorios'&&<>
           {/* FILTROS GLOBAIS */}
-          <div style={{...S.card,marginBottom:12,padding:14}}>
-            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>🔍 FILTROS</p>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>PERÍODO</label>
-                <select value={relPeriodo} onChange={e=>setRelPeriodo(e.target.value)} style={S.input}>
+          <div style={{...S.card,marginBottom:12,padding:12}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+            <span style={{fontSize:12,fontWeight:800,color:C.grayDark}}>🔍</span>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',flex:1}}>
+              <select value={relPeriodo} onChange={e=>setRelPeriodo(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
                   <option value="hoje">Hoje</option>
                   <option value="ontem">Ontem</option>
                   <option value="7dias">Últimos 7 dias</option>
@@ -2666,28 +2665,18 @@ function AppInner() {
                   <option value="mes">Este mês</option>
                   <option value="custom">Personalizado</option>
                 </select>
-              </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TURNO</label>
-                <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={S.input}>
+              <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
                   <option value="todos">Todos</option>
                   {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>SETOR</label>
-                <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={S.input}>
+              <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
                   <option value="todos">Todos</option>
                   {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TIPO</label>
-                <select value={relTipo||'todos'} onChange={e=>setRelTipo(e.target.value)} style={S.input}>
-                  <option value="todos">Todos</option>
-                  {TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}
-                </select>
-              </div>
+              <select value={relTipo||'todos'} onChange={e=>setRelTipo(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
+              
             </div>
             {relPeriodo==='custom'&&(
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:8}}>
@@ -2701,6 +2690,7 @@ function AppInner() {
                 </div>
               </div>
             )}
+            </div>
           </div>
 
           {/* LISTA DE RELATÓRIOS */}
