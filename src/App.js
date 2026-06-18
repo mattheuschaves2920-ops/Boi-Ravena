@@ -2692,7 +2692,6 @@ function AppInner() {
                 </div>
               </div>
             )}
-            </div>
           </div>
 
           {/* LISTA DE RELATÓRIOS */}
