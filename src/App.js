@@ -442,6 +442,7 @@ function AppInner() {
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
   const [desperdicioModal,setDesperdicioModal] = useState(false)
   const [despSearch,setDespSearch] = useState('')
+  const [despProdSearch,setDespProdSearch] = useState('')
   const [despPeriodo,setDespPeriodo] = useState('todos')
   const [pdvPontos,setPdvPontos] = useState([]) // pontos de venda cadastrados
   const [pdvAberturas,setPdvAberturas] = useState([]) // aberturas do dia
@@ -5887,12 +5888,26 @@ function AppInner() {
 
               <div>
                 <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>PRODUTO DESCARTADO</label>
-                <select value={desperdicioForm.productId} onChange={e=>setDesperdicioForm(f=>({...f,productId:e.target.value}))} style={S.input}>
-                  <option value="">Selecione o produto...</option>
-                  {[...products].sort((a,b)=>a.name.localeCompare(b.name)).map(p=>(
-                    <option key={p.id} value={p.id}>{p.name} ({p.quantity} {p.unit} em estoque)</option>
-                  ))}
-                </select>
+                {desperdicioForm.productId?(()=>{
+                  const p=products.find(x=>x.id===desperdicioForm.productId)
+                  return p?(<div style={{...S.input,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.setor}</p></div>
+                    <button onClick={()=>{setDesperdicioForm(f=>({...f,productId:''}));setDespProdSearch('')}} style={{...S.btnGray,padding:'3px 8px',fontSize:11}}>✕</button>
+                  </div>):null
+                })():(<>
+                  <div style={{display:'flex',gap:6}}>
+                    <input value={despProdSearch} onChange={e=>setDespProdSearch(e.target.value)} placeholder="Digite o nome do produto..." style={{...S.input,flex:1,fontSize:13}} />
+                    <button onClick={()=>startScanner()} style={{...S.btnGray,padding:'8px 12px',fontSize:16}}>📷</button>
+                  </div>
+                  {despProdSearch&&(<div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto',marginTop:6}}>
+                    {products.filter(p=>p.name.toLowerCase().includes(despProdSearch.toLowerCase())).slice(0,8).map(p=>(
+                      <div key={p.id} onClick={()=>{setDesperdicioForm(f=>({...f,productId:p.id}));setDespProdSearch('')}} style={{...S.input,cursor:'pointer',padding:'8px 12px'}}>
+                        <p style={{fontWeight:700,fontSize:13,margin:0}}>{p.name}</p>
+                        <p style={{fontSize:11,color:C.grayDark,margin:0}}>{p.quantity} {p.unit} · {p.setor}</p>
+                      </div>
+                    ))}
+                  </div>)}
+                </>)}
               </div>
 
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
