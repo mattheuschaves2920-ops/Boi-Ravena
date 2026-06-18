@@ -24,6 +24,7 @@ const SETOR_ICONS = { 'Cozinha':'🍳', 'Lanchonete':'🥪', 'Salão':'🪑', 'C
 const SETOR_COLORS= { 'Cozinha':'#EA1D2C', 'Lanchonete':'#FF8C00', 'Salão':'#50A773', 'Churrasco':'#8B4513', 'Bebidas':'#1565C0', 'Descartáveis':'#00897B', 'Bomboniere':'#E91E8C', 'Estoque Geral':'#546E7A' }
 
 const todayStr  = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
+const toLocalDate = (isoStr) => { if(!isoStr) return ''; const d=new Date(isoStr); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 const fmtDate   = d  => d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'
 const fmtCur    = v  => `R$ ${(+v||0).toFixed(2).replace('.',',')}`
 const getTurnoAtual = () => { const h=new Date().getHours(); return h>=7&&h<15?'T1':'T2' }
@@ -637,7 +638,7 @@ function AppInner() {
     const movsFiltrados=movements.filter(m=>{
       if(m.type!=='saida') return false
       const d=new Date(m.created_at)
-      if(periodo==='dia') return m.created_at?.startsWith(todayStr())
+      if(periodo==='dia') return toLocalDate(m.created_at)===todayStr()
       if(periodo==='semana'){ const diff=(now-d)/86400000; return diff<=7 }
       if(periodo==='mes') return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()
       return true
@@ -805,7 +806,7 @@ function AppInner() {
       const contagens=JSON.parse(localStorage.getItem('boi_pdv_contagens')||'[]')
       setPdvPontos(pontos)
       // Filter today's aberturas and contagens
-      const hoje=aberturas.filter(a=>a.created_at?.startsWith(todayStr()))
+      const hoje=aberturas.filter(a=>toLocalDate(a.created_at)===todayStr())
       const contagensHoje=contagens.filter(c=>c.created_at?.startsWith(todayStr()))
       setPdvAberturas(hoje)
       setPdvContagens(contagensHoje)
@@ -920,7 +921,7 @@ function AppInner() {
         const movsHoje=movements.filter(m=>
           m.product_id===i.productId&&
           m.type==='saida'&&
-          m.created_at?.startsWith(todayStr())&&
+          toLocalDate(m.created_at)===todayStr()&&
           !m.note?.includes('[PDV')
         )
         const registrado=movsHoje.reduce((s,m)=>s+m.quantity,0)
@@ -1020,7 +1021,7 @@ function AppInner() {
   }
   const enviarResumoDiario=()=>{
     const nl=String.fromCharCode(10)
-    const hj=movements.filter(m=>m.created_at?.startsWith(todayStr()))
+    const hj=movements.filter(m=>toLocalDate(m.created_at)===todayStr())
     const ch=hj.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
     const en=hj.filter(m=>m.type==='entrada').length
     const sa=hj.filter(m=>m.type==='saida').length
@@ -1613,7 +1614,7 @@ function AppInner() {
   const canManage = user&&(user.role==='admin'||user.role==='gerente')
   const canAdmin  = user&&user.role==='admin'
 
-  const todayMov   = movements.filter(m=>m.created_at?.startsWith(todayStr()))
+  const todayMov   = movements.filter(m=>toLocalDate(m.created_at)===todayStr())
   const totalCost  = products.reduce((s,p)=>s+p.quantity*p.cost,0)
   const lowStock   = products.filter(p=>p.quantity<=p.min_stock&&p.quantity>0)
   const semEstoque = products.filter(p=>p.quantity===0)
@@ -1623,7 +1624,7 @@ function AppInner() {
 
   // Movimentos filtrados por turno e setor
   const movFiltrados = useMemo(()=>{
-    let movs = movements.filter(m=>m.created_at?.startsWith(todayStr()))
+    let movs = movements.filter(m=>toLocalDate(m.created_at)===todayStr())
     if(dashTurno!=='todos') movs=movs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===dashTurno)
     if(dashSetor!=='todos') movs=movs.filter(m=>m.setor===dashSetor)
     return movs
@@ -1634,7 +1635,7 @@ function AppInner() {
     for(let i=6;i>=0;i--){
       const d=new Date(); d.setDate(d.getDate()-i)
       const ds=d.toISOString().split('T')[0]
-      const dm=movements.filter(m=>m.created_at?.startsWith(ds))
+      const dm=movements.filter(m=>toLocalDate(m.created_at)===ds)
       days.push({ date:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}), fullDate:ds, entradas:dm.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0), saidas:dm.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0) })
     }
     return days
@@ -1811,7 +1812,7 @@ function AppInner() {
 
   const turnoAtual = TURNOS.find(t=>t.id===getTurnoAtual())
   // HORA DE PICO
-  const movsPorHora = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&m.created_at?.startsWith(todayStr())).length}))
+  const movsPorHora = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&toLocalDate(m.created_at)===todayStr()).length}))
   const horaPico = movsPorHora.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
   // TOP PRODUTOS
   const topProdsRel = [...products].map(p=>({...p,totalSaida:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:movements.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
@@ -1848,7 +1849,7 @@ function AppInner() {
   const relMovsFiltrados = movements.filter(m=>{
     const d = new Date(m.created_at)
     const now = new Date()
-    if(relPeriodo==='dia') { if(!m.created_at?.startsWith(todayStr())) return false }
+    if(relPeriodo==='dia') { if(!toLocalDate(m.created_at)===todayStr()) return false }
     else if(relPeriodo==='semana') { if((now-d)/86400000>7) return false }
     else if(relPeriodo==='mes') { if(d.getMonth()!==now.getMonth()||d.getFullYear()!==now.getFullYear()) return false }
     else if(relPeriodo==='custom') {
@@ -1863,7 +1864,7 @@ function AppInner() {
   const ontemStr2 = (()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
   const custoOntem2 = movements.filter(m=>m.created_at?.startsWith(ontemStr2)&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const varCustoRel = custoOntem2>0?((custoRel-custoOntem2)/custoOntem2*100):0
-  const movsPorHoraRel = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&m.created_at?.startsWith(todayStr())).length}))
+  const movsPorHoraRel = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&toLocalDate(m.created_at)===todayStr()).length}))
   const horaPicoRel = movsPorHoraRel.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
   const topProds = [...products].map(p=>({...p,totalSaida:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity,0),custoTotal:relMovsFiltrados.filter(m=>m.product_id===p.id&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)})).sort((a,b)=>b.custoTotal-a.custoTotal)
   const prodParados = products.filter(p=>{const last=movements.find(m=>m.product_id===p.id&&m.type==='saida');return !last||(new Date()-new Date(last.created_at))/86400000>7})
@@ -1904,7 +1905,7 @@ function AppInner() {
   const criticosComp=previsaoComp.filter(p=>p.urgencia==='critico')
   const urgentesComp=previsaoComp.filter(p=>p.urgencia==='urgente')
   const custoTotalReporComp=previsaoComp.filter(p=>p.precisaRepor).reduce((s,p)=>s+p.custoRepor,0)
-  const hojeMovsComp=movements.filter(m=>m.created_at?.startsWith(todayStr()))
+  const hojeMovsComp=movements.filter(m=>toLocalDate(m.created_at)===todayStr())
   const custoHojeComp=hojeMovsComp.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const alertasComp=products.filter(p=>p.quantity<=p.min_stock)
   const vencendoComp=products.filter(p=>p.expiry&&(new Date(p.expiry)-new Date())/86400000<=3)
@@ -1980,7 +1981,7 @@ function AppInner() {
               </div>
             </div>
             {(()=>{
-              const todayMovs=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type!=='auditoria')
+              const todayMovs=movements.filter(m=>toLocalDate(m.created_at)===todayStr()&&m.type!=='auditoria')
               const saidas=todayMovs.filter(m=>m.type==='saida')
               const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
               const lowProds=products.filter(p=>p.quantity<=p.min_stock)
@@ -2014,7 +2015,7 @@ function AppInner() {
           </div>
 
           {(()=>{
-            const todayMovs=movements.filter(m=>m.created_at?.startsWith(todayStr())&&m.type!=='auditoria')
+            const todayMovs=movements.filter(m=>toLocalDate(m.created_at)===todayStr()&&m.type!=='auditoria')
             const entradas=todayMovs.filter(m=>m.type==='entrada')
             const saidas=todayMovs.filter(m=>m.type==='saida')
             const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
@@ -2030,7 +2031,7 @@ function AppInner() {
             const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7).map(m=>m.product_id))
             const parados=products.filter(p=>p.quantity>0&&!movidosIds.has(p.id))
             const valorParado=parados.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
-            const todayAudits=auditLog.filter(a=>a.created_at?.startsWith(todayStr()))
+            const todayAudits=auditLog.filter(a=>toLocalDate(a.created_at)===todayStr())
             const countMap={}
             saidas.forEach(m=>{const p=products.find(x=>x.id===m.product_id);if(p){if(!countMap[p.id])countMap[p.id]={name:p.name,unit:p.unit,qty:0,custo:0,setor:p.setor,cat:p.category};countMap[p.id].qty+=m.quantity;countMap[p.id].custo+=(m.quantity||0)*(m.cost_unit||0)}})
             const top5=Object.values(countMap).sort((a,b)=>b.qty-a.qty).slice(0,5)
@@ -2179,7 +2180,7 @@ function AppInner() {
                 for(let i=6;i>=0;i--){
                   const d=new Date();d.setDate(d.getDate()-i)
                   const ds=d.toISOString().split('T')[0]
-                  const dm=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type!=='auditoria')
+                  const dm=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type!=='auditoria')
                   days.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}).slice(0,3),ent:dm.filter(m=>m.type==='entrada').length,sai:dm.filter(m=>m.type==='saida').length,isToday:i===0})
                 }
                 const maxVal=Math.max(...days.map(d=>d.ent+d.sai),1)
@@ -2417,7 +2418,7 @@ function AppInner() {
                       for(let i=6;i>=0;i--){
                         const d=new Date();d.setDate(d.getDate()-i)
                         const ds=d.toISOString().split('T')[0]
-                        const c=movements.filter(m=>m.created_at?.startsWith(ds)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+                        const c=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
                         dias.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),custo:c,isToday:i===0})
                       }
                       return dias.map((d,i)=>(<div key={i} style={{...S.input,padding:'10px 12px',background:d.isToday?C.redLight:C.white}}>
@@ -2536,7 +2537,11 @@ function AppInner() {
                 <thead><tr style={{background:C.gray}}>{['Horário','Produto','Tipo','Qtd','Turno','Setor','Usuário'].map(h=><th key={h} style={{padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
                 <tbody>
                   {movements.filter(m=>{
-                    if(filterDate&&!m.created_at?.startsWith(filterDate)) return false
+                    if(filterDate){
+                      const d=new Date(m.created_at)
+                      const localDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                      if(localDate!==filterDate) return false
+                    }
                     if(filterTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==filterTurno) return false
                     if(filterSetor!=='todos'&&m.setor!==filterSetor) return false
                     return true
@@ -2963,7 +2968,7 @@ function AppInner() {
                         const end=new Date(dE)
                         while(current<=end){
                           const ds=current.toISOString().split('T')[0]
-                          const movsDia=saidas.filter(m=>m.created_at?.startsWith(ds))
+                          const movsDia=saidas.filter(m=>toLocalDate(m.created_at)===ds)
                           const custo=movsDia.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
                           if(custo>0) dias.push({ds,custo,qtd:movsDia.length})
                           current.setDate(current.getDate()+1)
@@ -3754,7 +3759,7 @@ function AppInner() {
 
         {/* ══ PAINEL DO DONO ══ */}
         {tab==='dono'&&canAdmin&&(()=>{
-          const hoje=movements.filter(m=>m.created_at?.startsWith(todayStr()))
+          const hoje=movements.filter(m=>toLocalDate(m.created_at)===todayStr())
           const custoHoje=hoje.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
           const entradasHoje=hoje.filter(m=>m.type==='entrada').length
           const saidasHoje=hoje.filter(m=>m.type==='saida').length
