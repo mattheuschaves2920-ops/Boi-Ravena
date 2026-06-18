@@ -521,6 +521,26 @@ function AppInner() {
         supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
+      // Load desperdicio, cardapio and configuracoes from Supabase
+      ;(async()=>{
+        try{
+          const{data:desps}=await supabase.from('desperdicio_registros').select('*').order('created_at',{ascending:false}).limit(200)
+          if(desps&&desps.length>0){setDesperdicioList(desps);try{localStorage.setItem('boi_desperdicio',JSON.stringify(desps))}catch(e){}}
+        }catch(e){}
+        try{
+          const{data:card}=await supabase.from('cardapio').select('*').order('name')
+          if(card&&card.length>0){setCardapio(card);try{localStorage.setItem('boi_cardapio',JSON.stringify(card))}catch(e){}}
+        }catch(e){}
+        try{
+          const{data:cfgs}=await supabase.from('configuracoes').select('*')
+          if(cfgs){
+            const ec=cfgs.find(r=>r.id==='energia_config')
+            const ea=cfgs.find(r=>r.id==='energia_alerta')
+            if(ec?.valor)setEnergiaConfig(ec.valor)
+            if(ea?.valor)setEnergiaAlerta(ea.valor)
+          }
+        }catch(e){}
+      })()
       if(movs){
         try{
           setMovements(movs.filter(m=>m&&m.type!=='auditoria'))
@@ -615,9 +635,10 @@ function AppInner() {
   }
 
   // ── CARDÁPIO ───────────────────────────────────────────────────
-  const saveCardapio=(items)=>{
+  const saveCardapio=async(items)=>{
     setCardapio(items)
     try{ localStorage.setItem('boi_cardapio',JSON.stringify(items)) }catch(e){}
+    try{await supabase.from('cardapio').delete().neq('id',0);if(items.length>0)await supabase.from('cardapio').insert(items.map(i=>({id:i.id,name:i.name,categoria:i.categoria||i.category||'',preco:i.preco||0,custo:i.custo||0,custo_estimado:i.custo_estimado||0,meta_cmv:i.meta_cmv||30})))}catch(e2){}
   }
 
   const handleSaveCardapioItem=()=>{
@@ -765,6 +786,14 @@ function AppInner() {
       const updated=[registro,...existing]
       localStorage.setItem('boi_desperdicio',JSON.stringify(updated))
       setDesperdicioList(updated)
+      // Save to Supabase
+      try{await supabase.from('desperdicio_registros').insert({
+        id:registro.id,product_id:registro.product_id,product_name:registro.product_name,
+        product_unit:registro.product_unit,qty:registro.qty,custo:registro.custo,
+        motivo:registro.motivo,motivo_detail:registro.motivo_detail,setor:registro.setor,
+        turno:registro.turno,user_name:registro.user_name,foto_expira:registro.foto_expira,
+        created_at:registro.created_at
+      })}catch(e2){}
     }catch(e){
       showToast('Erro ao salvar registro','err'); return
     }
@@ -810,7 +839,7 @@ function AppInner() {
       setPdvPontos(pontos)
       // Filter today's aberturas and contagens
       const hoje=aberturas.filter(a=>toLocalDate(a.created_at)===todayStr())
-      const contagensHoje=contagens.filter(c=>c.created_at?.startsWith(todayStr()))
+      const contagensHoje=contagens.filter(c=>toLocalDate(c.created_at)===todayStr())
       setPdvAberturas(hoje)
       setPdvContagens(contagensHoje)
     }catch(e){}
@@ -959,21 +988,27 @@ function AppInner() {
 
   const calcPrevisao=()=>{
     const d30=new Date(Date.now()-30*24*60*60*1000)
-    return products.map(p=>{
+    const allProds=products.map(p=>{
       const s30=movements.filter(m=>m.product_id===p.id&&m.type==='saida'&&new Date(m.created_at)>=d30)
       const c30=s30.reduce((s,m)=>s+m.quantity,0)
-      // Use actual days with movement for more accurate daily average
-      const diasComMov=new Set(s30.map(m=>m.created_at?.split('T')[0])).size
-      const diasBase=Math.max(diasComMov,7) // minimum 7 days for calculation
+      const diasComMov=new Set(s30.map(m=>toLocalDate(m.created_at))).size
+      const diasBase=Math.max(diasComMov,7)
       const cd=c30/diasBase
       const dr=cd>0?Math.max(0,Math.floor(p.quantity/cd)):999
-      const ps=cd*7 // forecast for 7 days
-      const metaEstoque=Math.max(p.min_stock||0,ps*1.3) // 30% safety margin over week
-      const rep=p.quantity<metaEstoque
+      const ps=cd*7
+      // Use max of: forecast need, min_stock, or current quantity if below min
+      const metaEstoque=Math.max(p.min_stock||0,ps*1.3)
+      const rep=p.quantity<metaEstoque||(p.min_stock>0&&p.quantity<=p.min_stock)
       const qs=Math.max(0,Math.ceil(metaEstoque-p.quantity))
-      const urgencia=p.quantity<=0?'critico':dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'
+      const urgencia=p.quantity<=0?'critico':p.min_stock>0&&p.quantity<=p.min_stock?'critico':dr<=3?'critico':dr<=7?'urgente':dr<=14?'atencao':'ok'
       return{...p,consumo30:c30,consumoDiario:cd.toFixed(2),diasRestantes:dr,previsaoSemana:ps.toFixed(1),precisaRepor:rep,qtdSugerida:qs,custoRepor:+(qs*p.cost).toFixed(2),urgencia}
-    }).filter(p=>p.consumo30>0).sort((a,b)=>a.diasRestantes-b.diasRestantes)
+    })
+    // Include: products with movement history OR products below minimum stock
+    return allProds.filter(p=>p.consumo30>0||(p.min_stock>0&&p.quantity<=p.min_stock)||p.quantity<=0)
+      .sort((a,b)=>{
+        const order={critico:0,urgente:1,atencao:2,ok:3}
+        return order[a.urgencia]-order[b.urgencia]||a.diasRestantes-b.diasRestantes
+      })
   }
 
   // ── INVENTÁRIO ──────────────────────────────────────────────────
@@ -1029,7 +1064,7 @@ function AppInner() {
     const en=hj.filter(m=>m.type==='entrada').length
     const sa=hj.filter(m=>m.type==='saida').length
     const al=products.filter(p=>p.quantity<=p.min_stock)
-    const dh=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+    const dh=desperdicioList.filter(d=>toLocalDate(d.created_at)===todayStr())
     const cd=dh.reduce((s,d)=>s+d.custo,0)
     const pr=calcPrevisao().filter(p=>p.urgencia==='critico')
     const lines=['🐂 *BOI DE MINAS CHURRASCARIA*',
@@ -1207,7 +1242,7 @@ function AppInner() {
   }
 
   const getPontoStatus=(funcId)=>{
-    const regsFunc=pontoRegistros.filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(todayStr()))
+    const regsFunc=pontoRegistros.filter(r=>r.funcionarioId===funcId&&toLocalDate(r.created_at)===todayStr())
     if(!regsFunc.length) return {status:'ausente',label:'Ausente',color:'#999'}
     const ultimo=regsFunc[0]
     if(ultimo.tipo==='entrada'||ultimo.tipo==='retorno') return {status:'presente',label:'Presente',color:'#50A773'}
@@ -1218,7 +1253,7 @@ function AppInner() {
 
   const getHorasTrabalhadasHoje=(funcId)=>{
     const regs=pontoRegistros
-      .filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(todayStr()))
+      .filter(r=>r.funcionarioId===funcId&&toLocalDate(r.created_at)===todayStr())
       .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
     let total=0
     let entrada=null
@@ -1318,14 +1353,16 @@ function AppInner() {
     try{localStorage.setItem('boi_energia_leituras',JSON.stringify(list))}catch(e){}
   }
 
-  const saveEnergiaAlerta=(cfg)=>{
+  const saveEnergiaAlerta=async(cfg)=>{
     setEnergiaAlerta(cfg)
     try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
+    try{await supabase.from('configuracoes').upsert({id:'energia_alerta',valor:cfg})}catch(e2){}
   }
 
-  const saveEnergiaConfig=(cfg)=>{
+  const saveEnergiaConfig=async(cfg)=>{
     setEnergiaConfig(cfg)
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
+    try{await supabase.from('configuracoes').upsert({id:'energia_config',valor:cfg})}catch(e2){}
   }
 
   const addLeituraEnergia=async()=>{
@@ -1925,7 +1962,7 @@ function AppInner() {
   const custoHojeComp=hojeMovsComp.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const alertasComp=products.filter(p=>p.quantity<=p.min_stock)
   const vencendoComp=products.filter(p=>p.expiry&&(new Date(p.expiry)-new Date())/86400000<=3)
-  const despHojeComp=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+  const despHojeComp=desperdicioList.filter(d=>toLocalDate(d.created_at)===todayStr())
   const custoDesHojeComp=despHojeComp.reduce((s,d)=>s+d.custo,0)
 
   const TABS=[
@@ -3781,7 +3818,7 @@ function AppInner() {
           const saidasHoje=hoje.filter(m=>m.type==='saida').length
           const alertas=products.filter(p=>p.quantity<=p.min_stock)
           const vencendo=products.filter(p=>p.expiry&&(new Date(p.expiry)-new Date())/86400000<=3)
-          const desperdicioHoje=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+          const desperdicioHoje=desperdicioList.filter(d=>toLocalDate(d.created_at)===todayStr())
           const custoDesperdicioHoje=desperdicioHoje.reduce((s,d)=>s+d.custo,0)
           const previsao=calcPrevisao()
           const criticos=previsao.filter(p=>p.urgencia==='critico')
@@ -4307,7 +4344,7 @@ function AppInner() {
 
           {/* RESUMO */}
           {(()=>{
-            const hoje=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
+            const hoje=desperdicioList.filter(d=>toLocalDate(d.created_at)===todayStr())
             const semana=desperdicioList.filter(d=>(new Date()-new Date(d.created_at))/86400000<=7)
             const custoHoje=hoje.reduce((s,d)=>s+d.custo,0)
             const custoSemana=semana.reduce((s,d)=>s+d.custo,0)
@@ -4468,7 +4505,7 @@ function AppInner() {
                 {pontoFuncionarios.map(f=>{
                   const st=getPontoStatus(f.id)
                   const horas=getHorasTrabalhadasHoje(f.id)
-                  const regsHoje=pontoRegistros.filter(r=>r.funcionarioId===f.id&&r.created_at.startsWith(todayStr())).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
+                  const regsHoje=pontoRegistros.filter(r=>r.funcionarioId===f.id&&toLocalDate(r.created_at)===todayStr()).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))
                   return(
                     <div key={f.id} style={{...S.card,padding:0,overflow:'hidden',border:`1.5px solid ${st.color}33`}}>
                       <div style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12}}>
@@ -4511,12 +4548,12 @@ function AppInner() {
           }
 
           {/* REGISTROS DO DIA */}
-          {pontoRegistros.filter(r=>r.created_at.startsWith(todayStr())).length>0&&(
+          {pontoRegistros.filter(r=>toLocalDate(r.created_at)===todayStr()).length>0&&(
             <div style={{...S.card,padding:0,overflow:'hidden'}}>
               <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <p style={{fontSize:12,fontWeight:800}}>📋 TODOS OS REGISTROS DE HOJE</p>
                 <button onClick={()=>{
-                  const regs=pontoRegistros.filter(r=>r.created_at.startsWith(todayStr()))
+                  const regs=pontoRegistros.filter(r=>toLocalDate(r.created_at)===todayStr())
                   const w=window.open('','_blank')
                   w.document.write('<html><head><title>Ponto</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
                   w.document.write('<button onclick="window.print()">Imprimir</button>')
@@ -4534,7 +4571,7 @@ function AppInner() {
                     {canAdmin&&<th style={{padding:'8px 14px'}}></th>}
                   </tr></thead>
                   <tbody>
-                    {pontoRegistros.filter(r=>r.created_at.startsWith(todayStr())).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r=>{
+                    {pontoRegistros.filter(r=>toLocalDate(r.created_at)===todayStr()).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r=>{
                       const cores={entrada:C.green,intervalo:C.orange,retorno:C.blue,saida:C.red}
                       return(
                         <tr key={r.id} style={{borderBottom:`1px solid ${C.gray}`}}>
