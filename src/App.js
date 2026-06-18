@@ -513,7 +513,7 @@ function AppInner() {
       setLoading(true)
       const [{data:prods},{data:movs},{data:usrs}]=await Promise.all([
         supabase.from('produtos').select('*').order('name'),
-        supabase.from('movimentos').select('*').order('created_at',{ascending:false}).limit(500),
+        supabase.from('movimentos').select('*').order('created_at',{ascending:false}).limit(1000),
         supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
@@ -1689,6 +1689,7 @@ function AppInner() {
     ])
     if(e1||e2) return showToast('Erro ao salvar','err')
     setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty,cost:newCost}:p))
+    setMovements(prev=>[{product_id:pid,type:'entrada',quantity:totalUn,note:entradaForm.fornecedor?`Entrada - Fornecedor: ${entradaForm.fornecedor}`:'Entrada de estoque',user_name:user.name,cost_unit:newCost,setor:entradaForm.setor,turno:getTurnoAtual(),created_at:new Date().toISOString()},...prev])
     logAudit('ENTRADA DE ESTOQUE',product.name,`+${totalUn} ${product.unit} (novo total: ${newQty} ${product.unit})${costChanged?` | Custo alterado: R$${product.cost.toFixed(2)} → R$${newCost.toFixed(2)}`:''}`)
     setEntradaForm({productId:'',qtdFardo:'',qtdUn:'',newCost:'',setor:SETORES[0],fornecedor:''})
     setEntradaSearch('')
@@ -1708,6 +1709,7 @@ function AppInner() {
     const{error:e2}=await supabase.from('movimentos').insert({product_id:pid,type:'entrada',quantity:qty,note:`Entrada danificada - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,user_name:user.name,cost_unit:product.cost,setor:product.setor||SETORES[0],turno:getTurnoAtual()})
     if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
     setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
+    setMovements(prev=>[{product_id:pid,type:'entrada',quantity:qty,note:`Entrada danificada - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,user_name:user.name,cost_unit:product.cost,setor:product.setor||SETORES[0],turno:getTurnoAtual(),created_at:new Date().toISOString()},...prev])
     const entry={id:Date.now(),productId:pid,productName:product.name,qty,motivo:danificadoForm.motivo,obs:danificadoForm.obs,user_name:user.name,created_at:new Date().toISOString()}
     const updatedList=[entry,...danificadoList]
     setDanificadoList(updatedList)
@@ -1732,6 +1734,7 @@ function AppInner() {
     ])
     if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
     setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
+    setMovements(prev=>[{product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:new Date().toISOString()},...prev])
     logAudit(movForm.type==='entrada'?'ENTRADA':'SAÍDA',product.name,`${qty} ${product.unit} · ${movForm.setor}${movForm.note?' · '+movForm.note:''}`)
     setMovForm(f=>({...f,productId:'',qty:'',note:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
