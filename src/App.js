@@ -1560,6 +1560,23 @@ function AppInner() {
     setEditMovModal(true)
   }
 
+  const recalcCustoHoje=async()=>{
+    const hoje=todayStr()
+    const movsHoje=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&(m.cost_unit===0||!m.cost_unit))
+    if(movsHoje.length===0){showToast('Nenhuma saída de hoje com custo zerado','warn');return}
+    if(!window.confirm(`Atualizar custo de ${movsHoje.length} saída(s) de hoje com custo zerado?`)) return
+    let ok=0,err=0
+    for(const m of movsHoje){
+      const p=products.find(x=>x.id===m.product_id)
+      if(!p||!p.cost) continue
+      const{error}=await supabase.from('movimentos').update({cost_unit:p.cost}).eq('id',m.id)
+      if(error) err++
+      else{ ok++; setMovements(prev=>prev.map(x=>x.id===m.id?{...x,cost_unit:p.cost}:x)) }
+    }
+    logAudit('CUSTO RECALCULADO','Saídas de hoje',`${ok} atualizadas, ${err} erros`)
+    showToast(`✓ ${ok} saída(s) atualizadas com custo atual!`)
+  }
+
   const saveEditMov=async()=>{
     if(!editMovForm.quantity||parseFloat(editMovForm.quantity)<=0) return showToast('Quantidade inválida','err')
     const oldQty=editMovItem.quantity
@@ -2593,6 +2610,7 @@ function AppInner() {
             <button onClick={()=>openMov('entrada')} style={{...S.btnRed,padding:'10px 20px',fontSize:13}}>+ Entrada</button>
             <button onClick={()=>openMov('saida')} style={{...S.btnRed,background:'#e53935',padding:'10px 20px',fontSize:13}}>− Saída</button>
             <button onClick={startScanner} style={{...S.btnGray,padding:'10px 16px',fontSize:13}}>📷 Scanner</button>
+            {canAdmin&&<button onClick={recalcCustoHoje} style={{...S.btnGray,padding:'10px 14px',fontSize:12,color:'#1D4ED8',fontWeight:700}}>💰 Recalcular custos de hoje</button>}
             
             <button onClick={()=>setModal('separacao')} style={{...S.btnRed,background:'#8B4513',padding:'10px 20px',fontSize:13}}>🥩 Separar Carnes</button>
             <button onClick={notifPermission==='granted'?()=>showToast('Notificações já ativas! ✓'):requestNotifPermission}
@@ -2692,6 +2710,36 @@ function AppInner() {
           </div>
 
           {/* LISTA DE RELATÓRIOS */}
+          <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
+            {[
+              {id:'movimentos',icon:'🔄',title:'Movimentos',sub:'Entradas e saídas por período'},
+              {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:'Distribuição de custos'},
+              {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:'Ranking por quantidade e custo'},
+              {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:'Inventário completo com custos'},
+              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:'Produtos vencendo em breve'},
+              {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:'Custo das saídas por período'},
+              {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:'Perdas registradas por período'},
+              {id:'turnos_rel',icon:'🕐',title:'Comparativo de turnos',sub:'Consumo e custo por turno'},
+              {id:'historico_prod',icon:'🔍',title:'Histórico de produto',sub:'Busque um produto específico'},
+              {id:'energia_rel',icon:'⚡',title:'Energia CEMIG',sub:'Consumo e custo por período'},
+              {id:'atividade_usuario',icon:'🧑‍💼',title:'Atividade por usuário',sub:'Movimentos por cada usuário'},
+              {id:'giro_estoque',icon:'📊',title:'Giro de estoque',sub:'Velocidade de saída dos produtos'},
+              {id:'danificados_rel',icon:'⚠️',title:'Itens danificados',sub:'Registros de entrada danificada'},
+              {id:'sem_mov_rel',icon:'🧊',title:'Produtos sem movimentação',sub:'Itens parados no período'},
+            ].map(r=>(
+              <div key={r.id} onClick={()=>{setRelModal(r.id);setRelFiltroTipo('todos');setRelFiltroCat('todos');setRelFiltroStatus('todos');setRelFiltroOrdem('qty');setRelFiltroVenc('30');setRelFiltroUser('todos');setRelFiltroMovTipo('todos')}} style={{...S.card,padding:'12px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:20}}>{r.icon}</span>
+                  <div>
+                    <p style={{fontSize:14,fontWeight:700,margin:0}}>{r.title}</p>
+                    <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{r.sub}</p>
+                  </div>
+                </div>
+                <span style={{fontSize:18,color:C.grayDark}}>›</span>
+              </div>
+            ))}
+          </div>
+
           {(()=>{
             const getDateRange=()=>{
               const hoje=new Date().toISOString().split('T')[0]
