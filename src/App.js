@@ -4292,6 +4292,18 @@ function AppInner() {
             <button onClick={()=>{setDesperdicioFotoStep('form');setDesperdicioFoto(null);setDesperdicioModal(true)}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Registrar Descarte</button>
           </div>
 
+          {/* FILTROS */}
+          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+            <input value={despSearch} onChange={e=>setDespSearch(e.target.value)} placeholder="🔍 Buscar produto ou motivo..." style={{...S.input,flex:1,minWidth:160}} />
+            <select value={despPeriodo} onChange={e=>setDespPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
+              <option value="todos">Todo período</option>
+              <option value="hoje">Hoje</option>
+              <option value="semana">Esta semana</option>
+              <option value="mes">Este mês</option>
+            </select>
+            <button onClick={()=>{setDespSearch('');setDespPeriodo('todos')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✕ Limpar</button>
+          </div>
+
           {/* RESUMO */}
           {(()=>{
             const hoje=desperdicioList.filter(d=>d.created_at?.startsWith(todayStr()))
