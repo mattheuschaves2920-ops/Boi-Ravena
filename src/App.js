@@ -1785,6 +1785,25 @@ function AppInner() {
     showToast(editProd?'✓ Produto atualizado!':'✓ Produto cadastrado!')
   }
 
+  const deleteProd=async(p)=>{
+    if(!window.confirm(`Excluir "${p.name}"? Esta ação não pode ser desfeita.`)) return
+    const{error}=await supabase.from('produtos').delete().eq('id',p.id)
+    if(error) return showToast('Erro ao excluir','err')
+    setProducts(prev=>prev.filter(x=>x.id!==p.id))
+    logAudit('PRODUTO EXCLUÍDO',p.name,`${p.quantity} ${p.unit} · ${p.setor}`)
+    showToast('✓ Produto excluído!')
+  }
+
+  const deleteMov=async(m)=>{
+    if(!window.confirm('Excluir este movimento? O estoque NÃO será revertido.')) return
+    const{error}=await supabase.from('movimentos').delete().eq('id',m.id)
+    if(error) return showToast('Erro ao excluir','err')
+    setMovements(prev=>prev.filter(x=>x.id!==m.id))
+    const p=products.find(x=>x.id===m.product_id)
+    logAudit('MOVIMENTO EXCLUÍDO',p?.name||'—',`${m.type} · ${m.quantity} · ${m.setor}`)
+    showToast('✓ Movimento excluído!')
+  }
+
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual()}); setMovSearch(''); setModal('movimento') }
 
@@ -2477,6 +2496,7 @@ function AppInner() {
                       <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('entrada',p)}}>+</button>
                       <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('saida',p)}}>−</button>
                       <button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openEdit(p)}}>✏️</button>
+                      {canAdmin&&<button style={{background:'none',border:'1px solid #ffcccc',borderRadius:6,padding:'5px 8px',fontSize:12,cursor:'pointer',color:C.red}} onClick={e=>{e.stopPropagation();deleteProd(p)}}>🗑️</button>}
                     </div>
                   </div>
                   {p.expiry&&<p style={{fontSize:10,color:isExp?C.orange:C.grayDark,marginTop:7,fontWeight:600}}>📅 Validade: {fmtDate(p.expiry)}</p>}
@@ -2532,7 +2552,10 @@ function AppInner() {
                         <td style={{padding:'9px 12px'}}>{tInfo&&<span style={{fontSize:10,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700,color:C.text}}>{tInfo.icon} {tInfo.label}</span>}</td>
                         <td style={{padding:'9px 12px'}}>{m.setor&&<span style={{fontSize:10,background:SETOR_COLORS[m.setor]+'22',color:SETOR_COLORS[m.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[m.setor]} {m.setor}</span>}</td>
                         <td style={{padding:'9px 12px'}}><span style={{fontSize:10,color:C.grayDark,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{m.user_name||'—'}</span></td>
-                        <td style={{padding:'9px 12px'}}><button onClick={()=>openEditMov(m)} style={{background:'none',border:'1px solid #ddd',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer'}}>✏️</button></td>
+                        <td style={{padding:'9px 12px',display:'flex',gap:4}}>
+                          <button onClick={()=>openEditMov(m)} style={{background:'none',border:'1px solid #ddd',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                          {canAdmin&&<button onClick={()=>deleteMov(m)} style={{background:'none',border:'1px solid #ffcccc',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer',color:C.red}}>🗑️</button>}
+                        </td>
                       </tr>
                     )
                   })}
@@ -4470,7 +4493,7 @@ function AppInner() {
                           {canAdmin&&<td style={{padding:'8px 14px'}}>
                             <div style={{display:'flex',gap:4}}>
                               <button onClick={()=>editarRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11}}>✏️</button>
-                              <button onClick={()=>excluirRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>
+                              {canAdmin&&<button onClick={()=>excluirRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>}
                             </div>
                           </td>}
                         </tr>
@@ -4897,8 +4920,9 @@ function AppInner() {
                 <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:240,overflowY:'auto'}}>
                   {danificadoList.slice(0,20).map(d=>(
                     <div key={d.id} style={{...S.input,padding:'8px 12px'}}>
-                      <div style={{display:'flex',justifyContent:'space-between'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                         <p style={{fontWeight:700,fontSize:13,margin:0}}>{d.productName}</p>
+                        {canAdmin&&<button onClick={()=>{if(window.confirm('Excluir este registro danificado?')){const u=danificadoList.filter(x=>x.id!==d.id);setDanificadoList(u);try{localStorage.setItem('boi_danificados',JSON.stringify(u))}catch(e){}logAudit('DANIFICADO EXCLUÍDO',d.productName,d.motivo);showToast('✓ Excluído!')}}} style={{background:'none',border:'1px solid #ffcccc',borderRadius:5,padding:'2px 6px',fontSize:11,cursor:'pointer',color:C.red,flexShrink:0}}>🗑️</button>}
                         <span style={{fontSize:11,color:C.grayDark}}>{fmtDate(d.created_at)}</span>
                       </div>
                       <p style={{fontSize:12,color:'#f97316',margin:'2px 0 0',fontWeight:700}}>{d.qty} un · {d.motivo}{d.obs?' · '+d.obs:''}</p>
