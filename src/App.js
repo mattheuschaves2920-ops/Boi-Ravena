@@ -441,6 +441,8 @@ function AppInner() {
   const [cardapioModal,setCardapioModal] = useState(false)
   const [cmvPeriodo,setCmvPeriodo] = useState('dia')
   const [desperdicioModal,setDesperdicioModal] = useState(false)
+  const [despSearch,setDespSearch] = useState('')
+  const [despPeriodo,setDespPeriodo] = useState('todos')
   const [pdvPontos,setPdvPontos] = useState([]) // pontos de venda cadastrados
   const [pdvAberturas,setPdvAberturas] = useState([]) // aberturas do dia
   const [pdvContagens,setPdvContagens] = useState([]) // contagens registradas
@@ -1354,6 +1356,19 @@ function AppInner() {
     const kwhDia=dias>0?kwh/dias:0
     return{kwh,dias,custo,kwhDia:kwhDia.toFixed(1)}
   }
+
+  // Popup energia quando app carrega
+  useEffect(()=>{
+    if(!energiaLeituras||energiaLeituras.length===0) return
+    if(!energiaAlerta?.ativo) return
+    const hoje=new Date()
+    const diaSemana=hoje.getDay()
+    if(diaSemana!==energiaAlerta.diaSemana) return
+    const inicioSemana=new Date(hoje)
+    inicioSemana.setDate(hoje.getDate()-hoje.getDay())
+    const jaRegistrou=energiaLeituras.some(l=>new Date(l.data)>=inicioSemana)
+    if(!jaRegistrou) setTimeout(()=>showToast('⚡ Lembrete: registre a leitura CEMIG desta semana!','warn'),3000)
+  },[energiaLeituras])
 
   const verificarAlertaEnergia=()=>{
     if(!energiaAlerta.ativo) return false
@@ -4341,13 +4356,29 @@ function AppInner() {
               <p style={{fontSize:12,fontWeight:800}}>📋 REGISTROS DE DESPERDÍCIO (últimos 7 dias)</p>
               <p style={{fontSize:11,color:C.grayDark}}>{desperdicioList.length} registro{desperdicioList.length!==1?'s':''} · Fotos expiram em 7 dias</p>
             </div>
+            <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+              <input value={despSearch} onChange={e=>setDespSearch(e.target.value)} placeholder="🔍 Buscar produto ou motivo..." style={{...S.input,flex:1,minWidth:160}} />
+              <select value={despPeriodo} onChange={e=>setDespPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
+                <option value="todos">Todo período</option>
+                <option value="hoje">Hoje</option>
+                <option value="semana">Esta semana</option>
+                <option value="mes">Este mês</option>
+              </select>
+              <button onClick={()=>{setDespSearch('');setDespPeriodo('todos')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✕</button>
+            </div>
             {desperdicioList.length===0
               ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
                   <p style={{fontSize:28,marginBottom:8}}>✅</p>
                   <p style={{fontWeight:700,fontSize:13}}>Nenhum descarte registrado!</p>
                   <p style={{fontSize:11,marginTop:4}}>Registros ficam salvos por 7 dias</p>
                 </div>
-              : desperdicioList.map(d=>{
+              : desperdicioList.filter(d=>{
+                      if(despSearch&&!d.produto?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo?.toLowerCase().includes(despSearch.toLowerCase())) return false
+                      if(despPeriodo==='hoje'&&toLocalDate(d.created_at)!==todayStr()) return false
+                      if(despPeriodo==='semana'&&(new Date()-new Date(d.created_at))/86400000>7) return false
+                      if(despPeriodo==='mes'&&(new Date()-new Date(d.created_at))/86400000>30) return false
+                      return true
+                    }).map(d=>{
                   const diasRestantes=Math.ceil((new Date(d.foto_expira)-new Date())/86400000)
                   return(
                     <div key={d.id} style={{display:'flex',gap:12,padding:'14px 18px',borderBottom:`1px solid ${C.gray}`,alignItems:'flex-start'}}>
