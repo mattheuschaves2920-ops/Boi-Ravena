@@ -2655,28 +2655,25 @@ function AppInner() {
           {/* FILTROS GLOBAIS */}
           <div style={{...S.card,marginBottom:12,padding:12}}>
             <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-            <span style={{fontSize:12,fontWeight:800,color:C.grayDark}}>🔍</span>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',flex:1}}>
+              <span style={{fontSize:12,fontWeight:800,color:C.grayDark}}>🔍</span>
               <select value={relPeriodo} onChange={e=>setRelPeriodo(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
-                  <option value="hoje">Hoje</option>
-                  <option value="ontem">Ontem</option>
-                  <option value="7dias">Últimos 7 dias</option>
-                  <option value="30dias">Últimos 30 dias</option>
-                  <option value="mes">Este mês</option>
-                  <option value="custom">Personalizado</option>
-                </select>
+                <option value="hoje">Hoje</option>
+                <option value="ontem">Ontem</option>
+                <option value="7dias">7 dias</option>
+                <option value="30dias">30 dias</option>
+                <option value="mes">Este mês</option>
+                <option value="custom">Personalizado</option>
+              </select>
               <select value={relTurno} onChange={e=>setRelTurno(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
-                  <option value="todos">Todos</option>
-                  {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
-                </select>
-              </div>
+                <option value="todos">Todos turnos</option>
+                {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+              </select>
               <select value={relSetor} onChange={e=>setRelSetor(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
-                  <option value="todos">Todos</option>
-                  {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
-                </select>
-              </div>
+                <option value="todos">Todos setores</option>
+                {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+              </select>
               <select value={relTipo||'todos'} onChange={e=>setRelTipo(e.target.value)} style={{...S.input,width:'auto',flex:1}}>
-                <option value="todos">Todos os Tipos</option>
+                <option value="todos">Todos tipos</option>
                 {TIPOS.map(t=><option key={t} value={t}>{TIPO_ICONS[t]} {t}</option>)}
               </select>
             </div>
