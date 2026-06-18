@@ -486,7 +486,7 @@ function AppInner() {
   const [desperdicioFoto,setDesperdicioFoto] = useState(null) // base64
   const [desperdicioFotoStream,setDesperdicioFotoStream] = useState(null)
   const [desperdicioFotoStep,setDesperdicioFotoStep] = useState('form') // form | camera | preview | done
-  const [desperdicioList,setDesperdicioList] = useState([])
+  const [desperdicioList,setDesperdicioList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const desperdicioVideoRef = useRef(null)
   const desperdicioCanvasRef = useRef(null)
   const [cmvMeta,setCmvMeta] = useState(40)
