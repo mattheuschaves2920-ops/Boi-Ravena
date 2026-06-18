@@ -4350,13 +4350,9 @@ function AppInner() {
             )
           })()}
 
-          {/* LISTA DE REGISTROS */}
-          <div style={{...S.card,padding:0,overflow:'hidden'}}>
-            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <p style={{fontSize:12,fontWeight:800}}>📋 REGISTROS DE DESPERDÍCIO (últimos 7 dias)</p>
-              <p style={{fontSize:11,color:C.grayDark}}>{desperdicioList.length} registro{desperdicioList.length!==1?'s':''} · Fotos expiram em 7 dias</p>
-            </div>
-            <div style={{padding:'12px 14px',borderBottom:`1px solid ${C.grayMid}`,display:'flex',gap:8,flexWrap:'wrap'}}>
+          {/* FILTROS DESPERDÍCIO */}
+          <div style={{...S.card,padding:14,marginBottom:12}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               <input value={despSearch} onChange={e=>setDespSearch(e.target.value)} placeholder="🔍 Buscar produto ou motivo..." style={{...S.input,flex:1,minWidth:160}} />
               <select value={despPeriodo} onChange={e=>setDespPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
                 <option value="todos">Todo período</option>
@@ -4365,6 +4361,14 @@ function AppInner() {
                 <option value="mes">Este mês</option>
               </select>
               <button onClick={()=>{setDespSearch('');setDespPeriodo('todos')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✕</button>
+            </div>
+          </div>
+
+          {/* LISTA DE REGISTROS */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:12,fontWeight:800}}>📋 REGISTROS DE DESPERDÍCIO (últimos 7 dias)</p>
+              <p style={{fontSize:11,color:C.grayDark}}>{desperdicioList.length} registro{desperdicioList.length!==1?'s':''} · Fotos expiram em 7 dias</p>
             </div>
             {desperdicioList.length===0
               ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
