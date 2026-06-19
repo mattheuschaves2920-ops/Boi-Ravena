@@ -998,24 +998,24 @@ function AppInner() {
       const cd=+(c30/diasBase).toFixed(2)
       const dr=cd>0?Math.max(0,Math.floor(p.quantity/cd)):999
 
-      // LÓGICA PRINCIPAL: baseada em estoque mín/máx
       const minStock=p.min_stock||0
       const maxStock=p.max_stock||0
       const qtdAtual=p.quantity||0
 
-      // Precisa repor quando abaixo do mínimo
-      const precisaRepor=minStock>0&&qtdAtual<=minStock
-
       // Quantidade sugerida = máximo - atual (repor até o máximo)
-      const qs=maxStock>0?Math.max(0,Math.ceil(maxStock-qtdAtual)):
-               minStock>0?Math.max(0,Math.ceil(minStock*2-qtdAtual)):0
+      // Se não tem máximo, usa mínimo*2 como referência
+      const metaCompra=maxStock>0?maxStock:minStock>0?minStock*2:0
+      const qs=Math.max(0,Math.ceil(metaCompra-qtdAtual))
 
-      // Urgência baseada na relação com mínimo
+      // Precisa repor = está abaixo do máximo (sempre que tiver margem para comprar)
+      const precisaRepor=metaCompra>0&&qtdAtual<metaCompra
+
+      // Urgência baseada no mínimo
       let urgencia='ok'
       if(qtdAtual<=0) urgencia='critico'
       else if(minStock>0&&qtdAtual<=minStock*0.5) urgencia='critico'
       else if(minStock>0&&qtdAtual<=minStock) urgencia='urgente'
-      else if(minStock>0&&qtdAtual<=minStock*1.5) urgencia='atencao'
+      else if(metaCompra>0&&qtdAtual<metaCompra) urgencia='atencao'
 
       return{
         ...p,
@@ -1025,14 +1025,14 @@ function AppInner() {
         previsaoSemana:(cd*7).toFixed(1),
         precisaRepor,
         qtdSugerida:qs,
-        custoRepor:+(qs*p.cost).toFixed(2),
+        custoRepor:+(qs*(p.cost||0)).toFixed(2),
         urgencia,
-        pctEstoque:maxStock>0?Math.round((qtdAtual/maxStock)*100):minStock>0?Math.round((qtdAtual/minStock)*100):100
+        pctEstoque:metaCompra>0?Math.min(100,Math.round((qtdAtual/metaCompra)*100)):100
       }
     })
-    // Mostrar apenas os que precisam de atenção
+    // Mostrar todos que ainda não atingiram o estoque máximo
     return allProds
-      .filter(p=>p.urgencia!=='ok'||(p.min_stock>0&&p.quantity<=p.min_stock))
+      .filter(p=>p.precisaRepor||p.quantity<=0)
       .sort((a,b)=>{
         const order={critico:0,urgente:1,atencao:2,ok:3}
         return order[a.urgencia]-order[b.urgencia]
