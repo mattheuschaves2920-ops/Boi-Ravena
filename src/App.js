@@ -5688,4 +5688,45 @@ function AppInner() {
 // deploy Sat Jun 13 18:18:03 UTC 2026
 
 
-export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary> }
+export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary> }const gerarPedido=()=>{
+            const w=window.open('','_blank')
+            if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
+            const data=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+            const grupos={}
+            paraRepor.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
+            let rows=''
+            Object.entries(grupos).forEach(function(entry){
+              const setor=entry[0], itens=entry[1]
+              rows+='<tr style="background:#EA1D2C;color:white"><td colspan="5" style="padding:8px 12px;font-weight:bold">'+setor+' ('+itens.length+' itens)</td></tr>'
+              itens.forEach(function(p,i){
+                const bg=i%2===0?'#fff':'#f9f9f9'
+                const cor=p.urgencia==='critico'?'#EA1D2C':p.urgencia==='urgente'?'#F97316':'#3B82F6'
+                rows+='<tr style="background:'+bg+'"><td style="padding:8px 12px;font-size:12px">'+p.name+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+p.quantity+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+(p.min_stock||0)+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center;font-weight:bold;color:'+cor+'">'+p.qtdSugerida+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:right">R$ '+p.custoRepor.toFixed(2)+'</td></tr>'
+              })
+            })
+            const total=paraRepor.reduce(function(s,p){return s+p.qtdSugerida},0).toFixed(1)
+            const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;margin:0;padding:20px}.header{border-bottom:3px solid #EA1D2C;padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end}h1{color:#EA1D2C;margin:0;font-size:22px}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#1a1a1a;color:white;padding:10px 12px;font-size:12px;text-align:left}th:nth-child(n+2){text-align:center}th:last-child{text-align:right}.total{background:#EA1D2C;color:white;font-weight:bold}.total td{padding:12px}@media print{.noprint{display:none}}</style></head><body><div class="header"><div><h1>Boi de Minas Churrascaria</h1><p style="margin:4px 0 0;color:#666;font-size:13px">Lista de Compras — '+data+'</p></div><div style="text-align:right"><p style="margin:0;font-size:13px">'+paraRepor.length+' itens</p><p style="margin:4px 0 0;font-size:18px;font-weight:bold;color:#EA1D2C">R$ '+custoTotalRepor.toFixed(2)+'</p></div></div><table><thead><tr><th>Produto</th><th>Estoque Atual</th><th>Mínimo</th><th>Qtd a Comprar</th><th>Custo Est.</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr class="total"><td colspan="3">TOTAL ('+paraRepor.length+' itens)</td><td style="text-align:center">'+total+' un</td><td style="text-align:right">R$ '+custoTotalRepor.toFixed(2)+'</td></tr></tfoot></table><div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;padding:12px 32px;font-size:14px;border-radius:8px;cursor:pointer;font-weight:bold">Imprimir / Salvar PDF</button></div></body></html>'
+            w.document.write(html)
+            w.document.close()
+            logAudit('PEDIDO GERADO','Lista de compras',paraRepor.length+' itens')
+          }const enviarWhatsApp=()=>{
+            const tel=(localStorage.getItem('boi_whatsapp_num')||'').replace(/\D/g,'')
+            if(!tel){showToast('Configure o numero do WhatsApp nas configuracoes','warn');setWhatsappModal(true);return}
+            const emoji={critico:'🚨',urgente:'⚠️',atencao:'👀'}
+            const grupos={}
+            paraRepor.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
+            let msg='🐂 *BOI DE MINAS - LISTA DE COMPRAS*
+📅 '+new Date().toLocaleDateString('pt-BR')+'
+
+'
+            Object.entries(grupos).forEach(function(entry){
+              msg+='*'+entry[0]+':*
+'
+              entry[1].forEach(function(p){msg+=(emoji[p.urgencia]||'•')+' '+p.name+': *'+p.qtdSugerida+' '+p.unit+'*
+'})
+              msg+='
+'
+            })
+            msg+='💰 *Total: R$ '+custoTotalRepor.toFixed(2)+'*'
+            window.open('https://wa.me/55'+tel+'?text='+encodeURIComponent(msg),'_blank')
+          }
