@@ -2720,36 +2720,6 @@ function AppInner() {
             )}
           </div>
 
-          {/* LISTA DE RELATÓRIOS */}
-          <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:12}}>
-            {[
-              {id:'movimentos',icon:'🔄',title:'Movimentos',sub:'Entradas e saídas por período'},
-              {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:'Distribuição de custos'},
-              {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:'Ranking por quantidade e custo'},
-              {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:'Inventário completo com custos'},
-              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:'Produtos vencendo em breve'},
-              {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:'Custo das saídas por período'},
-              {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:'Perdas registradas por período'},
-              {id:'turnos_rel',icon:'🕐',title:'Comparativo de turnos',sub:'Consumo e custo por turno'},
-              {id:'historico_prod',icon:'🔍',title:'Histórico de produto',sub:'Busque um produto específico'},
-              {id:'energia_rel',icon:'⚡',title:'Energia CEMIG',sub:'Consumo e custo por período'},
-              {id:'atividade_usuario',icon:'🧑‍💼',title:'Atividade por usuário',sub:'Movimentos por cada usuário'},
-              {id:'giro_estoque',icon:'📊',title:'Giro de estoque',sub:'Velocidade de saída dos produtos'},
-              {id:'danificados_rel',icon:'⚠️',title:'Itens danificados',sub:'Registros de entrada danificada'},
-              {id:'sem_mov_rel',icon:'🧊',title:'Produtos sem movimentação',sub:'Itens parados no período'},
-            ].map(r=>(
-              <div key={r.id} onClick={()=>{setRelModal(r.id);setRelFiltroTipo('todos');setRelFiltroCat('todos');setRelFiltroStatus('todos');setRelFiltroOrdem('qty');setRelFiltroVenc('30');setRelFiltroUser('todos');setRelFiltroMovTipo('todos')}} style={{...S.card,padding:'12px 16px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                  <span style={{fontSize:20}}>{r.icon}</span>
-                  <div>
-                    <p style={{fontSize:14,fontWeight:700,margin:0}}>{r.title}</p>
-                    <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{r.sub}</p>
-                  </div>
-                </div>
-                <span style={{fontSize:18,color:C.grayDark}}>›</span>
-              </div>
-            ))}
-          </div>
 
           {(()=>{
             const getDateRange=()=>{
