@@ -5709,7 +5709,9 @@ export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary>
             w.document.write(html)
             w.document.close()
             logAudit('PEDIDO GERADO','Lista de compras',paraRepor.length+' itens')
-          }const enviarWhatsApp=()=>{
+          }
+
+          const enviarWhatsApp=()=>{
             const tel=(localStorage.getItem('boi_whatsapp_num')||'').replace(/\D/g,'')
             if(!tel){showToast('Configure o numero do WhatsApp nas configuracoes','warn');setWhatsappModal(true);return}
             const emoji={critico:'🚨',urgente:'⚠️',atencao:'👀'}
