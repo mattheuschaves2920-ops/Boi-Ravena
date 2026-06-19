@@ -998,9 +998,9 @@ function AppInner() {
       const cd=+(c30/diasBase).toFixed(2)
       const dr=cd>0?Math.max(0,Math.floor(p.quantity/cd)):999
 
-      const minStock=p.min_stock||0
-      const maxStock=p.max_stock||0
-      const qtdAtual=p.quantity||0
+      const minStock=+(p.min_stock)||0
+      const maxStock=+(p.max_stock)||0
+      const qtdAtual=+(p.quantity)||0
 
       // Quantidade sugerida = máximo - atual (repor até o máximo)
       // Se não tem máximo, usa mínimo*2 como referência
