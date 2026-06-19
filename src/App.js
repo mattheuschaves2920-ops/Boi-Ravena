@@ -5715,17 +5715,11 @@ export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary>
             const emoji={critico:'🚨',urgente:'⚠️',atencao:'👀'}
             const grupos={}
             paraRepor.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
-            let msg='🐂 *BOI DE MINAS - LISTA DE COMPRAS*
-📅 '+new Date().toLocaleDateString('pt-BR')+'
-
-'
+            let msg='🐂 *BOI DE MINAS - LISTA DE COMPRAS*\n📅 '+new Date().toLocaleDateString('pt-BR')+'\n\n'
             Object.entries(grupos).forEach(function(entry){
-              msg+='*'+entry[0]+':*
-'
-              entry[1].forEach(function(p){msg+=(emoji[p.urgencia]||'•')+' '+p.name+': *'+p.qtdSugerida+' '+p.unit+'*
-'})
-              msg+='
-'
+              msg+='*'+entry[0]+':*\n'
+              entry[1].forEach(function(p){msg+=(emoji[p.urgencia]||'•')+' '+p.name+': *'+p.qtdSugerida+' '+p.unit+'*\n'})
+              msg+='\n'
             })
             msg+='💰 *Total: R$ '+custoTotalRepor.toFixed(2)+'*'
             window.open('https://wa.me/55'+tel+'?text='+encodeURIComponent(msg),'_blank')
