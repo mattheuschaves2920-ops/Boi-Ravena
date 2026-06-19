@@ -1007,8 +1007,8 @@ function AppInner() {
       const metaCompra=maxStock>0?maxStock:minStock>0?minStock*2:0
       const qs=Math.max(0,Math.ceil(metaCompra-qtdAtual))
 
-      // Precisa repor = está abaixo do máximo (sempre que tiver margem para comprar)
-      const precisaRepor=metaCompra>0&&qtdAtual<metaCompra
+      // Precisa repor = zerado OU abaixo do máximo
+      const precisaRepor=qtdAtual<=0||(metaCompra>0&&qtdAtual<metaCompra)
 
       // Urgência baseada no mínimo
       let urgencia='ok'
