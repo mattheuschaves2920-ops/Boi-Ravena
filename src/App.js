@@ -3745,22 +3745,6 @@ function AppInner() {
               <p style={{fontSize:12,opacity:0.85,margin:'4px 0 0'}}>Baseado nos últimos 30 dias de consumo</p>
             </div>
 
-            {/* KPI CARDS */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-              {[
-                {l:'🚨 Críticos',v:criticos.length,sub:'acabam em ≤3 dias',c:C.red,onClick:()=>setPrevFiltroStatus('critico')},
-                {l:'⚠️ Urgentes',v:urgentes.length,sub:'acabam em ≤7 dias',c:C.orange,onClick:()=>setPrevFiltroStatus('urgente')},
-                {l:'💰 Custo estimado',v:`R$${Math.round(custoTotalRepor)}`,sub:'para repor tudo',c:'#1D4ED8',onClick:()=>{}},
-                {l:'📦 Para repor',v:paraRepor.length,sub:'itens na lista',c:C.text,onClick:()=>setPrevFiltroStatus('todos')},
-              ].map(k=>(
-                <div key={k.l} onClick={k.onClick} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer'}}>
-                  <p style={{fontSize:11,color:C.grayDark,fontWeight:600,margin:'0 0 4px'}}>{k.l}</p>
-                  <p style={{fontSize:20,fontWeight:900,color:k.c,margin:0}}>{k.v}</p>
-                  <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{k.sub}</p>
-                </div>
-              ))}
-            </div>
-
             {/* FILTROS */}
             <div style={{...S.card,padding:14,marginBottom:12}}>
               <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:8}}>🔍 FILTROS</p>
@@ -3794,6 +3778,30 @@ function AppInner() {
                   <button onClick={()=>{setPrevFiltroStatus('todos');setPrevFiltroSetor('todos');setPrevFiltroCategoria('todos')}} style={{...S.btnGray,width:'100%',padding:8,fontSize:12}}>Limpar filtros</button>
                 </div>
               </div>
+            </div>
+
+            {/* KPI CARDS */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              {[
+                {l:'🚨 Críticos',v:criticos.length,sub:'acabam em ≤3 dias',c:C.red,onClick:()=>setPrevFiltroStatus('critico')},
+                {l:'⚠️ Urgentes',v:urgentes.length,sub:'acabam em ≤7 dias',c:C.orange,onClick:()=>setPrevFiltroStatus('urgente')},
+                {l:'💰 Custo estimado',v:`R$${Math.round(custoTotalRepor)}`,sub:'para repor tudo',c:'#1D4ED8',onClick:()=>{}},
+                {l:'📦 Para repor',v:paraRepor.length,sub:'itens na lista',c:C.text,onClick:()=>setPrevFiltroStatus('todos')},
+              ].map(k=>(
+                <div key={k.l} onClick={k.onClick} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer'}}>
+                  <p style={{fontSize:11,color:C.grayDark,fontWeight:600,margin:'0 0 4px'}}>{k.l}</p>
+                  <p style={{fontSize:20,fontWeight:900,color:k.c,margin:0}}>{k.v}</p>
+                  <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{k.sub}</p>
+                </div>
+              ))}
+            </div>
+
+            
+
+            {/* AÇÕES */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              <button onClick={gerarPedido} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>🖨️ PDF</button>
+              <button onClick={enviarWhatsApp} style={{background:'#25D366',color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
             </div>
 
             {/* LISTA DE PRODUTOS */}
