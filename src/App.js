@@ -2009,7 +2009,47 @@ function AppInner() {
   const previsaoComp=calcPrevisao()
   const criticosComp=previsaoComp.filter(p=>p.urgencia==='critico')
   const urgentesComp=previsaoComp.filter(p=>p.urgencia==='urgente')
-  const custoTotalReporComp=previsaoComp.filter(p=>p.precisaRepor).reduce((s,p)=>s+p.custoRepor,0)
+  const paraReporComp=previsaoComp.filter(p=>p.precisaRepor)
+  const custoTotalReporComp=paraReporComp.reduce((s,p)=>s+p.custoRepor,0)
+
+  const gerarPedido=()=>{
+    const w=window.open('','_blank')
+    if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
+    const data=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+    const grupos={}
+    paraReporComp.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
+    let rows=''
+    Object.entries(grupos).forEach(function(entry){
+      const setor=entry[0], itens=entry[1]
+      rows+='<tr style="background:#EA1D2C;color:white"><td colspan="5" style="padding:8px 12px;font-weight:bold">'+setor+' ('+itens.length+' itens)</td></tr>'
+      itens.forEach(function(p,i){
+        const bg=i%2===0?'#fff':'#f9f9f9'
+        const cor=p.urgencia==='critico'?'#EA1D2C':p.urgencia==='urgente'?'#F97316':'#3B82F6'
+        rows+='<tr style="background:'+bg+'"><td style="padding:8px 12px;font-size:12px">'+p.name+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+p.quantity+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+(p.min_stock||0)+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center;font-weight:bold;color:'+cor+'">'+p.qtdSugerida+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:right">R$ '+p.custoRepor.toFixed(2)+'</td></tr>'
+      })
+    })
+    const total=paraReporComp.reduce(function(s,p){return s+p.qtdSugerida},0).toFixed(1)
+    const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;margin:0;padding:20px}.header{border-bottom:3px solid #EA1D2C;padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end}h1{color:#EA1D2C;margin:0;font-size:22px}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#1a1a1a;color:white;padding:10px 12px;font-size:12px;text-align:left}th:nth-child(n+2){text-align:center}th:last-child{text-align:right}.total{background:#EA1D2C;color:white;font-weight:bold}.total td{padding:12px}@media print{.noprint{display:none}}</style></head><body><div class="header"><div><h1>Boi de Minas Churrascaria</h1><p style="margin:4px 0 0;color:#666;font-size:13px">Lista de Compras — '+data+'</p></div><div style="text-align:right"><p style="margin:0;font-size:13px">'+paraReporComp.length+' itens</p><p style="margin:4px 0 0;font-size:18px;font-weight:bold;color:#EA1D2C">R$ '+custoTotalReporComp.toFixed(2)+'</p></div></div><table><thead><tr><th>Produto</th><th>Estoque Atual</th><th>Mínimo</th><th>Qtd a Comprar</th><th>Custo Est.</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr class="total"><td colspan="3">TOTAL ('+paraReporComp.length+' itens)</td><td style="text-align:center">'+total+' un</td><td style="text-align:right">R$ '+custoTotalReporComp.toFixed(2)+'</td></tr></tfoot></table><div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;padding:12px 32px;font-size:14px;border-radius:8px;cursor:pointer;font-weight:bold">Imprimir / Salvar PDF</button></div></body></html>'
+    w.document.write(html)
+    w.document.close()
+    logAudit('PEDIDO GERADO','Lista de compras',paraReporComp.length+' itens')
+  }
+
+  const enviarWhatsApp=()=>{
+    const tel=(localStorage.getItem('boi_whatsapp_num')||'').replace(/\D/g,'')
+    if(!tel){showToast('Configure o numero do WhatsApp nas configuracoes','warn');setWhatsappModal(true);return}
+    const emoji={critico:'🚨',urgente:'⚠️',atencao:'👀'}
+    const grupos={}
+    paraReporComp.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
+    let msg='🐂 *BOI DE MINAS - LISTA DE COMPRAS*\n📅 '+new Date().toLocaleDateString('pt-BR')+'\n\n'
+    Object.entries(grupos).forEach(function(entry){
+      msg+='*'+entry[0]+':*\n'
+      entry[1].forEach(function(p){msg+=(emoji[p.urgencia]||'•')+' '+p.name+': *'+p.qtdSugerida+' '+p.unit+'*\n'})
+      msg+='\n'
+    })
+    msg+='💰 *Total: R$ '+custoTotalReporComp.toFixed(2)+'*'
+    window.open('https://wa.me/55'+tel+'?text='+encodeURIComponent(msg),'_blank')
+  }
   const hojeMovsComp=movements.filter(m=>toLocalDate(m.created_at)===todayStr())
   const custoHojeComp=hojeMovsComp.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const alertasComp=products.filter(p=>p.quantity<=p.min_stock)
@@ -3756,7 +3796,411 @@ function AppInner() {
           })()}
         </>}
 
-                {tab==='ponto'&&<>
+                {/* ══ PAINEL DO DONO ══ */}
+        {tab==='dono'&&canAdmin&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div>
+              <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
+              <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
+              <button onClick={installPWA} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.blue,fontWeight:700}}>📱 Instalar App</button>
+            </div>
+          </div>
+          {(alertasComp.length>0||vencendoComp.length>0||criticosComp.length>0||custoDesHojeComp>0)&&(
+            <div style={{...S.card,background:C.redLight,border:`2px solid ${C.red}`,marginBottom:14,padding:16}}>
+              <p style={{fontSize:13,fontWeight:900,color:C.red,marginBottom:10}}>🚨 ALERTAS CRÍTICOS</p>
+              {alertasComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>📦 {alertasComp.length} produto(s) com estoque baixo</p>}
+              {vencendoComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>⏰ {vencendoComp.length} produto(s) vencendo em 3 dias</p>}
+              {criticosComp.length>0&&<p style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>🔮 {criticosComp.length} produto(s) acabando em menos de 3 dias</p>}
+              {custoDesHojeComp>0&&<p style={{fontSize:12,fontWeight:700,color:C.red}}>🗑️ Desperdício hoje: {fmtCur(custoDesHojeComp)}</p>}
+            </div>
+          )}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:12,marginBottom:14}}>
+            {[
+              {label:'Valor em Estoque',val:fmtCur(totalCost),color:C.red,icon:'💰',sub:products.length+' produtos'},
+              {label:'Custo do Dia',val:fmtCur(custoHojeComp),color:C.orange,icon:'💸',sub:hojeMovsComp.filter(m=>m.type==='saida').length+' saídas'},
+              {label:'Movimentos Hoje',val:hojeMovsComp.length,color:C.blue,icon:'🔄',sub:'+'+hojeMovsComp.filter(m=>m.type==='entrada').length+' entradas'},
+              {label:'Desperdício',val:fmtCur(custoDesHojeComp),color:custoDesHojeComp>0?C.red:C.green,icon:'🗑️',sub:despHojeComp.length+' registros'},
+              {label:'Em Alerta',val:alertasComp.length,color:alertasComp.length>0?C.red:C.green,icon:'⚠️',sub:alertasComp.length>0?'Verificar estoque':'Estoque OK'},
+              {label:'Precisam Repor',val:previsaoComp.filter(p=>p.precisaRepor).length,color:'#6f42c1',icon:'🛒',sub:fmtCur(custoTotalReporComp)},
+            ].map(c=>(
+              <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:16}}>
+                <div style={{fontSize:11,fontWeight:800,color:c.color,marginBottom:6}}>{c.icon} {c.label.toUpperCase()}</div>
+                <div style={{fontWeight:900,fontSize:24,color:c.color,lineHeight:1,marginBottom:4}}>{c.val}</div>
+                <div style={{fontSize:11,color:C.grayDark,fontWeight:600}}>{c.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:12,marginBottom:14}}>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO POR SETOR — HOJE</p>
+              {SETORES.map(s=>{
+                const custo=hojeMovsComp.filter(m=>m.type==='saida'&&m.setor===s).reduce((s2,m)=>s2+m.quantity*(m.cost_unit||0),0)
+                const pct=custoHojeComp>0?(custo/custoHojeComp)*100:0
+                return(<div key={s} style={{marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                    <span style={{fontSize:11,fontWeight:700}}>{SETOR_ICONS[s]} {s}</span>
+                    <span style={{fontSize:11,fontWeight:800,color:SETOR_COLORS[s]}}>{fmtCur(custo)}</span>
+                  </div>
+                  <div style={{background:C.grayMid,borderRadius:4,height:6,overflow:'hidden'}}>
+                    <div style={{width:`${pct}%`,height:'100%',background:SETOR_COLORS[s],borderRadius:4}} />
+                  </div>
+                </div>)
+              })}
+            </div>
+            <div style={{...S.card,padding:16}}>
+              <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>🔮 COMPRAR HOJE</p>
+              {criticosComp.length===0
+                ? <div style={{textAlign:'center',padding:'20px 0',color:C.green}}><p style={{fontSize:20}}>✅</p><p style={{fontWeight:700,fontSize:12,marginTop:6}}>Nenhum produto crítico!</p></div>
+                : criticosComp.slice(0,6).map(p=>(<div key={p.id} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:`1px solid ${C.gray}`}}>
+                    <div><p style={{fontSize:12,fontWeight:700}}>{p.name}</p><p style={{fontSize:10,color:C.red,fontWeight:700}}>Acaba em {p.diasRestantes} dias</p></div>
+                    <span style={{fontSize:12,fontWeight:800,color:'#6f42c1'}}>{p.qtdSugerida} {p.unit}</span>
+                  </div>))
+              }
+            </div>
+          </div>
+          <div style={{...S.card,padding:16,border:`2px solid #25D36633`,background:'#F0FFF8',marginBottom:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:28}}>💬</span>
+                <div>
+                  <p style={{fontWeight:900,fontSize:14,color:'#128C7E'}}>WhatsApp</p>
+                  <p style={{fontSize:11,color:C.grayDark}}>Envie relatórios direto para o seu WhatsApp</p>
+                </div>
+              </div>
+              <button onClick={()=>setWhatsappModal(true)} style={{...S.btnGray,padding:'8px 14px',fontSize:12,color:'#128C7E',fontWeight:700}}>
+                {whatsappNum?'✓ '+whatsappNum:'⚙️ Configurar'}
+              </button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:10}}>
+              {[
+                {label:'📊 Resumo Diário',sub:'KPIs, alertas e movimentos',action:enviarResumoDiario},
+                {label:'🚨 Alerta de Estoque',sub:'Produtos baixos e vencendo',action:enviarAlertaEstoque},
+                {label:'🛒 Lista de Compras',sub:'O que precisa comprar',action:enviarListaCompras},
+              ].map(b=>(<button key={b.label} onClick={b.action} style={{background:'#25D366',border:'none',borderRadius:12,padding:14,cursor:'pointer',textAlign:'left'}}>
+                <p style={{fontSize:13,fontWeight:800,color:'#fff',marginBottom:4}}>{b.label}</p>
+                <p style={{fontSize:10,color:'rgba(255,255,255,0.85)'}}>{b.sub}</p>
+              </button>))}
+            </div>
+          </div>
+          <div style={{...S.card,padding:16}}>
+            <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>⚡ AÇÕES RÁPIDAS</p>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+              {[
+                {label:'Relatório',icon:'📊',action:()=>setTab('relatorios'),color:C.red},
+                {label:'Inventário',icon:'📋',action:()=>setTab('inventario'),color:C.orange},
+                {label:'Previsão',icon:'🔮',action:()=>setTab('previsao'),color:C.blue},
+                {label:'Desperdício',icon:'🗑️',action:()=>setTab('desperdicio'),color:'#6f42c1'},
+                {label:'Backup',icon:'💾',action:exportBackup,color:C.green},
+                {label:'Instalar App',icon:'📱',action:installPWA,color:C.blue},
+                {label:'Auditoria',icon:'🔍',action:()=>setTab('auditoria'),color:C.grayDark},
+                {label:'Usuários',icon:'👥',action:()=>setTab('usuarios'),color:C.grayDark},
+              ].map(a=>(<button key={a.label} onClick={a.action} style={{...S.card,border:`1.5px solid ${a.color}33`,padding:14,cursor:'pointer',textAlign:'center',background:C.white}}>
+                <p style={{fontSize:22,marginBottom:6}}>{a.icon}</p>
+                <p style={{fontSize:11,fontWeight:800,color:a.color}}>{a.label}</p>
+              </button>))}
+            </div>
+          </div>
+        </>}
+
+        {/* ══ PDV / VITRINE ══ */}
+        {tab==='pdv'&&<>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🏪 Controle de Vitrine / PDV</p>
+            <button onClick={()=>{setPdvEditPonto(null);setPdvPontoForm({name:'',setor:SETORES[0],descricao:''});setPdvModal('ponto')}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Novo Ponto de Venda</button>
+          </div>
+
+          {/* RESUMO DO DIA */}
+          {(()=>{
+            const totalVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido,0),0)
+            const totalDiferenca=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+Math.abs(i.diferenca),0),0)
+            const custoVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido*(i.custo||0),0),0)
+            const totalReposicao=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.reposicao,0),0)
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Vendido Hoje',val:totalVendido+' itens',color:C.green,icon:'✅',sub:fmtCur(custoVendido)+' em custo'},
+                  {label:'Diferenças',val:totalDiferenca,color:totalDiferenca>0?C.red:C.green,icon:totalDiferenca>0?'🚨':'✅',sub:totalDiferenca>0?'Verificar urgente':'Tudo conferido'},
+                  {label:'Pontos Ativos',val:pdvPontos.length,color:C.blue,icon:'🏪',sub:pdvAberturas.length+' aberturas hoje'},
+                  {label:'A Repor',val:totalReposicao+' itens',color:C.orange,icon:'🔄',sub:'Baseado nas contagens'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* PONTOS DE VENDA */}
+          {pdvPontos.length===0
+            ? <div style={{...S.card,textAlign:'center',padding:40,border:`2px dashed ${C.grayMid}`}}>
+                <p style={{fontSize:32,marginBottom:8}}>🏪</p>
+                <p style={{fontWeight:800,fontSize:14,marginBottom:6}}>Nenhum ponto de venda cadastrado</p>
+                <p style={{fontSize:12,color:C.grayDark,marginBottom:16}}>Crie pontos como "Vitrine Lanchonete", "Geladeira Bebidas", etc.</p>
+                <button onClick={()=>{setPdvEditPonto(null);setPdvPontoForm({name:'',setor:SETORES[0],descricao:''});setPdvModal('ponto')}} style={{...S.btnRed,padding:'12px 24px'}}>+ Criar Primeiro Ponto</button>
+              </div>
+            : <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                {pdvPontos.map((ponto,idx)=>{
+                  const abertura=pdvAberturas.find(a=>a.pontoId===ponto.id)
+                  const contagem=pdvContagens.find(c=>c.pontoId===ponto.id)
+                  const temDiferenca=contagem?.items.some(i=>i.diferenca!==0)
+                  const totalVendidoPonto=contagem?.items.reduce((s,i)=>s+i.vendido,0)||0
+                  const custoVendidoPonto=contagem?.items.reduce((s,i)=>s+i.vendido*(i.custo||0),0)||0
+
+                  return(
+                    <div key={ponto.id} style={{...S.card,border:`2px solid ${temDiferenca?C.red:abertura?C.green:C.grayMid}`,padding:0,overflow:'hidden'}}>
+                      {/* HEADER DO PONTO */}
+                      <div style={{padding:'14px 18px',background:temDiferenca?C.redLight:abertura?'#F0FFF6':C.gray,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{width:40,height:40,background:SETOR_COLORS[ponto.setor]||C.red,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>{SETOR_ICONS[ponto.setor]||'🏪'}</div>
+                          <div>
+                            <p style={{fontWeight:800,fontSize:14}}>{ponto.name}</p>
+                            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                              <span style={{fontSize:10,background:SETOR_COLORS[ponto.setor]+'22',color:SETOR_COLORS[ponto.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{ponto.setor}</span>
+                              {ponto.descricao&&<span style={{fontSize:10,color:C.grayDark}}>{ponto.descricao}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                          {temDiferenca&&<span style={{background:C.red,color:C.white,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:800}}>⚠️ DIFERENÇA</span>}
+                          {!abertura&&<span style={{background:C.grayMid,color:C.grayDark,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>Sem abertura hoje</span>}
+                          {abertura&&!contagem&&<span style={{background:'#FFF8F0',color:C.orange,border:`1px solid ${C.orange}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>Aguardando contagem</span>}
+                          {contagem&&<span style={{background:'#F0FFF6',color:C.green,border:`1px solid ${C.green}33`,fontSize:10,padding:'3px 10px',borderRadius:20,fontWeight:700}}>✓ Contagem feita</span>}
+                        </div>
+                      </div>
+
+                      {/* AÇÕES */}
+                      <div style={{padding:'12px 18px',display:'flex',gap:8,flexWrap:'wrap',borderBottom:`1px solid ${C.gray}`}}>
+                        {!abertura
+                          ? <button onClick={()=>initAbertura(ponto.id)} style={{...S.btnRed,padding:'8px 16px',fontSize:12}}>📋 Registrar Abertura</button>
+                          : <>
+                              <button onClick={()=>initContagem(ponto.id)} style={{...S.btnRed,background:contagem?C.grayDark:C.red,padding:'8px 16px',fontSize:12}}>
+                                {contagem?'🔄 Nova Contagem':'🔢 Fazer Contagem'}
+                              </button>
+                              {contagem&&(
+                                <button onClick={()=>{
+                                  const itensRepor=contagem.items.filter(i=>i.reposicao>0)
+                                  if(!itensRepor.length){showToast('Nenhum item para repor!','warn');return}
+                                  const w=window.open('','_blank')
+                                  w.document.write('<html><head><title>Reposição PDV</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th{background:#8B0000;color:white;padding:8px}td{padding:8px;border-bottom:1px solid #eee}@media print{button{display:none}}</style></head><body>')
+                                  w.document.write('<button onclick="window.print()">Imprimir</button>')
+                                  w.document.write('<h2>🔄 Lista de Reposição — '+ponto.name+'</h2>')
+                                  w.document.write('<p>Data: '+new Date().toLocaleDateString('pt-BR')+' · Turno: '+(TURNOS.find(t=>t.id===getTurnoAtual())?.label||'')+'</p>')
+                                  w.document.write('<table><tr><th>Produto</th><th>Colocou</th><th>Sobrou</th><th>Vendido</th><th>REPOR</th></tr>')
+                                  itensRepor.forEach(i=>{w.document.write('<tr><td>'+i.productName+'</td><td>'+i.qtdColocada+' '+i.unit+'</td><td>'+i.sobrou+' '+i.unit+'</td><td>'+i.vendido+' '+i.unit+'</td><td><strong>'+i.reposicao+' '+i.unit+'</strong></td></tr>')})
+                                  w.document.write('</table></body></html>')
+                                  w.document.close()
+                                }} style={{...S.btnGray,padding:'8px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>🖨️ Lista de Reposição</button>
+                              )}
+                            </>
+                        }
+                        <button onClick={()=>{setPdvEditPonto(idx);setPdvPontoForm({name:ponto.name,setor:ponto.setor,descricao:ponto.descricao||''});setPdvModal('ponto')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✏️</button>
+                        <button onClick={()=>{if(window.confirm('Excluir '+ponto.name+'?')){const upd=pdvPontos.filter((_,i)=>i!==idx);setPdvPontos(upd);localStorage.setItem('boi_pdv_pontos',JSON.stringify(upd));showToast('✓ Ponto excluído!')}}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,color:C.red}}>🗑️</button>
+                      </div>
+
+                      {/* RESULTADO DA CONTAGEM */}
+                      {contagem&&(
+                        <div style={{padding:'14px 18px'}}>
+                          <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}>
+                            <p style={{fontSize:12,fontWeight:800,color:C.grayDark}}>📊 RESULTADO DA CONTAGEM</p>
+                            <div style={{display:'flex',gap:12,fontSize:12}}>
+                              <span style={{color:C.green,fontWeight:800}}>Vendido: {totalVendidoPonto} itens</span>
+                              <span style={{color:'#6f42c1',fontWeight:800}}>Custo: {fmtCur(custoVendidoPonto)}</span>
+                            </div>
+                          </div>
+                          <div style={{overflowX:'auto'}}>
+                            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                              <thead>
+                                <tr style={{background:C.gray}}>
+                                  {['Produto','Colocou','Sobrou','Vendido','Registrado','Diferença','Repor'].map(h=>(
+                                    <th key={h} style={{padding:'7px 10px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {contagem.items.map((item,i)=>(
+                                  <tr key={i} style={{borderBottom:`1px solid ${C.gray}`,background:item.diferenca!==0?C.redLight:'transparent'}}>
+                                    <td style={{padding:'7px 10px',fontWeight:700}}>{item.productName}</td>
+                                    <td style={{padding:'7px 10px'}}>{item.qtdColocada} {item.unit}</td>
+                                    <td style={{padding:'7px 10px'}}>{item.sobrou} {item.unit}</td>
+                                    <td style={{padding:'7px 10px',color:C.green,fontWeight:800}}>{item.vendido} {item.unit}</td>
+                                    <td style={{padding:'7px 10px',color:C.grayDark}}>{item.registrado} {item.unit}</td>
+                                    <td style={{padding:'7px 10px'}}>
+                                      <span style={{fontWeight:900,color:item.diferenca===0?C.green:C.red,fontSize:13}}>
+                                        {item.diferenca===0?'✅':item.diferenca>0?`+${item.diferenca}`:`${item.diferenca}`} {item.diferenca!==0?item.unit:''}
+                                      </span>
+                                    </td>
+                                    <td style={{padding:'7px 10px',color:item.reposicao>0?C.orange:C.grayDark,fontWeight:item.reposicao>0?800:400}}>
+                                      {item.reposicao>0?`⚡ ${item.reposicao} ${item.unit}`:'—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p style={{fontSize:10,color:C.grayDark,marginTop:8}}>Contagem feita por {contagem.user_name} às {new Date(contagem.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+          }
+        </>}
+
+        {/* ══ DESPERDÍCIO ══ */}
+        {tab==='desperdicio'&&<>
+          {/* HEADER */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <p style={{fontWeight:800,fontSize:14}}>🗑️ Controle de Desperdício</p>
+            <button onClick={()=>{setDesperdicioFotoStep('form');setDesperdicioFoto(null);setDesperdicioModal(true)}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Registrar Descarte</button>
+          </div>
+
+          {/* FILTROS */}
+          <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+            <input value={despSearch} onChange={e=>setDespSearch(e.target.value)} placeholder="🔍 Buscar produto ou motivo..." style={{...S.input,flex:1,minWidth:160}} />
+            <select value={despPeriodo} onChange={e=>setDespPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
+              <option value="todos">Todo período</option>
+              <option value="hoje">Hoje</option>
+              <option value="semana">Esta semana</option>
+              <option value="mes">Este mês</option>
+            </select>
+            <button onClick={()=>{setDespSearch('');setDespPeriodo('todos')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✕ Limpar</button>
+          </div>
+
+          {/* RESUMO */}
+          {(()=>{
+            const hoje=desperdicioList.filter(d=>toLocalDate(d.created_at)===todayStr())
+            const semana=desperdicioList.filter(d=>(new Date()-new Date(d.created_at))/86400000<=7)
+            const custoHoje=hoje.reduce((s,d)=>s+d.custo,0)
+            const custoSemana=semana.reduce((s,d)=>s+d.custo,0)
+            const porSetor={}
+            semana.forEach(d=>{if(!porSetor[d.setor])porSetor[d.setor]=0;porSetor[d.setor]+=d.custo})
+            const setorMaisDesperd=Object.entries(porSetor).sort((a,b)=>b[1]-a[1])[0]
+            return(
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+                {[
+                  {label:'Descartes Hoje',val:hoje.length,color:C.red,icon:'🗑️',sub:fmtCur(custoHoje)+' perdidos'},
+                  {label:'Custo Hoje',val:fmtCur(custoHoje),color:C.orange,icon:'💸',sub:`${hoje.length} registros`},
+                  {label:'Custo 7 dias',val:fmtCur(custoSemana),color:'#6f42c1',icon:'📅',sub:`${semana.length} registros`},
+                  {label:'Setor Crítico',val:setorMaisDesperd?setorMaisDesperd[0]:'—',color:C.red,icon:'🏢',sub:setorMaisDesperd?fmtCur(setorMaisDesperd[1]):'Sem dados'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:18,color:c.color,lineHeight:1}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* CUSTO POR SETOR */}
+          {(()=>{
+            const semana=desperdicioList.filter(d=>(new Date()-new Date(d.created_at))/86400000<=7)
+            const porSetor={}
+            SETORES.forEach(s=>{porSetor[s]=semana.filter(d=>d.setor===s).reduce((sum,d)=>sum+d.custo,0)})
+            const maxVal=Math.max(...Object.values(porSetor),1)
+            return(
+              <div style={{...S.card,marginBottom:14,padding:16}}>
+                <p style={{fontSize:12,fontWeight:800,marginBottom:12}}>📊 CUSTO DE DESPERDÍCIO POR SETOR (7 dias)</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:10}}>
+                  {SETORES.map(s=>{
+                    const val=porSetor[s]||0
+                    const qtd=semana.filter(d=>d.setor===s).length
+                    return(
+                      <div key={s} style={{background:SETOR_COLORS[s]+'11',border:`1px solid ${SETOR_COLORS[s]}33`,borderRadius:12,padding:14}}>
+                        <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                          <p style={{fontWeight:800,fontSize:13,color:SETOR_COLORS[s]}}>{SETOR_ICONS[s]} {s}</p>
+                          <p style={{fontWeight:900,fontSize:13,color:SETOR_COLORS[s]}}>{fmtCur(val)}</p>
+                        </div>
+                        <div style={{background:C.grayMid,borderRadius:6,height:8,overflow:'hidden',marginBottom:6}}>
+                          <div style={{width:`${(val/maxVal)*100}%`,height:'100%',background:SETOR_COLORS[s],borderRadius:6,transition:'width 0.5s'}} />
+                        </div>
+                        <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{qtd} registro{qtd!==1?'s':''}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* FILTROS DESPERDÍCIO */}
+          <div style={{...S.card,padding:14,marginBottom:12}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <input value={despSearch} onChange={e=>setDespSearch(e.target.value)} placeholder="🔍 Buscar produto ou motivo..." style={{...S.input,flex:1,minWidth:160}} />
+              <select value={despPeriodo} onChange={e=>setDespPeriodo(e.target.value)} style={{...S.input,width:'auto'}}>
+                <option value="todos">Todo período</option>
+                <option value="hoje">Hoje</option>
+                <option value="semana">Esta semana</option>
+                <option value="mes">Este mês</option>
+              </select>
+              <button onClick={()=>{setDespSearch('');setDespPeriodo('todos')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✕</button>
+            </div>
+          </div>
+
+          {/* LISTA DE REGISTROS */}
+          <div style={{...S.card,padding:0,overflow:'hidden'}}>
+            <div style={{padding:'13px 18px',background:C.gray,borderBottom:`1px solid ${C.grayMid}`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <p style={{fontSize:12,fontWeight:800}}>📋 REGISTROS DE DESPERDÍCIO (últimos 7 dias)</p>
+              <p style={{fontSize:11,color:C.grayDark}}>{desperdicioList.length} registro{desperdicioList.length!==1?'s':''} · Fotos expiram em 7 dias</p>
+            </div>
+            {desperdicioList.length===0
+              ? <div style={{textAlign:'center',padding:'40px 0',color:C.grayDark}}>
+                  <p style={{fontSize:28,marginBottom:8}}>✅</p>
+                  <p style={{fontWeight:700,fontSize:13}}>Nenhum descarte registrado!</p>
+                  <p style={{fontSize:11,marginTop:4}}>Registros ficam salvos por 7 dias</p>
+                </div>
+              : desperdicioList.filter(d=>{
+                      if(despSearch&&!d.product_name?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo?.toLowerCase().includes(despSearch.toLowerCase())&&!d.motivo_detail?.toLowerCase().includes(despSearch.toLowerCase())) return false
+                      if(despPeriodo==='hoje'&&toLocalDate(d.created_at)!==todayStr()) return false
+                      if(despPeriodo==='semana'&&(new Date()-new Date(d.created_at))/86400000>7) return false
+                      if(despPeriodo==='mes'&&(new Date()-new Date(d.created_at))/86400000>30) return false
+                      return true
+                    }).map(d=>{
+                  const diasRestantes=Math.ceil((new Date(d.foto_expira)-new Date())/86400000)
+                  return(
+                    <div key={d.id} style={{display:'flex',gap:12,padding:'14px 18px',borderBottom:`1px solid ${C.gray}`,alignItems:'flex-start'}}>
+                      {/* FOTO */}
+                      <div style={{flexShrink:0}}>
+                        {d.foto
+                          ? <img src={d.foto} alt="descarte" style={{width:72,height:72,borderRadius:10,objectFit:'cover',border:`2px solid ${C.grayMid}`,cursor:'pointer'}} onClick={()=>window.open(d.foto)} />
+                          : <div style={{width:72,height:72,background:C.gray,borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}>📷</div>
+                        }
+                        <p style={{fontSize:8,color:C.grayDark,textAlign:'center',marginTop:3}}>Foto: {diasRestantes}d restantes</p>
+                      </div>
+                      {/* INFO */}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4}}>
+                          <p style={{fontWeight:800,fontSize:13}}>{d.product_name}</p>
+                          <span style={{fontWeight:900,fontSize:13,color:C.red,flexShrink:0}}>{fmtCur(d.custo)}</span>
+                        </div>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:6}}>
+                          <span style={{background:C.redLight,color:C.red,fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{d.motivo}</span>
+                          <span style={{background:SETOR_COLORS[d.setor]+'22',color:SETOR_COLORS[d.setor],fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[d.setor]} {d.setor}</span>
+                          <span style={{background:C.gray,fontSize:10,padding:'2px 8px',borderRadius:20,fontWeight:600,color:C.grayDark}}>{d.qty} {d.product_unit}</span>
+                        </div>
+                        {d.motivo_detail&&<p style={{fontSize:11,color:C.grayDark,marginBottom:4}}>"{d.motivo_detail}"</p>}
+                        <p style={{fontSize:10,color:C.grayDark,fontWeight:600}}>{d.user_name} · {new Date(d.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · {TURNOS.find(t=>t.id===d.turno)?.label||d.turno}</p>
+                      </div>
+                    </div>
+                  )
+                })
+            }
+          </div>
+
+          {/* CANVAS HIDDEN */}
+          <canvas ref={desperdicioCanvasRef} style={{display:'none'}} />
+        </>}
+
+        {/* ══ PONTO ELETRÔNICO ══ */}
+        {tab==='ponto'&&<>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <p style={{fontWeight:800,fontSize:14}}>🕐 Ponto Eletrônico</p>
             <div style={{display:'flex',gap:8}}>
@@ -5350,41 +5794,4 @@ function AppInner() {
 // deploy Sat Jun 13 18:18:03 UTC 2026
 
 
-export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary> }const gerarPedido=()=>{
-            const w=window.open('','_blank')
-            if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
-            const data=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
-            const grupos={}
-            paraRepor.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
-            let rows=''
-            Object.entries(grupos).forEach(function(entry){
-              const setor=entry[0], itens=entry[1]
-              rows+='<tr style="background:#EA1D2C;color:white"><td colspan="5" style="padding:8px 12px;font-weight:bold">'+setor+' ('+itens.length+' itens)</td></tr>'
-              itens.forEach(function(p,i){
-                const bg=i%2===0?'#fff':'#f9f9f9'
-                const cor=p.urgencia==='critico'?'#EA1D2C':p.urgencia==='urgente'?'#F97316':'#3B82F6'
-                rows+='<tr style="background:'+bg+'"><td style="padding:8px 12px;font-size:12px">'+p.name+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+p.quantity+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center">'+(p.min_stock||0)+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:center;font-weight:bold;color:'+cor+'">'+p.qtdSugerida+' '+p.unit+'</td><td style="padding:8px 12px;font-size:12px;text-align:right">R$ '+p.custoRepor.toFixed(2)+'</td></tr>'
-              })
-            })
-            const total=paraRepor.reduce(function(s,p){return s+p.qtdSugerida},0).toFixed(1)
-            const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;margin:0;padding:20px}.header{border-bottom:3px solid #EA1D2C;padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-end}h1{color:#EA1D2C;margin:0;font-size:22px}table{width:100%;border-collapse:collapse;margin-bottom:20px}th{background:#1a1a1a;color:white;padding:10px 12px;font-size:12px;text-align:left}th:nth-child(n+2){text-align:center}th:last-child{text-align:right}.total{background:#EA1D2C;color:white;font-weight:bold}.total td{padding:12px}@media print{.noprint{display:none}}</style></head><body><div class="header"><div><h1>Boi de Minas Churrascaria</h1><p style="margin:4px 0 0;color:#666;font-size:13px">Lista de Compras — '+data+'</p></div><div style="text-align:right"><p style="margin:0;font-size:13px">'+paraRepor.length+' itens</p><p style="margin:4px 0 0;font-size:18px;font-weight:bold;color:#EA1D2C">R$ '+custoTotalRepor.toFixed(2)+'</p></div></div><table><thead><tr><th>Produto</th><th>Estoque Atual</th><th>Mínimo</th><th>Qtd a Comprar</th><th>Custo Est.</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr class="total"><td colspan="3">TOTAL ('+paraRepor.length+' itens)</td><td style="text-align:center">'+total+' un</td><td style="text-align:right">R$ '+custoTotalRepor.toFixed(2)+'</td></tr></tfoot></table><div class="noprint" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;padding:12px 32px;font-size:14px;border-radius:8px;cursor:pointer;font-weight:bold">Imprimir / Salvar PDF</button></div></body></html>'
-            w.document.write(html)
-            w.document.close()
-            logAudit('PEDIDO GERADO','Lista de compras',paraRepor.length+' itens')
-          }
-
-          const enviarWhatsApp=()=>{
-            const tel=(localStorage.getItem('boi_whatsapp_num')||'').replace(/\D/g,'')
-            if(!tel){showToast('Configure o numero do WhatsApp nas configuracoes','warn');setWhatsappModal(true);return}
-            const emoji={critico:'🚨',urgente:'⚠️',atencao:'👀'}
-            const grupos={}
-            paraRepor.forEach(function(p){if(!grupos[p.setor||'Geral'])grupos[p.setor||'Geral']=[];grupos[p.setor||'Geral'].push(p)})
-            let msg='🐂 *BOI DE MINAS - LISTA DE COMPRAS*\n📅 '+new Date().toLocaleDateString('pt-BR')+'\n\n'
-            Object.entries(grupos).forEach(function(entry){
-              msg+='*'+entry[0]+':*\n'
-              entry[1].forEach(function(p){msg+=(emoji[p.urgencia]||'•')+' '+p.name+': *'+p.qtdSugerida+' '+p.unit+'*\n'})
-              msg+='\n'
-            })
-            msg+='💰 *Total: R$ '+custoTotalRepor.toFixed(2)+'*'
-            window.open('https://wa.me/55'+tel+'?text='+encodeURIComponent(msg),'_blank')
-          }
+export default function App(){ return <ErrorBoundary><AppInner/></ErrorBoundary> }
