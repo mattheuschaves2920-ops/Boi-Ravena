@@ -3670,52 +3670,49 @@ function AppInner() {
 
         {/* ══ PREVISÃO ══ */}
         {tab==='previsao'&&<>
-          {/* BANNER */}
-          <div style={{background:C.red,borderRadius:16,padding:'14px 16px',marginBottom:12,color:C.white}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          {/* HERO */}
+          <div style={{background:'linear-gradient(135deg,#C81E1E 0%,#8C1414 100%)',borderRadius:20,padding:18,color:C.white,position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:-40,right:-40,width:140,height:140,background:'rgba(255,255,255,0.08)',borderRadius:'50%'}}></div>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',position:'relative',zIndex:1}}>
               <div>
-                <p style={{fontSize:16,fontWeight:900,margin:0}}>🛒 Lista de Compras</p>
-                <p style={{fontSize:11,opacity:0.85,margin:'3px 0 0'}}>Baseado em estoque mínimo e máximo</p>
+                <p style={{fontSize:18,fontWeight:900,letterSpacing:-0.3,margin:0}}>Lista de Compras</p>
+                <p style={{fontSize:11,opacity:0.8,marginTop:4,fontWeight:500}}>estoque mín/máx · {new Date().toLocaleDateString('pt-BR')}</p>
               </div>
-              <div style={{background:'rgba(255,255,255,0.2)',borderRadius:10,padding:'8px 12px',textAlign:'center'}}>
-                <p style={{fontSize:10,margin:0,opacity:0.9}}>custo total</p>
-                <p style={{fontSize:16,fontWeight:900,margin:'2px 0 0'}}>{fmtCur(custoTotalReporComp)}</p>
+              <div style={{textAlign:'right'}}>
+                <p style={{fontSize:9,opacity:0.75,textTransform:'uppercase',letterSpacing:0.5,fontWeight:700,margin:0}}>Investimento</p>
+                <p style={{fontSize:22,fontWeight:900,marginTop:2}}>{fmtCur(custoTotalReporComp)}</p>
               </div>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginTop:10}}>
+            <div style={{display:'flex',gap:8,marginTop:16,position:'relative',zIndex:1}}>
               {[
-                {l:'🚨 Zerados',v:previsaoComp.filter(p=>p.quantity<=0).length},
-                {l:'⚠️ Baixo',v:previsaoComp.filter(p=>p.quantity>0&&p.urgencia!=='ok').length},
-                {l:'🛒 Total',v:previsaoComp.filter(p=>p.precisaRepor).length+' itens'},
+                {n:previsaoComp.filter(p=>p.quantity<=0).length,l:'🚨 Zerados',f:'critico'},
+                {n:previsaoComp.filter(p=>p.quantity>0&&p.urgencia!=='ok').length,l:'⚠️ Baixo',f:'urgente'},
+                {n:previsaoComp.filter(p=>p.precisaRepor).length,l:'📦 Total',f:'todos'},
               ].map(s=>(
-                <div key={s.l} style={{background:'rgba(255,255,255,0.15)',borderRadius:8,padding:'8px',textAlign:'center'}}>
-                  <p style={{fontSize:9,margin:0,opacity:0.9}}>{s.l}</p>
-                  <p style={{fontSize:18,fontWeight:900,margin:'2px 0 0'}}>{s.v}</p>
+                <div key={s.l} onClick={()=>setPrevFiltroStatus(s.f)} style={{flex:1,background:'rgba(255,255,255,0.12)',borderRadius:12,padding:'10px 8px',textAlign:'center',border:'1px solid rgba(255,255,255,0.15)',cursor:'pointer'}}>
+                  <p style={{fontSize:20,fontWeight:900,lineHeight:1,margin:0}}>{s.n}</p>
+                  <p style={{fontSize:9,opacity:0.85,marginTop:4,fontWeight:600,margin:'4px 0 0'}}>{s.l}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* FILTROS + AÇÕES */}
-          <div style={{...S.card,padding:12,marginBottom:12}}>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
-              <select value={prevFiltroStatus} onChange={e=>setPrevFiltroStatus(e.target.value)} style={{...S.input,flex:1,minWidth:120,fontSize:12}}>
-                <option value="todos">Todos</option>
-                <option value="critico">🚨 Críticos</option>
-                <option value="urgente">⚠️ Urgentes</option>
-                <option value="atencao">👀 Atenção</option>
-              </select>
-              <select value={prevFiltroSetor} onChange={e=>setPrevFiltroSetor(e.target.value)} style={{...S.input,flex:1,minWidth:120,fontSize:12}}>
-                <option value="todos">Todos setores</option>
-                {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
-              </select>
-              <button onClick={()=>{setPrevFiltroStatus('todos');setPrevFiltroSetor('todos')}} style={{...S.btnGray,padding:'8px 10px',fontSize:12}}>✕</button>
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-              <button onClick={gerarPedido} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>🖨️ Gerar PDF</button>
-              <button onClick={enviarWhatsApp} style={{background:'#25D366',color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
-            </div>
+          {/* SEGMENT CONTROL */}
+          <div style={{display:'flex',background:C.white,borderRadius:14,padding:4,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',gap:2,marginTop:12}}>
+            {[{k:'todos',l:'Todos'},{k:'critico',l:'🚨 Críticos'},{k:'urgente',l:'⚠️ Baixo'},{k:'atencao',l:'👀 Atenção'}].map(s=>(
+              <button key={s.k} onClick={()=>setPrevFiltroStatus(s.k)} style={{flex:1,textAlign:'center',padding:'9px 4px',borderRadius:10,fontSize:11,fontWeight:700,color:prevFiltroStatus===s.k?C.white:'#888',background:prevFiltroStatus===s.k?'#1A1A1A':'none',border:'none',cursor:'pointer'}}>{s.l}</button>
+            ))}
           </div>
+
+          {/* TOOLBAR */}
+          <div style={{display:'flex',gap:8,marginTop:10,marginBottom:4}}>
+            <select value={prevFiltroSetor} onChange={e=>setPrevFiltroSetor(e.target.value)} style={{flex:1,padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:600,color:'#444'}}>
+              <option value="todos">Todos os setores</option>
+              {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+            </select>
+          </div>
+
+          <p style={{textAlign:'center',fontSize:11,color:'#aaa',padding:'4px 0',fontWeight:600,marginBottom:8}}>toque em um item para ver detalhes</p>
 
           {/* LISTA */}
           {(()=>{
@@ -3732,68 +3729,71 @@ function AppInner() {
               </div>
             )
             return(
-              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
                 {filtrados.map((p,i)=>{
-                  const cor=p.urgencia==='critico'?C.red:p.urgencia==='urgente'?'#F97316':'#3B82F6'
-                  const bgLight=p.urgencia==='critico'?C.redLight:p.urgencia==='urgente'?'#FEF3C7':'#EFF6FF'
+                  const cor=p.urgencia==='critico'?'#DC2626':p.urgencia==='urgente'?'#EA580C':'#2563EB'
+                  const bgLight=p.urgencia==='critico'?'#FEF2F2':p.urgencia==='urgente'?'#FFF7ED':'#EFF6FF'
                   const pct=p.pctEstoque||0
+                  const isOpen=prevExpanded===p.id
                   return(
-                    <div key={i} style={{background:C.white,borderRadius:14,padding:14,boxShadow:'0 1px 4px rgba(0,0,0,0.08)',borderLeft:`4px solid ${cor}`}}>
-                      {/* HEADER */}
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
-                        <div style={{flex:1,marginRight:8}}>
-                          <p style={{fontWeight:800,fontSize:14,margin:0}}>{p.name}</p>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{SETOR_ICONS[p.setor]||'📦'} {p.setor} · {p.category}</p>
+                    <div key={p.id} style={{background:C.white,borderRadius:16,overflow:'hidden',boxShadow:isOpen?'0 4px 16px rgba(0,0,0,0.1)':'0 1px 3px rgba(0,0,0,0.06)',transition:'box-shadow 0.2s'}}>
+                      <div onClick={()=>setPrevExpanded(isOpen?null:p.id)} style={{padding:'14px 16px',cursor:'pointer',display:'flex',alignItems:'center',gap:12}}>
+                        <div style={{width:4,alignSelf:'stretch',borderRadius:4,flexShrink:0,minHeight:44,background:cor}}></div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <p style={{fontWeight:800,fontSize:14,margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.name}</p>
+                          <p style={{fontSize:11,color:'#999',marginTop:2,display:'flex',alignItems:'center',gap:6}}>{SETOR_ICONS[p.setor]||'📦'} {p.setor} <span style={{width:3,height:3,borderRadius:'50%',background:'#ccc',display:'inline-block'}}></span> {p.category}</p>
                         </div>
-                        <span style={{background:cor,color:'white',fontSize:10,padding:'3px 9px',borderRadius:20,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}}>
-                          {p.urgencia==='critico'?p.quantity<=0?'🚨 ZERADO':'🚨 CRÍTICO':p.urgencia==='urgente'?'⚠️ BAIXO':'👀 ATENÇÃO'}
-                        </span>
+                        <div style={{textAlign:'right',flexShrink:0}}>
+                          <p style={{fontSize:16,fontWeight:900,margin:0,color:cor}}>{p.qtdSugerida} {p.unit}</p>
+                          <p style={{fontSize:9,color:'#999',fontWeight:700,textTransform:'uppercase',margin:0}}>comprar</p>
+                        </div>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{color:isOpen?'#888':'#ccc',transition:'transform 0.25s',transform:isOpen?'rotate(180deg)':'none',flexShrink:0}}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </div>
-                      {/* STATS */}
-                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:10}}>
-                        <div style={{background:bgLight,borderRadius:8,padding:'8px',textAlign:'center'}}>
-                          <p style={{fontSize:10,color:cor,margin:0}}>Atual</p>
-                          <p style={{fontSize:16,fontWeight:900,color:cor,margin:'2px 0 0'}}>{p.quantity} {p.unit}</p>
-                        </div>
-                        <div style={{background:C.gray,borderRadius:8,padding:'8px',textAlign:'center'}}>
-                          <p style={{fontSize:10,color:C.grayDark,margin:0}}>Mínimo</p>
-                          <p style={{fontSize:16,fontWeight:900,margin:'2px 0 0'}}>{p.min_stock||0} {p.unit}</p>
-                        </div>
-                        <div style={{background:bgLight,borderRadius:8,padding:'8px',textAlign:'center',border:`1px solid ${cor}44`}}>
-                          <p style={{fontSize:10,color:cor,fontWeight:700,margin:0}}>Comprar</p>
-                          <p style={{fontSize:16,fontWeight:900,color:cor,margin:'2px 0 0'}}>{p.qtdSugerida} {p.unit}</p>
-                        </div>
-                      </div>
-                      {/* PROGRESS */}
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <div style={{flex:1,marginRight:10}}>
-                          <div style={{background:'#e0e0e0',borderRadius:4,height:6,overflow:'hidden'}}>
-                            <div style={{width:pct+'%',height:'100%',background:cor,borderRadius:4}}></div>
+                      {isOpen&&(
+                        <div style={{padding:'0 16px 16px 32px'}}>
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:10}}>
+                            <div style={{borderRadius:10,padding:'8px 6px',textAlign:'center',background:bgLight}}>
+                              <label style={{fontSize:9,display:'block',fontWeight:700,textTransform:'uppercase',color:cor}}>Atual</label>
+                              <span style={{fontSize:15,fontWeight:900,display:'block',marginTop:3,color:cor}}>{p.quantity}</span>
+                            </div>
+                            <div style={{borderRadius:10,padding:'8px 6px',textAlign:'center',background:'#F7F5F2'}}>
+                              <label style={{fontSize:9,display:'block',fontWeight:700,textTransform:'uppercase',color:'#999'}}>Mínimo</label>
+                              <span style={{fontSize:15,fontWeight:900,display:'block',marginTop:3,color:'#333'}}>{p.min_stock||0}</span>
+                            </div>
+                            <div style={{borderRadius:10,padding:'8px 6px',textAlign:'center',background:bgLight}}>
+                              <label style={{fontSize:9,display:'block',fontWeight:700,textTransform:'uppercase',color:cor}}>Máximo</label>
+                              <span style={{fontSize:15,fontWeight:900,display:'block',marginTop:3,color:cor}}>{p.max_stock||0}</span>
+                            </div>
                           </div>
-                          <p style={{fontSize:10,color:C.grayDark,margin:'3px 0 0'}}>{pct}% do máximo ({p.max_stock||0} {p.unit})</p>
+                          <div style={{marginBottom:10}}>
+                            <div style={{background:'#EEE',borderRadius:6,height:8,overflow:'hidden'}}>
+                              <div style={{height:'100%',borderRadius:6,transition:'width 0.6s',width:pct+'%',background:cor}}></div>
+                            </div>
+                            <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#999',marginTop:5,fontWeight:600}}>
+                              <span>{pct}% do estoque</span>
+                              <span>{p.quantity<=0?'esgotado':p.urgencia==='urgente'?'abaixo do mínimo':'repor em breve'}</span>
+                            </div>
+                          </div>
+                          {p.custoRepor>0&&(
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#1A1A1A',borderRadius:10,padding:'10px 12px'}}>
+                              <span style={{fontSize:10,color:'#aaa',fontWeight:600}}>CUSTO ESTIMADO</span>
+                              <span style={{fontSize:15,color:'white',fontWeight:800}}>{fmtCur(p.custoRepor)}</span>
+                            </div>
+                          )}
                         </div>
-                        {p.custoRepor>0&&<p style={{fontSize:13,fontWeight:800,whiteSpace:'nowrap',flexShrink:0,color:C.text}}>{fmtCur(p.custoRepor)}</p>}
-                      </div>
+                      )}
                     </div>
                   )
                 })}
-
-                {/* TOTAL */}
-                {previsaoComp.filter(p=>p.precisaRepor).length>0&&(
-                  <div style={{background:C.white,borderRadius:14,padding:14,boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                      <p style={{fontWeight:800,fontSize:14,margin:0}}>💰 Total estimado</p>
-                      <p style={{fontWeight:900,fontSize:20,color:C.red,margin:0}}>{fmtCur(custoTotalReporComp)}</p>
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                      <button onClick={gerarPedido} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>🖨️ Gerar PDF</button>
-                      <button onClick={enviarWhatsApp} style={{background:'#25D366',color:'white',border:'none',borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })()}
+
+          {/* FAB ACTIONS */}
+          <div style={{display:'flex',gap:10,marginTop:14}}>
+            <button onClick={gerarPedido} style={{flex:1,padding:14,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#1A1A1A',color:'white'}}>🖨️ Gerar PDF</button>
+            <button onClick={enviarWhatsApp} style={{flex:1,padding:14,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#25D366',color:'white'}}>📱 WhatsApp</button>
+          </div>
         </>}
 
                 {/* ══ PAINEL DO DONO ══ */}
