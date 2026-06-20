@@ -426,6 +426,7 @@ function AppInner() {
   const [confirmErr,setConfirmErr] = useState('')
   const [filterAudit,setFilterAudit] = useState('')
   const [recalcDate,setRecalcDate] = useState('')
+  const [prevExpanded,setPrevExpanded] = useState(null)
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
   const [filterAuditUser,setFilterAuditUser] = useState('todos')
@@ -1384,13 +1385,19 @@ function AppInner() {
   const saveEnergiaAlerta=async(cfg)=>{
     setEnergiaAlerta(cfg)
     try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
-    try{await supabase.from('configuracoes').upsert({id:'energia_alerta',valor:cfg})}catch(e2){}
+    try{
+      const{error}=await supabase.from('configuracoes').upsert({id:'energia_alerta',valor:cfg},{onConflict:'id'})
+      if(error)console.error('Erro ao salvar alerta energia:',error)
+    }catch(e2){console.error('Erro ao salvar alerta energia:',e2)}
   }
 
   const saveEnergiaConfig=async(cfg)=>{
     setEnergiaConfig(cfg)
     try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
-    try{await supabase.from('configuracoes').upsert({id:'energia_config',valor:cfg})}catch(e2){}
+    try{
+      const{error}=await supabase.from('configuracoes').upsert({id:'energia_config',valor:cfg},{onConflict:'id'})
+      if(error){console.error('Erro ao salvar config energia:',error);showToast('Erro ao salvar na nuvem (salvo localmente)','warn')}
+    }catch(e2){console.error('Erro ao salvar config energia:',e2)}
   }
 
   const addLeituraEnergia=async()=>{
@@ -4387,12 +4394,12 @@ function AppInner() {
             <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>TARIFA (R$/kWh)</label>
-                <input type="number" step="0.01" inputMode="decimal" value={energiaConfig.tarifa} onChange={e=>setEnergiaConfig(c=>({...c,tarifa:e.target.value}))} onBlur={e=>saveEnergiaConfig({...energiaConfig,tarifa:parseFloat(e.target.value)||0.95})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" step="0.01" inputMode="decimal" value={energiaConfig.tarifa} onChange={e=>setEnergiaConfig(c=>({...c,tarifa:e.target.value}))} onBlur={e=>{const v=parseFloat(e.target.value)||0.95;saveEnergiaConfig({...energiaConfig,tarifa:v})}} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Verifique na sua conta CEMIG</p>
               </div>
               <div>
                 <label style={{fontSize:12,fontWeight:800,color:C.grayDark,display:'block',marginBottom:6}}>META MENSAL (kWh)</label>
-                <input type="number" inputMode="numeric" value={energiaConfig.meta} onChange={e=>setEnergiaConfig(c=>({...c,meta:e.target.value}))} onBlur={e=>saveEnergiaConfig({...energiaConfig,meta:parseInt(e.target.value)||500})} style={{...S.input,fontSize:15,fontWeight:700}} />
+                <input type="number" inputMode="numeric" value={energiaConfig.meta} onChange={e=>setEnergiaConfig(c=>({...c,meta:e.target.value}))} onBlur={e=>{const v=parseInt(e.target.value)||500;saveEnergiaConfig({...energiaConfig,meta:v})}} style={{...S.input,fontSize:15,fontWeight:700}} />
                 <p style={{fontSize:11,color:C.grayDark,marginTop:4}}>Meta de consumo do mês</p>
               </div>
               <div>
