@@ -1594,6 +1594,7 @@ function AppInner() {
   const recalcCustoHoje=()=>recalcCusto()
 
   const saveEditMov=async()=>{
+    if(!canAdmin) return showToast('Apenas administradores podem editar movimentos','err')
     if(!editMovForm.quantity||parseFloat(editMovForm.quantity)<=0) return showToast('Quantidade inválida','err')
     const oldQty=editMovItem.quantity
     const newQty=parseFloat(editMovForm.quantity)
@@ -1871,6 +1872,7 @@ function AppInner() {
   }
 
   const handleSaveProd=async()=>{
+    if(editProd&&!canAdmin) return showToast('Apenas administradores podem editar produtos','err')
     if(!prodForm.name||!prodForm.quantity) return showToast('Nome e quantidade obrigatórios','err')
     const allBarcodes=[...new Set([prodForm.barcode,...(prodForm.barcodes||[])].filter(Boolean))];const data={name:prodForm.name,category:prodForm.category,unit:prodForm.unit,quantity:+prodForm.quantity,min_stock:+prodForm.min_stock||0,max_stock:+prodForm.max_stock||999,cost:+prodForm.cost||0,barcode:allBarcodes[0]||null,barcodes:allBarcodes,supplier:prodForm.supplier||null,expiry:prodForm.expiry||null,setor:prodForm.setor,embalagem:prodForm.embalagem||null,unid_embalagem:prodForm.unid_embalagem?+prodForm.unid_embalagem:null,tipo:prodForm.tipo||'Consumo'}
     const{error}=editProd?await supabase.from('produtos').update(data).eq('id',editProd):await supabase.from('produtos').insert(data)
@@ -1901,6 +1903,7 @@ function AppInner() {
   }
 
   const deleteProd=async(p)=>{
+    if(!canAdmin) return showToast('Apenas administradores podem excluir produtos','err')
     if(!window.confirm(`Excluir "${p.name}"? Esta ação não pode ser desfeita.`)) return
     const{error}=await supabase.from('produtos').delete().eq('id',p.id)
     if(error) return showToast('Erro ao excluir','err')
@@ -1910,6 +1913,7 @@ function AppInner() {
   }
 
   const deleteMov=async(m)=>{
+    if(!canAdmin) return showToast('Apenas administradores podem excluir movimentos','err')
     if(!window.confirm('Excluir este movimento? O estoque NÃO será revertido.')) return
     const{error}=await supabase.from('movimentos').delete().eq('id',m.id)
     if(error) return showToast('Erro ao excluir','err')
@@ -2509,7 +2513,7 @@ function AppInner() {
                     </>)}
 
                     {dashModal==='alertas_todos'&&lowProds.map((p,i)=>(
-                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:'#FEF3C7'}}>
+                      <div key={i} onClick={()=>{if(canAdmin){openEdit(p);setDashModal(null)}}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:'#FEF3C7'}}>
                         <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,color:p.quantity<=0?C.red:'#92400E',margin:0}}>{p.name}</p><span style={{fontSize:10,background:p.quantity<=0?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{p.quantity<=0?'ZERADO':'BAIXO'}</span></div>
                         <p style={{fontSize:11,color:p.quantity<=0?C.red:'#92400E',margin:'3px 0 0'}}>{p.quantity} {p.unit} · mín:{p.min_stock} · {p.setor}</p>
                       </div>
@@ -2528,7 +2532,7 @@ function AppInner() {
                     ))}
 
                     {dashModal==='setor_detalhe'&&products.filter(p=>p.setor===dashModalData).sort((a,b)=>a.quantity-b.quantity).map((p,i)=>(
-                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
+                      <div key={i} onClick={()=>{if(canAdmin){openEdit(p);setDashModal(null)}}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:p.quantity<=0?C.redLight:p.quantity<=p.min_stock?'#FEF3C7':C.white}}>
                         <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontWeight:800,color:p.quantity<=0?C.red:p.quantity<=p.min_stock?'#f97316':'#22c55e'}}>{p.quantity} {p.unit}</span></div>
                         <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>mín:{p.min_stock} · {fmtCur(p.cost)}/{p.unit} · {p.category}</p>
                       </div>
@@ -2560,7 +2564,7 @@ function AppInner() {
                       const todos=products.filter(p=>p.expiry).sort((a,b)=>a.expiry.localeCompare(b.expiry))
                       return todos.map((p,i)=>{
                         const dias=Math.ceil((new Date(p.expiry)-new Date())/(1000*60*60*24))
-                        return(<div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:dias<=2?C.redLight:dias<=7?'#FEF3C7':C.white}}>
+                        return(<div key={i} onClick={()=>{if(canAdmin){openEdit(p);setDashModal(null)}}} style={{...S.input,padding:'10px 12px',cursor:'pointer',background:dias<=2?C.redLight:dias<=7?'#FEF3C7':C.white}}>
                           <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontSize:11,background:dias<=0?C.red:dias<=3?C.red:'#F97316',color:'white',padding:'2px 7px',borderRadius:20,fontWeight:800}}>{dias<=0?'VENCIDO':dias+'d'}</span></div>
                           <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {fmtDate(p.expiry)}</p>
                         </div>)
@@ -2581,7 +2585,7 @@ function AppInner() {
                     })()}
 
                     {dashModal==='sem_mov'&&parados.sort((a,b)=>(b.quantity*b.cost)-(a.quantity*a.cost)).map((p,i)=>(
-                      <div key={i} onClick={()=>{openEdit(p);setDashModal(null)}} style={{...S.input,padding:'10px 12px',cursor:'pointer'}}>
+                      <div key={i} onClick={()=>{if(canAdmin){openEdit(p);setDashModal(null)}}} style={{...S.input,padding:'10px 12px',cursor:'pointer'}}>
                         <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p.name}</p><span style={{fontWeight:800,color:'#1D4ED8'}}>{fmtCur(p.quantity*p.cost)}</span></div>
                         <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{p.quantity} {p.unit} · {p.setor} · {p.category}</p>
                       </div>
@@ -2615,7 +2619,7 @@ function AppInner() {
             {filtered.filter(p=>(filterSetor==='todos'||p.setor===filterSetor)&&(filterTipo==='todos'||(p.tipo||'Consumo')===filterTipo)).map(p=>{
               const isLow=p.quantity<=p.min_stock; const pct=Math.min(100,(p.quantity/(p.max_stock||1))*100); const isExp=p.expiry&&(new Date(p.expiry)-new Date())/86400000<=7
               return(
-                <div key={p.id} onClick={()=>openEdit(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
+                <div key={p.id} onClick={()=>canAdmin&&openEdit(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                     <div>
                       <p style={{fontWeight:800,fontSize:14,marginBottom:2}}>{p.name}</p>
@@ -2650,7 +2654,7 @@ function AppInner() {
                     <div style={{display:'flex',gap:5}}>
                       <button style={{background:'#22c55e',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('entrada',p)}}>+</button>
                       <button style={{background:'#ef4444',border:'none',borderRadius:8,padding:'6px 12px',fontSize:14,color:'white',fontWeight:900,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openMov('saida',p)}}>−</button>
-                      <button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openEdit(p)}}>✏️</button>
+                      {canAdmin&&<button style={{background:'#f3f4f6',border:'1px solid #d1d5db',borderRadius:8,padding:'6px 10px',fontSize:13,cursor:'pointer'}} onClick={e=>{e.stopPropagation();openEdit(p)}}>✏️</button>}
                       {canAdmin&&<button style={{background:'none',border:'1px solid #ffcccc',borderRadius:6,padding:'5px 8px',fontSize:12,cursor:'pointer',color:C.red}} onClick={e=>{e.stopPropagation();deleteProd(p)}}>🗑️</button>}
                     </div>
                   </div>
@@ -2716,7 +2720,7 @@ function AppInner() {
                         <td style={{padding:'9px 12px'}}>{m.setor&&<span style={{fontSize:10,background:SETOR_COLORS[m.setor]+'22',color:SETOR_COLORS[m.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[m.setor]} {m.setor}</span>}</td>
                         <td style={{padding:'9px 12px'}}><span style={{fontSize:10,color:C.grayDark,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{m.user_name||'—'}</span></td>
                         <td style={{padding:'9px 12px',display:'flex',gap:4}}>
-                          <button onClick={()=>openEditMov(m)} style={{background:'none',border:'1px solid #ddd',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer'}}>✏️</button>
+                          {canAdmin&&<button onClick={()=>openEditMov(m)} style={{background:'none',border:'1px solid #ddd',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer'}}>✏️</button>}
                           {canAdmin&&<button onClick={()=>deleteMov(m)} style={{background:'none',border:'1px solid #ffcccc',borderRadius:6,padding:'3px 8px',fontSize:12,cursor:'pointer',color:C.red}}>🗑️</button>}
                         </td>
                       </tr>
@@ -3585,7 +3589,7 @@ function AppInner() {
                               </td>
                               <td style={{padding:'10px 14px'}}>
                                 <div style={{display:'flex',gap:5}}>
-                                  <button onClick={()=>{setEditCardapio(i);setCardapioForm({...item});setCardapioModal(true)}} style={{...S.btnGray,padding:'4px 8px',fontSize:11}}>✏️</button>
+                                  {canAdmin&&<button onClick={()=>{setEditCardapio(i);setCardapioForm({...item});setCardapioModal(true)}} style={{...S.btnGray,padding:'4px 8px',fontSize:11}}>✏️</button>}
                                   <button onClick={()=>{if(window.confirm('Excluir '+item.name+'?')){saveCardapio(cardapio.filter((_,x)=>x!==i));logAudit('ITEM EXCLUÍDO','Item','excluído');showToast('✓ Item excluído!')}}} style={{...S.btnGray,padding:'4px 8px',fontSize:11,color:C.red}}>🗑️</button>
                                 </div>
                               </td>
@@ -4028,7 +4032,7 @@ function AppInner() {
                               )}
                             </>
                         }
-                        <button onClick={()=>{setPdvEditPonto(idx);setPdvPontoForm({name:ponto.name,setor:ponto.setor,descricao:ponto.descricao||''});setPdvModal('ponto')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✏️</button>
+                        {canAdmin&&<button onClick={()=>{setPdvEditPonto(idx);setPdvPontoForm({name:ponto.name,setor:ponto.setor,descricao:ponto.descricao||''});setPdvModal('ponto')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✏️</button>}
                         <button onClick={()=>{if(window.confirm('Excluir '+ponto.name+'?')){const upd=pdvPontos.filter((_,i)=>i!==idx);setPdvPontos(upd);localStorage.setItem('boi_pdv_pontos',JSON.stringify(upd));showToast('✓ Ponto excluído!')}}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,color:C.red}}>🗑️</button>
                       </div>
 
@@ -4283,7 +4287,7 @@ function AppInner() {
                         </div>
                         <div style={{display:'flex',flexDirection:'column',gap:4}}>
                           <button onClick={()=>setPontoMesFunc(f.id)} style={{...S.btnGray,padding:'5px 8px',fontSize:10,color:C.blue,fontWeight:700}}>📅</button>
-                          <button onClick={()=>{setPontoModal('editFunc');setPontoSelecionado(f.id)}} style={{...S.btnGray,padding:'5px 8px',fontSize:11}}>✏️</button>
+                          {canAdmin&&<button onClick={()=>{setPontoModal('editFunc');setPontoSelecionado(f.id)}} style={{...S.btnGray,padding:'5px 8px',fontSize:11}}>✏️</button>}
                           <button onClick={()=>{if(window.confirm('Excluir '+f.nome+'?')){savePontoFuncionarios(pontoFuncionarios.filter(x=>x.id!==f.id))}}} style={{...S.btnGray,padding:'5px 8px',fontSize:11,color:C.red}}>🗑️</button>
                         </div>
                       </div>
@@ -4342,7 +4346,7 @@ function AppInner() {
                           <td style={{padding:'8px 14px',color:C.grayDark}}>{r.manual?'✍️ Manual':r.validacao==='foto'?'📷 Foto':'🔢 PIN'}</td>
                           {canAdmin&&<td style={{padding:'8px 14px'}}>
                             <div style={{display:'flex',gap:4}}>
-                              <button onClick={()=>editarRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11}}>✏️</button>
+                              {canAdmin&&<button onClick={()=>editarRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11}}>✏️</button>}
                               {canAdmin&&<button onClick={()=>excluirRegistroPonto(r)} style={{...S.btnGray,padding:'3px 7px',fontSize:11,color:C.red}}>🗑️</button>}
                             </div>
                           </td>}
