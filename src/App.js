@@ -403,7 +403,7 @@ function AppInner() {
   const [danificadoList,setDanificadoList] = useState(()=>{try{return JSON.parse(localStorage.getItem('boi_danificados')||'[]')}catch(e){return[]}})
   const [editProd,setEditProd] = useState(null)
   const [search,setSearch]     = useState('')
-  const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual()})
+  const [movForm,setMovForm]   = useState({productId:'',qty:'',note:'',type:'entrada',setor:SETORES[0],turno:getTurnoAtual(),dataMov:''})
   const [editMovModal,setEditMovModal] = useState(false)
   const [editMovItem,setEditMovItem] = useState(null)
   const [editMovForm,setEditMovForm] = useState({quantity:'',cost_unit:'',note:'',turno:''})
@@ -1842,15 +1842,16 @@ function AppInner() {
     if(!product) return
     if(movForm.type==='saida'&&product.quantity<qty) return showToast(`Estoque insuficiente! Disponível: ${product.quantity} ${product.unit}`,'err')
     const newQty=+(movForm.type==='entrada'?product.quantity+qty:product.quantity-qty).toFixed(3)
+    const dataFinalIso=movForm.dataMov?new Date(movForm.dataMov+'T'+new Date().toTimeString().slice(0,8)).toISOString():new Date().toISOString()
     const[{error:e1},{error:e2}]=await Promise.all([
       supabase.from('produtos').update({quantity:newQty}).eq('id',pid),
-      supabase.from('movimentos').insert({product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno}),
+      supabase.from('movimentos').insert({product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:dataFinalIso}),
     ])
     if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
     setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
-    setMovements(prev=>[{product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:new Date().toISOString()},...prev])
-    logAudit(movForm.type==='entrada'?'ENTRADA':'SAÍDA',product.name,`${qty} ${product.unit} · ${movForm.setor}${movForm.note?' · '+movForm.note:''}`)
-    setMovForm(f=>({...f,productId:'',qty:'',note:''})); setModal(null)
+    setMovements(prev=>[{product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:dataFinalIso},...prev])
+    logAudit(movForm.type==='entrada'?'ENTRADA':'SAÍDA',product.name,`${qty} ${product.unit} · ${movForm.setor}${movForm.note?' · '+movForm.note:''}${movForm.dataMov?' · retroativo '+movForm.dataMov:''}`)
+    setMovForm(f=>({...f,productId:'',qty:'',note:'',dataMov:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
   }
 
@@ -1919,7 +1920,7 @@ function AppInner() {
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
-  const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual()}); setMovSearch(''); setModal('movimento') }
+  const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual(),dataMov:''}); setMovSearch(''); setModal('movimento') }
 
   if(!user) return <Login onLogin={setUser} />
 
@@ -4948,6 +4949,11 @@ function AppInner() {
                   {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
                 </select>
               </div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>DATA (deixe em branco para hoje)</label>
+              <input type="date" max={todayStr()} value={movForm.dataMov} onChange={e=>setMovForm(f=>({...f,dataMov:e.target.value}))} style={S.input} />
+              {movForm.dataMov&&<p style={{fontSize:11,color:'#1D4ED8',marginTop:4,fontWeight:700}}>📅 Lançamento retroativo</p>}
             </div>
             <div>
               <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>QUANTIDADE</label>
