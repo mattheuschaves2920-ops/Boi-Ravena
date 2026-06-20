@@ -427,6 +427,7 @@ function AppInner() {
   const [filterAudit,setFilterAudit] = useState('')
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
+  const [prevOrdem,setPrevOrdem] = useState('urgencia')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
   const [filterAuditUser,setFilterAuditUser] = useState('todos')
@@ -3704,30 +3705,56 @@ function AppInner() {
             </div>
           </div>
 
-          {/* SEGMENT CONTROL */}
+          {/* AÇÕES — PDF e WhatsApp logo no topo */}
+          <div style={{display:'flex',gap:10,marginTop:12}}>
+            <button onClick={gerarPedido} style={{flex:1,padding:13,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#1A1A1A',color:'white'}}>🖨️ Gerar PDF</button>
+            <button onClick={enviarWhatsApp} style={{flex:1,padding:13,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#25D366',color:'white'}}>📱 WhatsApp</button>
+          </div>
+
+          {/* SEGMENT CONTROL — Status */}
           <div style={{display:'flex',background:C.white,borderRadius:14,padding:4,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',gap:2,marginTop:12}}>
             {[{k:'todos',l:'Todos'},{k:'critico',l:'🚨 Críticos'},{k:'urgente',l:'⚠️ Baixo'},{k:'atencao',l:'👀 Atenção'}].map(s=>(
               <button key={s.k} onClick={()=>setPrevFiltroStatus(s.k)} style={{flex:1,textAlign:'center',padding:'9px 4px',borderRadius:10,fontSize:11,fontWeight:700,color:prevFiltroStatus===s.k?C.white:'#888',background:prevFiltroStatus===s.k?'#1A1A1A':'none',border:'none',cursor:'pointer'}}>{s.l}</button>
             ))}
           </div>
 
-          {/* TOOLBAR */}
-          <div style={{display:'flex',gap:8,marginTop:10,marginBottom:4}}>
-            <select value={prevFiltroSetor} onChange={e=>setPrevFiltroSetor(e.target.value)} style={{flex:1,padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:600,color:'#444'}}>
-              <option value="todos">Todos os setores</option>
+          {/* TOOLBAR — Setor, Categoria, Ordenação */}
+          <div style={{display:'flex',gap:8,marginTop:10,marginBottom:4,flexWrap:'wrap'}}>
+            <select value={prevFiltroSetor} onChange={e=>setPrevFiltroSetor(e.target.value)} style={{flex:1,minWidth:100,padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:600,color:'#444'}}>
+              <option value="todos">Todos setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
             </select>
+            <select value={prevFiltroCategoria||'todos'} onChange={e=>setPrevFiltroCategoria(e.target.value)} style={{flex:1,minWidth:100,padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:600,color:'#444'}}>
+              <option value="todos">Todas categorias</option>
+              {CATS.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={prevOrdem||'urgencia'} onChange={e=>setPrevOrdem(e.target.value)} style={{flex:1,minWidth:100,padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:600,color:'#444'}}>
+              <option value="urgencia">Por urgência</option>
+              <option value="nome">Por nome A-Z</option>
+              <option value="custo">Maior custo</option>
+              <option value="qtd">Maior quantidade</option>
+            </select>
+            {(prevFiltroStatus!=='todos'||prevFiltroSetor!=='todos'||(prevFiltroCategoria&&prevFiltroCategoria!=='todos'))&&(
+              <button onClick={()=>{setPrevFiltroStatus('todos');setPrevFiltroSetor('todos');setPrevFiltroCategoria('todos')}} style={{padding:'10px 12px',borderRadius:12,border:'none',fontSize:12,background:C.white,boxShadow:'0 1px 3px rgba(0,0,0,0.06)',fontWeight:700,color:C.red,cursor:'pointer'}}>✕ Limpar</button>
+            )}
           </div>
 
           <p style={{textAlign:'center',fontSize:11,color:'#aaa',padding:'4px 0',fontWeight:600,marginBottom:8}}>toque em um item para ver detalhes</p>
 
           {/* LISTA */}
           {(()=>{
-            const filtrados=previsaoComp.filter(p=>{
+            let filtrados=previsaoComp.filter(p=>{
               if(prevFiltroStatus!=='todos'&&p.urgencia!==prevFiltroStatus) return false
               if(prevFiltroSetor!=='todos'&&p.setor!==prevFiltroSetor) return false
+              if(prevFiltroCategoria&&prevFiltroCategoria!=='todos'&&p.category!==prevFiltroCategoria) return false
               return true
             })
+            const ordem=prevOrdem||'urgencia'
+            if(ordem==='nome') filtrados=[...filtrados].sort((a,b)=>a.name.localeCompare(b.name))
+            else if(ordem==='custo') filtrados=[...filtrados].sort((a,b)=>b.custoRepor-a.custoRepor)
+            else if(ordem==='qtd') filtrados=[...filtrados].sort((a,b)=>b.qtdSugerida-a.qtdSugerida)
+            else filtrados=[...filtrados].sort((a,b)=>{const order={critico:0,urgente:1,atencao:2,ok:3};return order[a.urgencia]-order[b.urgencia]})
+
             if(filtrados.length===0) return(
               <div style={{...S.card,padding:30,textAlign:'center'}}>
                 <p style={{fontSize:28,marginBottom:8}}>✅</p>
@@ -3795,12 +3822,6 @@ function AppInner() {
               </div>
             )
           })()}
-
-          {/* FAB ACTIONS */}
-          <div style={{display:'flex',gap:10,marginTop:14}}>
-            <button onClick={gerarPedido} style={{flex:1,padding:14,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#1A1A1A',color:'white'}}>🖨️ Gerar PDF</button>
-            <button onClick={enviarWhatsApp} style={{flex:1,padding:14,borderRadius:14,border:'none',fontSize:13,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.12)',background:'#25D366',color:'white'}}>📱 WhatsApp</button>
-          </div>
         </>}
 
                 {/* ══ PAINEL DO DONO ══ */}
