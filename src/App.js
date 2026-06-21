@@ -1841,7 +1841,6 @@ function AppInner() {
     if(!pid||!qty||qty<=0) return showToast('Preencha produto e quantidade','err')
     const product=products.find(p=>p.id===pid)
     if(!product) return
-    if(movForm.type==='saida'&&product.quantity<qty) return showToast(`Estoque insuficiente! Disponível: ${product.quantity} ${product.unit}`,'err')
     const newQty=+(movForm.type==='entrada'?product.quantity+qty:product.quantity-qty).toFixed(3)
     const dataFinalIso=movForm.dataMov?new Date(movForm.dataMov+'T'+new Date().toTimeString().slice(0,8)).toISOString():new Date().toISOString()
     const[{error:e1},{error:e2}]=await Promise.all([
@@ -1861,7 +1860,6 @@ function AppInner() {
     if(!pid||!qty||qty<=0) return showToast('Preencha produto e quantidade','err')
     const product=products.find(p=>p.id===pid)
     if(!product) return
-    if(product.quantity<qty) return showToast('Estoque insuficiente!','err')
     const tDest=TURNOS.find(t=>t.id===sepForm.turnoDestino)
     const dataLabel=sepForm.dataDestino?new Date(sepForm.dataDestino+'T12:00:00').toLocaleDateString('pt-BR'):'próximo turno'
     const nota='Separado para '+tDest?.label+' ('+dataLabel+')'+(sepForm.obs?' - '+sepForm.obs:'')
