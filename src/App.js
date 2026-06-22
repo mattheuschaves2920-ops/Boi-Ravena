@@ -428,6 +428,8 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
+  const [stockScanner,setStockScanner] = useState(false)
+  const [stockScanResult,setStockScanResult] = useState(null)
   const [prevOrdem,setPrevOrdem] = useState('urgencia')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
@@ -1702,6 +1704,12 @@ function AppInner() {
     }
     const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
     if(p){
+      if(stockScanner){
+        setStockScanResult(p)
+        stopScanner()
+        showToast('✓ '+p.name+' encontrado!')
+        return
+      }
       if(modal==='entrada'){
         setEntradaForm(f=>({...f,productId:p.id}))
         setEntradaSearch(p.name)
@@ -1722,6 +1730,10 @@ function AppInner() {
       if(modal!=='movimento') setModal('movimento')
       showToast('✓ Produto encontrado: '+p.name)
     } else {
+      if(stockScanner){
+        showToast('Código não encontrado no estoque','warn')
+        return
+      }
       showToast('Código não encontrado. Cadastre o produto primeiro.','warn')
       stopScanner()
     }
@@ -2604,7 +2616,10 @@ function AppInner() {
             <button onClick={()=>{setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''});setDanificadoSearch('');setModal('danificado')}} style={{background:'#f97316',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>⚠️ Danificado</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-            <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,flex:1,minWidth:200}} />
+            <div style={{display:'flex',gap:8,flex:1,minWidth:200}}>
+              <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>{setSearch(e.target.value);setStockScanResult(null)}} style={{...S.input,flex:1}} />
+              <button onClick={()=>{setStockScanner(true);setStockScanResult(null);setTimeout(()=>startScanner(),300)}} style={{width:46,height:46,borderRadius:12,border:'1.5px solid #E5E5E5',background:'white',fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>📷</button>
+            </div>
             <select value={filterSetor} onChange={e=>setFilterSetor(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
               <option value="todos">Todos os Setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
@@ -5087,6 +5102,51 @@ function AppInner() {
               </>)
             })()}
             {canAdmin&&<button onClick={()=>{setHistProd(null);openEdit(histProd)}} style={{...S.btnGray,width:'100%',marginTop:14,fontSize:12}}>✏️ Editar produto</button>}
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL SCANNER ESTOQUE */}
+      {stockScanner&&(
+        <Overlay onClose={()=>{setStockScanner(false);stopScanner()}}>
+          <MHead title="📷 Scanner de Estoque" onClose={()=>{setStockScanner(false);stopScanner()}} />
+          <div style={{padding:'0 16px 16px'}}>
+            <div style={{borderRadius:12,overflow:'hidden',marginBottom:12,position:'relative',background:'#1a1a1a'}}>
+              <video ref={videoRef} style={{width:'100%',height:200,objectFit:'cover',display:'block'}} />
+              <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+                <div style={{width:200,height:100,position:'relative'}}>
+                  {[{top:0,left:0,borderRight:'none',borderBottom:'none'},{top:0,right:0,borderLeft:'none',borderBottom:'none'},{bottom:0,left:0,borderRight:'none',borderTop:'none'},{bottom:0,right:0,borderLeft:'none',borderTop:'none'}].map((s,i)=>(
+                    <div key={i} style={{position:'absolute',width:20,height:20,border:'3px solid #EA1D2C',...s}}></div>
+                  ))}
+                </div>
+              </div>
+              <p style={{position:'absolute',bottom:8,left:0,right:0,textAlign:'center',color:'rgba(255,255,255,0.8)',fontSize:12,fontWeight:600}}>Centralize o código de barras</p>
+            </div>
+            {stockScanResult&&(
+              <div style={{background:'#f0fdf4',border:'1.5px solid #22c55e',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+                <span style={{fontSize:22}}>✅</span>
+                <div style={{flex:1}}>
+                  <p style={{fontWeight:800,fontSize:14,margin:0}}>{stockScanResult.name}</p>
+                  <p style={{fontSize:11,color:'#666',margin:'2px 0 0'}}>{SETOR_ICONS[stockScanResult.setor]} {stockScanResult.setor} · {stockScanResult.category}</p>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <p style={{fontSize:18,fontWeight:900,color:'#16a34a',margin:0}}>{stockScanResult.quantity}</p>
+                  <p style={{fontSize:9,color:'#666',fontWeight:700,textTransform:'uppercase',margin:0}}>{stockScanResult.unit}</p>
+                </div>
+              </div>
+            )}
+            {stockScanResult&&(
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                <button onClick={()=>{setStockScanner(false);stopScanner();setHistProd(stockScanResult);setStockScanResult(null)}} style={{...S.btnGray,padding:11,fontSize:13,fontWeight:800}}>📋 Ver histórico</button>
+                <button onClick={()=>{setStockScanner(false);stopScanner();openMov('saida',stockScanResult);setStockScanResult(null)}} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:11,fontSize:13,fontWeight:800,cursor:'pointer'}}>📤 Saída</button>
+              </div>
+            )}
+            {stockScanResult&&(
+              <button onClick={()=>{setStockScanner(false);stopScanner();setSearch(stockScanResult.name);setStockScanResult(null)}} style={{...S.btnGray,width:'100%',fontSize:12,padding:10}}>🔍 Filtrar no estoque</button>
+            )}
+            {!stockScanResult&&(
+              <button onClick={()=>{setStockScanner(false);stopScanner()}} style={{...S.btnGray,width:'100%',fontSize:13,padding:11}}>✕ Cancelar</button>
+            )}
           </div>
         </Overlay>
       )}
