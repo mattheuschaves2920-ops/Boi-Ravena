@@ -1698,8 +1698,9 @@ function AppInner() {
       const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
       stopScanner()
       setStockScanner(false)
+      setModal(null)
       if(p){
-        setHistProd(p)
+        setTimeout(()=>setHistProd(p),150)
       } else {
         showToast('Produto não encontrado','warn')
       }
