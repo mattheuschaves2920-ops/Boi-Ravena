@@ -1694,6 +1694,18 @@ function AppInner() {
   }
 
   const handleBarcodeInput=(code)=>{
+    if(stockScanner){
+      const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
+      if(p){
+        setSearch(p.name)
+        stopScanner()
+        setStockScanner(false)
+        showToast('✓ '+p.name+' localizado!')
+      } else {
+        showToast('Código não encontrado no estoque','warn')
+      }
+      return
+    }
     if(scanForProduct){
       // Modo cadastro de produto - preenche o campo barcode
       setProdForm(f=>({...f,barcode:f.barcode||code.trim(),barcodes:f.barcodes.includes(code.trim())?f.barcodes:[...f.barcodes,code.trim()]}))
@@ -1704,14 +1716,6 @@ function AppInner() {
     }
     const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
     if(p){
-      if(stockScanner){
-        setStockScanResult(p)
-        setSearch(p.name)
-        stopScanner()
-        setStockScanner(false)
-        showToast('✓ '+p.name+' encontrado!')
-        return
-      }
       if(modal==='entrada'){
         setEntradaForm(f=>({...f,productId:p.id}))
         setEntradaSearch(p.name)
@@ -1732,10 +1736,6 @@ function AppInner() {
       if(modal!=='movimento') setModal('movimento')
       showToast('✓ Produto encontrado: '+p.name)
     } else {
-      if(stockScanner){
-        showToast('Código não encontrado no estoque','warn')
-        return
-      }
       showToast('Código não encontrado. Cadastre o produto primeiro.','warn')
       stopScanner()
     }
@@ -2620,7 +2620,7 @@ function AppInner() {
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
             <div style={{display:'flex',gap:8,flex:1,minWidth:200}}>
               <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>{setSearch(e.target.value);setStockScanResult(null)}} style={{...S.input,flex:1}} />
-              <button onClick={()=>{setStockScanner(true);setStockScanResult(null);setTimeout(()=>startScanner(),300)}} style={{width:46,height:46,borderRadius:12,border:'1.5px solid #E5E5E5',background:'white',fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>📷</button>
+              <button onClick={()=>{setModal(null);setStockScanner(true);setStockScanResult(null);setTimeout(()=>startScanner(),300)}} style={{width:46,height:46,borderRadius:12,border:'1.5px solid #E5E5E5',background:'white',fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>📷</button>
             </div>
             <select value={filterSetor} onChange={e=>setFilterSetor(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
               <option value="todos">Todos os Setores</option>
