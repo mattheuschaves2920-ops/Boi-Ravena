@@ -427,6 +427,7 @@ function AppInner() {
   const [filterAudit,setFilterAudit] = useState('')
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
+  const [histProd,setHistProd] = useState(null)
   const [prevOrdem,setPrevOrdem] = useState('urgencia')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
@@ -2617,7 +2618,7 @@ function AppInner() {
             {filtered.filter(p=>(filterSetor==='todos'||p.setor===filterSetor)&&(filterTipo==='todos'||(p.tipo||'Consumo')===filterTipo)).map(p=>{
               const isLow=p.quantity<=p.min_stock; const pct=Math.min(100,(p.quantity/(p.max_stock||1))*100); const isExp=p.expiry&&(new Date(p.expiry)-new Date())/86400000<=7
               return(
-                <div key={p.id} onClick={()=>canAdmin&&openEdit(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
+                <div key={p.id} onClick={()=>setHistProd(p)} style={{...S.card,border:`1.5px solid ${isLow?C.red:C.grayMid}`,background:isLow?C.redLight:C.white,cursor:'pointer'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
                     <div>
                       <p style={{fontWeight:800,fontSize:14,marginBottom:2}}>{p.name}</p>
@@ -5016,6 +5017,76 @@ function AppInner() {
               <button style={{...S.btnRed,flex:1,background:'#8B4513'}} onClick={handleSeparacao}>🥩 Confirmar Separação</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
             </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL HISTÓRICO DO PRODUTO */}
+      {histProd&&(
+        <Overlay onClose={()=>setHistProd(null)}>
+          <MHead title={histProd.name} onClose={()=>setHistProd(null)} />
+          <div style={{padding:'0 16px 16px'}}>
+            {/* INFO DO PRODUTO */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
+              {[
+                {l:'Estoque',v:`${histProd.quantity} ${histProd.unit}`,c:histProd.quantity<=0?C.red:histProd.quantity<=(histProd.min_stock||0)?'#F97316':C.green},
+                {l:'Mínimo',v:`${histProd.min_stock||0} ${histProd.unit}`,c:C.text},
+                {l:'Custo unit.',v:fmtCur(histProd.cost||0),c:C.text},
+              ].map(s=>(
+                <div key={s.l} style={{background:C.gray,borderRadius:10,padding:'8px 10px',textAlign:'center'}}>
+                  <p style={{fontSize:10,color:C.grayDark,margin:0,fontWeight:700}}>{s.l}</p>
+                  <p style={{fontSize:14,fontWeight:900,margin:'4px 0 0',color:s.c}}>{s.v}</p>
+                </div>
+              ))}
+            </div>
+            {/* BOTÕES RÁPIDOS */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+              <button onClick={()=>{setHistProd(null);openMov('entrada',histProd)}} style={{background:C.green,color:'white',border:'none',borderRadius:10,padding:11,fontSize:13,fontWeight:800,cursor:'pointer'}}>📥 Entrada</button>
+              <button onClick={()=>{setHistProd(null);openMov('saida',histProd)}} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:11,fontSize:13,fontWeight:800,cursor:'pointer'}}>📤 Saída</button>
+            </div>
+            {/* HISTÓRICO */}
+            <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>HISTÓRICO DE MOVIMENTAÇÕES</p>
+            {(()=>{
+              const hist=movements.filter(m=>m.product_id===histProd.id&&m.type!=='auditoria').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50)
+              if(hist.length===0) return <p style={{textAlign:'center',color:C.grayDark,padding:'20px 0',fontSize:13}}>Nenhum movimento registrado</p>
+              const totalEntradas=hist.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
+              const totalSaidas=hist.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
+              return(<>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+                  <div style={{background:'#f0fdf4',borderRadius:10,padding:'8px 12px',textAlign:'center'}}>
+                    <p style={{fontSize:10,color:'#166534',fontWeight:700,margin:0}}>TOTAL ENTRADAS</p>
+                    <p style={{fontSize:14,fontWeight:900,color:C.green,margin:'4px 0 0'}}>{totalEntradas.toFixed(2)} {histProd.unit}</p>
+                  </div>
+                  <div style={{background:'#fef2f2',borderRadius:10,padding:'8px 12px',textAlign:'center'}}>
+                    <p style={{fontSize:10,color:'#991b1b',fontWeight:700,margin:0}}>TOTAL SAÍDAS</p>
+                    <p style={{fontSize:14,fontWeight:900,color:C.red,margin:'4px 0 0'}}>{totalSaidas.toFixed(2)} {histProd.unit}</p>
+                  </div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:340,overflowY:'auto'}}>
+                  {hist.map((m,i)=>{
+                    const isEntrada=m.type==='entrada'
+                    const cor=isEntrada?C.green:C.red
+                    return(
+                      <div key={i} style={{background:C.white,borderRadius:10,padding:'10px 14px',borderLeft:`3px solid ${cor}`,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <div>
+                            <p style={{fontWeight:800,fontSize:13,margin:0,color:cor}}>{isEntrada?'📥 Entrada':'📤 Saída'} <span style={{color:C.text}}>{m.quantity} {histProd.unit}</span></p>
+                            <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{new Date(m.created_at).toLocaleDateString('pt-BR')} · {new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                            {m.cost_unit>0&&<p style={{fontSize:12,fontWeight:800,margin:0}}>{fmtCur(m.cost_unit*m.quantity)}</p>}
+                            <p style={{fontSize:10,color:C.grayDark,margin:'2px 0 0'}}>{m.turno||''} {m.setor?'· '+m.setor:''}</p>
+                          </div>
+                        </div>
+                        {m.note&&<p style={{fontSize:11,color:C.grayDark,marginTop:4,fontStyle:'italic'}}>"{m.note}"</p>}
+                        {m.user_name&&<p style={{fontSize:10,color:'#aaa',marginTop:2}}>por {m.user_name}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>)
+            })()}
+            {canAdmin&&<button onClick={()=>{setHistProd(null);openEdit(histProd)}} style={{...S.btnGray,width:'100%',marginTop:14,fontSize:12}}>✏️ Editar produto</button>}
           </div>
         </Overlay>
       )}
