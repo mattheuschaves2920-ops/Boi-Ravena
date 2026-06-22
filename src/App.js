@@ -1696,13 +1696,12 @@ function AppInner() {
   const handleBarcodeInput=(code)=>{
     if(stockScanner){
       const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
+      stopScanner()
+      setStockScanner(false)
       if(p){
-        setSearch(p.name)
-        stopScanner()
-        setStockScanner(false)
-        showToast('✓ '+p.name+' localizado!')
+        setHistProd(p)
       } else {
-        showToast('Código não encontrado no estoque','warn')
+        showToast('Produto não encontrado','warn')
       }
       return
     }
