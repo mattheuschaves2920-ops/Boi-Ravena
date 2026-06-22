@@ -428,8 +428,7 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
-  const [stockScanner,setStockScanner] = useState(false)
-  const [stockScanResult,setStockScanResult] = useState(null)
+
   const [prevOrdem,setPrevOrdem] = useState('urgencia')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
   const [filterAuditAcao,setFilterAuditAcao] = useState('todos')
@@ -1694,18 +1693,6 @@ function AppInner() {
   }
 
   const handleBarcodeInput=(code)=>{
-    if(stockScanner){
-      const p=products.find(x=>x.barcode===code.trim()||(x.barcodes||[]).includes(code.trim()))
-      stopScanner()
-      setStockScanner(false)
-      setModal(null)
-      if(p){
-        setTimeout(()=>setHistProd(p),150)
-      } else {
-        showToast('Produto não encontrado','warn')
-      }
-      return
-    }
     if(scanForProduct){
       // Modo cadastro de produto - preenche o campo barcode
       setProdForm(f=>({...f,barcode:f.barcode||code.trim(),barcodes:f.barcodes.includes(code.trim())?f.barcodes:[...f.barcodes,code.trim()]}))
@@ -2618,10 +2605,7 @@ function AppInner() {
             <button onClick={()=>{setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''});setDanificadoSearch('');setModal('danificado')}} style={{background:'#f97316',color:'white',border:'none',borderRadius:8,padding:'10px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>⚠️ Danificado</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
-            <div style={{display:'flex',gap:8,flex:1,minWidth:200}}>
-              <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>{setSearch(e.target.value);setStockScanResult(null)}} style={{...S.input,flex:1}} />
-              <button onClick={()=>{setModal(null);setStockScanner(true);setStockScanResult(null);setTimeout(()=>startScanner(),300)}} style={{width:46,height:46,borderRadius:12,border:'1.5px solid #E5E5E5',background:'white',fontSize:20,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>📷</button>
-            </div>
+            <input placeholder="🔍 Buscar produto..." value={search} onChange={e=>setSearch(e.target.value)} style={{...S.input,flex:1,minWidth:200}} />
             <select value={filterSetor} onChange={e=>setFilterSetor(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
               <option value="todos">Todos os Setores</option>
               {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
@@ -5108,27 +5092,6 @@ function AppInner() {
         </Overlay>
       )}
 
-      {/* MODAL SCANNER ESTOQUE */}
-      {stockScanner&&(
-        <Overlay onClose={()=>{setStockScanner(false);stopScanner()}}>
-          <MHead title="📷 Buscar por código" onClose={()=>{setStockScanner(false);stopScanner()}} />
-          <div style={{padding:'0 16px 16px'}}>
-            <div style={{borderRadius:12,overflow:'hidden',marginBottom:12,position:'relative',background:'#1a1a1a'}}>
-              <video ref={videoRef} style={{width:'100%',height:220,objectFit:'cover',display:'block'}} />
-              <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
-                <div style={{width:220,height:110,position:'relative'}}>
-                  {[{top:0,left:0,borderRight:'none',borderBottom:'none'},{top:0,right:0,borderLeft:'none',borderBottom:'none'},{bottom:0,left:0,borderRight:'none',borderTop:'none'},{bottom:0,right:0,borderLeft:'none',borderTop:'none'}].map((s,i)=>(
-                    <div key={i} style={{position:'absolute',width:22,height:22,border:'3px solid #EA1D2C',...s}}></div>
-                  ))}
-                </div>
-              </div>
-              <p style={{position:'absolute',bottom:10,left:0,right:0,textAlign:'center',color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:600}}>Aponte para o código de barras</p>
-            </div>
-            <p style={{textAlign:'center',fontSize:12,color:'#888',marginBottom:12}}>O produto será localizado automaticamente na lista</p>
-            <button onClick={()=>{setStockScanner(false);stopScanner()}} style={{...S.btnGray,width:'100%',fontSize:13,padding:11}}>✕ Cancelar</button>
-          </div>
-        </Overlay>
-      )}
 
       {/* MODAL PRODUTO */}
       {modal==='produto'&&(
