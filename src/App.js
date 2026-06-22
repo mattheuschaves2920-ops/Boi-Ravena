@@ -1706,7 +1706,9 @@ function AppInner() {
     if(p){
       if(stockScanner){
         setStockScanResult(p)
+        setSearch(p.name)
         stopScanner()
+        setStockScanner(false)
         showToast('✓ '+p.name+' encontrado!')
         return
       }
@@ -5109,44 +5111,21 @@ function AppInner() {
       {/* MODAL SCANNER ESTOQUE */}
       {stockScanner&&(
         <Overlay onClose={()=>{setStockScanner(false);stopScanner()}}>
-          <MHead title="📷 Scanner de Estoque" onClose={()=>{setStockScanner(false);stopScanner()}} />
+          <MHead title="📷 Buscar por código" onClose={()=>{setStockScanner(false);stopScanner()}} />
           <div style={{padding:'0 16px 16px'}}>
             <div style={{borderRadius:12,overflow:'hidden',marginBottom:12,position:'relative',background:'#1a1a1a'}}>
-              <video ref={videoRef} style={{width:'100%',height:200,objectFit:'cover',display:'block'}} />
+              <video ref={videoRef} style={{width:'100%',height:220,objectFit:'cover',display:'block'}} />
               <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
-                <div style={{width:200,height:100,position:'relative'}}>
+                <div style={{width:220,height:110,position:'relative'}}>
                   {[{top:0,left:0,borderRight:'none',borderBottom:'none'},{top:0,right:0,borderLeft:'none',borderBottom:'none'},{bottom:0,left:0,borderRight:'none',borderTop:'none'},{bottom:0,right:0,borderLeft:'none',borderTop:'none'}].map((s,i)=>(
-                    <div key={i} style={{position:'absolute',width:20,height:20,border:'3px solid #EA1D2C',...s}}></div>
+                    <div key={i} style={{position:'absolute',width:22,height:22,border:'3px solid #EA1D2C',...s}}></div>
                   ))}
                 </div>
               </div>
-              <p style={{position:'absolute',bottom:8,left:0,right:0,textAlign:'center',color:'rgba(255,255,255,0.8)',fontSize:12,fontWeight:600}}>Centralize o código de barras</p>
+              <p style={{position:'absolute',bottom:10,left:0,right:0,textAlign:'center',color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:600}}>Aponte para o código de barras</p>
             </div>
-            {stockScanResult&&(
-              <div style={{background:'#f0fdf4',border:'1.5px solid #22c55e',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
-                <span style={{fontSize:22}}>✅</span>
-                <div style={{flex:1}}>
-                  <p style={{fontWeight:800,fontSize:14,margin:0}}>{stockScanResult.name}</p>
-                  <p style={{fontSize:11,color:'#666',margin:'2px 0 0'}}>{SETOR_ICONS[stockScanResult.setor]} {stockScanResult.setor} · {stockScanResult.category}</p>
-                </div>
-                <div style={{textAlign:'right'}}>
-                  <p style={{fontSize:18,fontWeight:900,color:'#16a34a',margin:0}}>{stockScanResult.quantity}</p>
-                  <p style={{fontSize:9,color:'#666',fontWeight:700,textTransform:'uppercase',margin:0}}>{stockScanResult.unit}</p>
-                </div>
-              </div>
-            )}
-            {stockScanResult&&(
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
-                <button onClick={()=>{setStockScanner(false);stopScanner();setHistProd(stockScanResult);setStockScanResult(null)}} style={{...S.btnGray,padding:11,fontSize:13,fontWeight:800}}>📋 Ver histórico</button>
-                <button onClick={()=>{setStockScanner(false);stopScanner();openMov('saida',stockScanResult);setStockScanResult(null)}} style={{background:C.red,color:'white',border:'none',borderRadius:10,padding:11,fontSize:13,fontWeight:800,cursor:'pointer'}}>📤 Saída</button>
-              </div>
-            )}
-            {stockScanResult&&(
-              <button onClick={()=>{setStockScanner(false);stopScanner();setSearch(stockScanResult.name);setStockScanResult(null)}} style={{...S.btnGray,width:'100%',fontSize:12,padding:10}}>🔍 Filtrar no estoque</button>
-            )}
-            {!stockScanResult&&(
-              <button onClick={()=>{setStockScanner(false);stopScanner()}} style={{...S.btnGray,width:'100%',fontSize:13,padding:11}}>✕ Cancelar</button>
-            )}
+            <p style={{textAlign:'center',fontSize:12,color:'#888',marginBottom:12}}>O produto será localizado automaticamente na lista</p>
+            <button onClick={()=>{setStockScanner(false);stopScanner()}} style={{...S.btnGray,width:'100%',fontSize:13,padding:11}}>✕ Cancelar</button>
           </div>
         </Overlay>
       )}
