@@ -1914,13 +1914,25 @@ function AppInner() {
 
   const deleteMov=async(m)=>{
     if(!canAdmin) return showToast('Apenas administradores podem excluir movimentos','err')
-    if(!window.confirm('Excluir este movimento? O estoque NÃO será revertido.')) return
-    const{error}=await supabase.from('movimentos').delete().eq('id',m.id)
-    if(error) return showToast('Erro ao excluir','err')
-    setMovements(prev=>prev.filter(x=>x.id!==m.id))
     const p=products.find(x=>x.id===m.product_id)
-    logAudit('MOVIMENTO EXCLUÍDO',p?.name||'—',`${m.type} · ${m.quantity} · ${m.setor}`)
-    showToast('✓ Movimento excluído!')
+    const tipoLabel=m.type==='saida'?'saída':'entrada'
+    const msg=m.type==='saida'
+      ?`Excluir esta saída de ${m.quantity} ${p?.unit||''}? O estoque será REVERTIDO (+${m.quantity} ${p?.unit||''} voltam ao estoque).`
+      :`Excluir esta entrada de ${m.quantity} ${p?.unit||''}? O estoque será REVERTIDO (-${m.quantity} ${p?.unit||''} saem do estoque).`
+    if(!window.confirm(msg)) return
+    // Reverter estoque
+    if(p){
+      const novaQty=+(m.type==='saida'?p.quantity+m.quantity:p.quantity-m.quantity).toFixed(3)
+      const{error:e1}=await supabase.from('produtos').update({quantity:novaQty}).eq('id',p.id)
+      if(e1) return showToast('Erro ao reverter estoque','err')
+      setProducts(prev=>prev.map(x=>x.id===p.id?{...x,quantity:novaQty}:x))
+    }
+    // Excluir movimento
+    const{error:e2}=await supabase.from('movimentos').delete().eq('id',m.id)
+    if(e2) return showToast('Erro ao excluir movimento','err')
+    setMovements(prev=>prev.filter(x=>x.id!==m.id))
+    logAudit('MOVIMENTO EXCLUÍDO',p?.name||'—',`${tipoLabel} de ${m.quantity} ${p?.unit||''} revertida · estoque ajustado`)
+    showToast(`✓ ${tipoLabel.charAt(0).toUpperCase()+tipoLabel.slice(1)} excluída e estoque revertido!`)
   }
 
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
