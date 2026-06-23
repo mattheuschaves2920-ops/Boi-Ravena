@@ -428,6 +428,8 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
+  const [alertaSemMov,setAlertaSemMov] = useState(false)
+  const [prodsSemMov,setProdsSemMov] = useState([])
 
   const [prevOrdem,setPrevOrdem] = useState('urgencia')
   const [filterAuditPeriodo,setFilterAuditPeriodo] = useState('todos')
@@ -1935,6 +1937,26 @@ function AppInner() {
     showToast(`✓ ${tipoLabel.charAt(0).toUpperCase()+tipoLabel.slice(1)} excluída e estoque revertido!`)
   }
 
+  const verificarSemMovimentacao=()=>{
+    const limite=new Date(Date.now()-2*24*60*60*1000)
+    const parados=products.filter(p=>{
+      if(p.quantity<=0) return false
+      const movsProd=movements.filter(m=>m.product_id===p.id&&m.type!=='auditoria')
+      if(movsProd.length===0) return true
+      const ultimo=new Date(Math.max(...movsProd.map(m=>new Date(m.created_at))))
+      return ultimo<limite
+    }).map(p=>{
+      const movsProd=movements.filter(m=>m.product_id===p.id&&m.type!=='auditoria')
+      const ultimo=movsProd.length>0?new Date(Math.max(...movsProd.map(m=>new Date(m.created_at)))):null
+      const dias=ultimo?Math.floor((Date.now()-ultimo.getTime())/(24*60*60*1000)):999
+      return{...p,diasSemMov:dias}
+    }).sort((a,b)=>b.diasSemMov-a.diasSemMov)
+    if(parados.length>0){
+      setProdsSemMov(parados)
+      setAlertaSemMov(true)
+    }
+  }
+
   const openEdit=(p)=>{ setEditProd(p.id); setProdForm({name:p.name,category:p.category,unit:p.unit,quantity:String(p.quantity),min_stock:String(p.min_stock),max_stock:String(p.max_stock),cost:String(p.cost),barcode:p.barcode||'',barcodes:p.barcodes||[],supplier:p.supplier||'',expiry:p.expiry||'',setor:p.setor||SETORES[0],embalagem:p.embalagem||'',unid_embalagem:p.unid_embalagem||'',tipo:p.tipo||'Consumo'}); setModal('produto') }
   const openMov=(type,product=null)=>{ setMovForm({productId:product?product.id:'',qty:'',note:'',type,setor:product?.setor||SETORES[0],turno:getTurnoAtual(),dataMov:''}); setMovSearch(''); setModal('movimento') }
 
@@ -2115,7 +2137,7 @@ function AppInner() {
           {loading&&<span style={{fontSize:10,color:'rgba(255,255,255,0.6)'}}>⟳</span>}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
-          {(lowStock.length+semEstoque.length)>0&&<div style={{background:'rgba(255,255,255,0.2)',borderRadius:20,padding:'4px 10px',fontSize:11,color:C.white,fontWeight:800,cursor:'pointer'}} onClick={()=>setTab('estoque')}>🚨 {lowStock.length+semEstoque.length}</div>}
+          {(lowStock.length+semEstoque.length)>0&&<div style={{background:'rgba(255,255,255,0.2)',borderRadius:20,padding:'4px 10px',fontSize:11,color:C.white,fontWeight:800,cursor:'pointer'}} onClick={()=>{setTab('estoque');verificarSemMovimentacao()}}>🚨 {lowStock.length+semEstoque.length}</div>}
           <div style={{background:'rgba(255,255,255,0.15)',borderRadius:20,padding:'5px 10px',display:'flex',alignItems:'center',gap:6}}>
             <div style={{width:26,height:26,background:'rgba(255,255,255,0.3)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color:C.white,fontSize:12}}>{user.avatar}</div>
             <span style={{fontSize:12,color:C.white,fontWeight:700}}>{user.name.split(' ')[0]}</span>
@@ -5030,6 +5052,44 @@ function AppInner() {
               <button style={{...S.btnRed,flex:1,background:'#8B4513'}} onClick={handleSeparacao}>🥩 Confirmar Separação</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setModal(null)}>Cancelar</button>
             </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL ALERTA PRODUTOS SEM MOVIMENTAÇÃO */}
+      {alertaSemMov&&prodsSemMov.length>0&&(
+        <Overlay onClose={()=>setAlertaSemMov(false)}>
+          <div style={{background:'linear-gradient(135deg,#F97316 0%,#EA580C 100%)',padding:'18px 20px',color:'white',position:'relative'}}>
+            <p style={{fontSize:28,margin:0}}>📦</p>
+            <p style={{fontSize:17,fontWeight:900,margin:'6px 0 0'}}>Produtos Parados</p>
+            <p style={{fontSize:12,opacity:0.85,margin:'4px 0 0',fontWeight:500}}>Sem movimentação nos últimos 2+ dias</p>
+            <div style={{position:'absolute',top:16,right:16,background:'rgba(255,255,255,0.25)',borderRadius:20,padding:'4px 12px',fontSize:13,fontWeight:900,color:'white'}}>{prodsSemMov.length} {prodsSemMov.length===1?'item':'itens'}</div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:1,background:'#F0EDE8'}}>
+            {[{l:'2 dias',v:prodsSemMov.filter(p=>p.diasSemMov>=2&&p.diasSemMov<3).length},{l:'3 dias',v:prodsSemMov.filter(p=>p.diasSemMov>=3&&p.diasSemMov<5).length},{l:'5+ dias',v:prodsSemMov.filter(p=>p.diasSemMov>=5).length}].map(s=>(
+              <div key={s.l} style={{background:'white',padding:10,textAlign:'center'}}>
+                <p style={{fontSize:18,fontWeight:900,color:'#F97316',margin:0}}>{s.v}</p>
+                <p style={{fontSize:9,color:'#888',fontWeight:700,textTransform:'uppercase',marginTop:2}}>{s.l}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{padding:12,maxHeight:260,overflowY:'auto',display:'flex',flexDirection:'column',gap:8}}>
+            {prodsSemMov.map((p,i)=>(
+              <div key={i} onClick={()=>{setAlertaSemMov(false);setHistProd(p)}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',background:'#FFF7ED',borderRadius:12,borderLeft:'3px solid #F97316',cursor:'pointer'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontWeight:800,fontSize:13,margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.name}</p>
+                  <p style={{fontSize:11,color:'#888',margin:'2px 0 0'}}>{SETOR_ICONS[p.setor]||'📦'} {p.setor} · {p.quantity} {p.unit} em estoque</p>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <p style={{fontSize:16,fontWeight:900,color:'#EA580C',margin:0}}>{p.diasSemMov===999?'Nunca':p.diasSemMov}</p>
+                  <p style={{fontSize:9,color:'#888',fontWeight:700,textTransform:'uppercase',margin:0}}>{p.diasSemMov===999?'moveu':'dias'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{padding:'0 16px 20px',display:'flex',flexDirection:'column',gap:8}}>
+            <button onClick={()=>{setAlertaSemMov(false);setTab('relatorios')}} style={{background:'#F97316',color:'white',border:'none',borderRadius:12,padding:13,fontSize:14,fontWeight:800,cursor:'pointer',width:'100%'}}>📋 Ver no relatório</button>
+            <button onClick={()=>setAlertaSemMov(false)} style={{background:'#F5F5F5',color:'#555',border:'none',borderRadius:12,padding:11,fontSize:13,fontWeight:700,cursor:'pointer',width:'100%'}}>✕ Dispensar</button>
           </div>
         </Overlay>
       )}
