@@ -595,6 +595,13 @@ function AppInner() {
     return()=>supabase.removeChannel(ch)
   },[user])
 
+  // Dispara alerta de produtos sem movimentação quando dados carregam
+  useEffect(()=>{
+    if(tab==='estoque'&&products.length>0&&movements.length>0){
+      setTimeout(()=>verificarSemMovimentacao(),800)
+    }
+  },[products.length,movements.length])
+
   const showToast=(msg,type='ok')=>{ setToast({msg,type}); setTimeout(()=>setToast(null),3500) }
 
   // ── AUDITORIA ──────────────────────────────────────────────────
@@ -2149,7 +2156,7 @@ function AppInner() {
       {/* TABS */}
       <div style={{background:C.white,padding:'0',display:'flex',overflowX:'auto',overflowY:'hidden',borderBottom:`2px solid ${C.grayMid}`,position:'sticky',top:54,zIndex:99,WebkitOverflowScrolling:'touch',msOverflowStyle:'none',scrollbarWidth:'none'}}>
         {TABS.map(t=>(
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'8px 6px',fontFamily:"'Nunito'",fontSize:10,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+          <button key={t.key} onClick={()=>{setTab(t.key);if(t.key==='estoque')setTimeout(()=>verificarSemMovimentacao(),500)}} style={{background:'none',border:'none',borderBottom:tab===t.key?`3px solid ${C.red}`:'3px solid transparent',color:tab===t.key?C.red:C.grayDark,padding:'8px 6px',fontFamily:"'Nunito'",fontSize:10,fontWeight:tab===t.key?800:600,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
             <span style={{fontSize:16}}>{t.icon}</span>
             <span style={{fontSize:10,maxWidth:60,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.label}</span>
           </button>
