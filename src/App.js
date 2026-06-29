@@ -1830,21 +1830,39 @@ function AppInner() {
     if(!product) return
     const qty=parseFloat(danificadoForm.qty)
     if(!qty||qty<=0) return showToast('Informe a quantidade danificada','err')
-    const newQty=+(product.quantity+qty).toFixed(3)
-    const{error:e1}=await supabase.from('produtos').update({quantity:newQty}).eq('id',pid)
-    const{error:e2}=await supabase.from('movimentos').insert({product_id:pid,type:'entrada',quantity:qty,note:`Entrada danificada - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,user_name:user.name,cost_unit:product.cost,setor:product.setor||SETORES[0],turno:getTurnoAtual()})
-    if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
-    setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
-    setMovements(prev=>[{product_id:pid,type:'entrada',quantity:qty,note:`Entrada danificada - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,user_name:user.name,cost_unit:product.cost,setor:product.setor||SETORES[0],turno:getTurnoAtual(),created_at:new Date().toISOString()},...prev])
-    const entry={id:Date.now(),productId:pid,productName:product.name,qty,motivo:danificadoForm.motivo,obs:danificadoForm.obs,user_name:user.name,created_at:new Date().toISOString()}
+    // NÃO mexe no estoque — danificado fica num controle separado pendente de troca
+    const entry={
+      id:Date.now(),
+      productId:pid,
+      productName:product.name,
+      productUnit:product.unit,
+      qty,
+      custo:+(qty*(product.cost||0)).toFixed(2),
+      motivo:danificadoForm.motivo,
+      obs:danificadoForm.obs,
+      user_name:user.name,
+      setor:product.setor||SETORES[0],
+      turno:getTurnoAtual(),
+      status:'pendente',
+      created_at:new Date().toISOString()
+    }
+    // Salva no Supabase
+    try{
+      await supabase.from('movimentos').insert({
+        product_id:pid,type:'danificado',quantity:qty,
+        note:`Danificado - ${danificadoForm.motivo}${danificadoForm.obs?' - '+danificadoForm.obs:''}`,
+        user_name:user.name,cost_unit:product.cost||0,
+        setor:product.setor||SETORES[0],turno:getTurnoAtual()
+      })
+    }catch(e){}
     const updatedList=[entry,...danificadoList]
     setDanificadoList(updatedList)
     try{localStorage.setItem('boi_danificados',JSON.stringify(updatedList))}catch(e){}
-    logAudit('ENTRADA DANIFICADA',product.name,`${qty} ${product.unit} · ${danificadoForm.motivo}${danificadoForm.obs?' · '+danificadoForm.obs:''} (novo total: ${newQty} ${product.unit})`)
+    logAudit('DANIFICADO REGISTRADO',product.name,`${qty} ${product.unit} · ${danificadoForm.motivo} · pendente de troca com fornecedor`)
     setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''})
     setDanificadoSearch('')
     setModal(null)
-    showToast(`✓ +${qty} ${product.unit} (danificado) adicionado ao estoque!`)
+    showToast(`✓ ${qty} ${product.unit} registrado como danificado — pendente de troca!`)
   }
 
   const handleMovement=async()=>{
@@ -4268,6 +4286,52 @@ function AppInner() {
                 })
             }
           </div>
+
+
+          {/* DANIFICADOS PENDENTES DE TROCA */}
+          {(()=>{
+            const pendentes=danificadoList.filter(d=>!d.status||d.status==='pendente')
+            if(pendentes.length===0) return null
+            const custoPendente=pendentes.reduce((s,d)=>s+(d.custo||0),0)
+            return(
+              <div style={{...S.card,marginBottom:14,padding:16,border:'2px solid #F97316'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                  <div>
+                    <p style={{fontWeight:900,fontSize:14,margin:0,color:'#F97316'}}>🔄 Pendentes de Troca</p>
+                    <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>Registros aguardando reposição do fornecedor</p>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <p style={{fontWeight:900,fontSize:16,color:'#F97316',margin:0}}>{pendentes.length} itens</p>
+                    <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{fmtCur(custoPendente)}</p>
+                  </div>
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {pendentes.map((d,i)=>(
+                    <div key={i} style={{background:'#FFF7ED',borderRadius:10,padding:'10px 12px',borderLeft:'3px solid #F97316'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                        <div style={{flex:1}}>
+                          <p style={{fontWeight:800,fontSize:13,margin:0}}>{d.productName||d.product_name}</p>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qty} {d.productUnit||d.product_unit} · {d.motivo}</p>
+                          <p style={{fontSize:10,color:'#aaa',margin:'2px 0 0'}}>{new Date(d.created_at).toLocaleDateString('pt-BR')} · {d.user_name}</p>
+                        </div>
+                        <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
+                          <p style={{fontWeight:800,fontSize:13,color:'#F97316',margin:0}}>{fmtCur(d.custo||0)}</p>
+                          {canAdmin&&<button onClick={()=>{
+                            if(!window.confirm('Marcar como trocado pelo fornecedor?')) return
+                            const updated=danificadoList.map((x,j)=>j===i?{...x,status:'trocado',trocado_em:new Date().toISOString(),trocado_por:user.name}:x)
+                            setDanificadoList(updated)
+                            try{localStorage.setItem('boi_danificados',JSON.stringify(updated))}catch(e){}
+                            logAudit('DANIFICADO TROCADO',d.productName||d.product_name,`${d.qty} ${d.productUnit||d.product_unit} reposto pelo fornecedor`)
+                            showToast('✓ Marcado como trocado!')
+                          }} style={{...S.btnGray,padding:'4px 10px',fontSize:11,marginTop:4,color:'#16a34a',fontWeight:700}}>✅ Marcar trocado</button>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* CANVAS HIDDEN */}
           <canvas ref={desperdicioCanvasRef} style={{display:'none'}} />
