@@ -3971,6 +3971,42 @@ function AppInner() {
 
                 {/* ══ PAINEL DO DONO ══ */}
         {tab==='dono'&&canAdmin&&<>
+          {/* BOTÃO DE MIGRAÇÃO MANUAL */}
+          <div style={{...S.card,marginBottom:14,padding:14,border:'2px solid #F97316'}}>
+            <p style={{fontWeight:800,fontSize:13,marginBottom:6}}>🔄 Migrar dados para a nuvem</p>
+            <p style={{fontSize:11,color:C.grayDark,marginBottom:10}}>Se tiver dados no celular que não aparecem no PC, clique aqui para sincronizar.</p>
+            <button onClick={async()=>{
+              showToast('Migrando dados...')
+              let total=0
+              try{
+                const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
+                if(local.length>0){
+                  for(const d of local){
+                    try{
+                      await supabase.from('danificados').upsert({
+                        id:d.id||Date.now(),
+                        product_id:d.productId||d.product_id||'',
+                        product_name:d.productName||d.product_name||'',
+                        product_unit:d.productUnit||d.product_unit||'',
+                        qty:d.qty||0,custo:d.custo||0,
+                        motivo:d.motivo||'',obs:d.obs||'',
+                        user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
+                        status:d.status||'pendente',
+                        created_at:d.created_at||new Date().toISOString()
+                      },{onConflict:'id'})
+                      total++
+                    }catch(e){}
+                  }
+                  showToast('✓ '+total+' danificados migrados!')
+                } else {
+                  showToast('Nenhum dado local encontrado','warn')
+                }
+              }catch(e){showToast('Erro na migração','err')}
+            }} style={{...S.btnGray,width:'100%',padding:12,fontSize:13,fontWeight:800,color:'#F97316'}}>
+              📤 Sincronizar agora
+            </button>
+          </div>
+
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <div>
               <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
