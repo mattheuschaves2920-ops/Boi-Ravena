@@ -1769,7 +1769,7 @@ function AppInner() {
   // Stats por turno
   const statsPorTurno = useMemo(()=>
     TURNOS.map(t=>{
-      const movs=todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
+      const movs=todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id&&(m.type==='entrada'||m.type==='saida'))
       return { ...t, entradas:movs.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0), saidas:movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0), custo:movs.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0), total:movs.length }
     })
   ,[todayMov])
@@ -1777,7 +1777,7 @@ function AppInner() {
   // Stats por setor
   const statsPorSetor = useMemo(()=>
     SETORES.map(s=>{
-      const movs=todayMov.filter(m=>m.setor===s)
+      const movs=todayMov.filter(m=>m.setor===s&&(m.type==='entrada'||m.type==='saida'))
       return { setor:s, entradas:movs.filter(m=>m.type==='entrada').reduce((sm,m)=>sm+m.quantity,0), saidas:movs.filter(m=>m.type==='saida').reduce((sm,m)=>sm+m.quantity,0), custo:movs.filter(m=>m.type==='saida').reduce((sm,m)=>sm+m.quantity*(m.cost_unit||0),0), total:movs.length }
     })
   ,[todayMov])
@@ -2299,16 +2299,20 @@ function AppInner() {
                 {todayMovs.length===0?<p style={{fontSize:12,color:C.grayDark,textAlign:'center'}}>Nenhuma movimentação hoje</p>:
                 todayMovs.slice(0,3).map((m,i)=>{
                   const p=products.find(x=>x.id===m.product_id)
+                  const isDano=m.type==='danificado'
+                  const cor=isDano?'#F97316':m.type==='entrada'?'#22c55e':C.red
+                  const bg=isDano?'#FFF7ED':m.type==='entrada'?'#EAF3DE':C.redLight
+                  const sym=isDano?'⚠️':m.type==='entrada'?'+':'−'
                   return(
                     <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:i<2?8:0}}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <span style={{width:28,height:28,background:m.type==='entrada'?'#EAF3DE':C.redLight,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>{m.type==='entrada'?'+':'−'}</span>
+                        <span style={{width:28,height:28,background:bg,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,flexShrink:0}}>{sym}</span>
                         <div>
                           <p style={{fontSize:13,fontWeight:700,margin:0}}>{p?.name||'Produto'}</p>
                           <p style={{fontSize:11,color:C.grayDark,margin:0}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · {m.setor} · {m.turno}</p>
                         </div>
                       </div>
-                      <span style={{fontSize:13,color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800,flexShrink:0}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span>
+                      <span style={{fontSize:13,color:cor,fontWeight:800,flexShrink:0}}>{isDano?'⚠️':m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span>
                     </div>
                   )
                 })}
@@ -2773,8 +2777,8 @@ function AppInner() {
                       <tr key={m.id} className="rh" style={{borderBottom:`1px solid ${C.gray}`,transition:'background 0.15s'}}>
                         <td style={{padding:'9px 12px',color:C.grayDark,fontSize:11,fontWeight:600}}>{new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
                         <td style={{padding:'9px 12px',fontWeight:700,fontSize:12}}>{p?.name||'—'}</td>
-                        <td style={{padding:'9px 12px'}}><span style={{background:m.type==='entrada'?'#F0FFF6':C.redLight,color:m.type==='entrada'?C.green:C.red,border:`1px solid ${m.type==='entrada'?C.green:C.red}`,fontSize:9,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{m.type==='entrada'?'Entrada':'Saída'}</span></td>
-                        <td style={{padding:'9px 12px',fontWeight:900,fontSize:14,color:m.type==='entrada'?C.green:C.red}}>{m.type==='entrada'?'+':'-'}{m.quantity}<span style={{fontSize:9,color:C.grayDark,fontWeight:600,marginLeft:2}}>{p?.unit}</span></td>
+                        <td style={{padding:'9px 12px'}}><span style={{background:m.type==='entrada'?'#F0FFF6':m.type==='danificado'?'#FFF7ED':C.redLight,color:m.type==='entrada'?C.green:m.type==='danificado'?'#F97316':C.red,border:`1px solid ${m.type==='entrada'?C.green:m.type==='danificado'?'#F97316':C.red}`,fontSize:9,padding:'2px 8px',borderRadius:20,fontWeight:800}}>{m.type==='entrada'?'Entrada':m.type==='danificado'?'Danificado':'Saída'}</span></td>
+                        <td style={{padding:'9px 12px',fontWeight:900,fontSize:14,color:m.type==='entrada'?C.green:m.type==='danificado'?'#F97316':C.red}}>{m.type==='entrada'?'+':m.type==='danificado'?'⚠️':'-'}{m.quantity}<span style={{fontSize:9,color:C.grayDark,fontWeight:600,marginLeft:2}}>{p?.unit}</span></td>
                         <td style={{padding:'9px 12px'}}>{tInfo&&<span style={{fontSize:10,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700,color:C.text}}>{tInfo.icon} {tInfo.label}</span>}</td>
                         <td style={{padding:'9px 12px'}}>{m.setor&&<span style={{fontSize:10,background:SETOR_COLORS[m.setor]+'22',color:SETOR_COLORS[m.setor],padding:'2px 8px',borderRadius:20,fontWeight:700}}>{SETOR_ICONS[m.setor]} {m.setor}</span>}</td>
                         <td style={{padding:'9px 12px'}}><span style={{fontSize:10,color:C.grayDark,background:C.gray,padding:'2px 8px',borderRadius:20,fontWeight:700}}>{m.user_name||'—'}</span></td>
