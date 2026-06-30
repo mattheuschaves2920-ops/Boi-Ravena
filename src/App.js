@@ -528,6 +528,48 @@ function AppInner() {
         supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
+      // MIGRAÇÃO ONE-TIME: localStorage → Supabase
+      ;(async()=>{
+        // Migrar danificados do localStorage para Supabase
+        try{
+          const{data:existentes}=await supabase.from('danificados').select('id').limit(1)
+          if(existentes&&existentes.length===0){
+            const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
+            if(local.length>0){
+              const rows=local.map(d=>({
+                id:d.id||Date.now()+Math.random(),
+                product_id:d.productId||d.product_id||'',
+                product_name:d.productName||d.product_name||'',
+                product_unit:d.productUnit||d.product_unit||'',
+                qty:d.qty||0,custo:d.custo||0,
+                motivo:d.motivo||'',obs:d.obs||'',
+                user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
+                status:d.status||'pendente',
+                trocado_em:d.trocado_em||null,trocado_por:d.trocado_por||null,
+                created_at:d.created_at||new Date().toISOString()
+              }))
+              await supabase.from('danificados').insert(rows)
+              console.log('Migração danificados: '+rows.length+' registros')
+            }
+          }
+        }catch(e){console.error('Erro migração danificados:',e)}
+        // Migrar cats customizadas
+        try{
+          const localCats=JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')
+          if(localCats.length>0) await supabase.from('categorias_setores').upsert({id:'custom_cats',valor:localCats})
+        }catch(e){}
+        // Migrar setores customizados
+        try{
+          const localSets=JSON.parse(localStorage.getItem('boi_custom_setores')||'[]')
+          if(localSets.length>0) await supabase.from('categorias_setores').upsert({id:'custom_setores',valor:localSets})
+        }catch(e){}
+        // Migrar meta CMV
+        try{
+          const localCmv=localStorage.getItem('boi_cmv_meta')
+          if(localCmv) await supabase.from('categorias_setores').upsert({id:'cmv_meta',valor:+localCmv})
+        }catch(e){}
+      })()
+
       // Load desperdicio, cardapio, configuracoes, danificados, pdv, cats from Supabase
       ;(async()=>{
         try{
