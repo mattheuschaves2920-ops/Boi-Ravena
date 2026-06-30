@@ -528,7 +528,7 @@ function AppInner() {
         supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
-      // Load desperdicio, cardapio and configuracoes from Supabase
+      // Load desperdicio, cardapio, configuracoes, danificados, pdv, cats from Supabase
       ;(async()=>{
         try{
           const{data:desps}=await supabase.from('desperdicio_registros').select('*').order('created_at',{ascending:false}).limit(200)
@@ -545,6 +545,32 @@ function AppInner() {
             const ea=cfgs.find(r=>r.id==='energia_alerta')
             if(ec?.valor)setEnergiaConfig(ec.valor)
             if(ea?.valor)setEnergiaAlerta(ea.valor)
+          }
+        }catch(e){}
+        try{
+          const{data:danos}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
+          if(danos&&danos.length>0){setDanificadoList(danos);try{localStorage.setItem('boi_danificados',JSON.stringify(danos))}catch(e){}}
+        }catch(e){}
+        try{
+          const{data:pdvCfg}=await supabase.from('pdv_config').select('*')
+          if(pdvCfg){
+            const ab=pdvCfg.find(r=>r.id==='aberturas')
+            const ct=pdvCfg.find(r=>r.id==='contagens')
+            const pt=pdvCfg.find(r=>r.id==='pontos')
+            if(ab?.valor){try{localStorage.setItem('boi_pdv_aberturas',JSON.stringify(ab.valor))}catch(e){}}
+            if(ct?.valor){try{localStorage.setItem('boi_pdv_contagens',JSON.stringify(ct.valor))}catch(e){}}
+            if(pt?.valor){try{localStorage.setItem('boi_pdv_pontos',JSON.stringify(pt.valor))}catch(e){}}
+          }
+        }catch(e){}
+        try{
+          const{data:catsCfg}=await supabase.from('categorias_setores').select('*')
+          if(catsCfg){
+            const cats=catsCfg.find(r=>r.id==='custom_cats')
+            const sets=catsCfg.find(r=>r.id==='custom_setores')
+            const cmv=catsCfg.find(r=>r.id==='cmv_meta')
+            if(cats?.valor){try{localStorage.setItem('boi_custom_cats',JSON.stringify(cats.valor))}catch(e){}}
+            if(sets?.valor){try{localStorage.setItem('boi_custom_setores',JSON.stringify(sets.valor))}catch(e){}}
+            if(cmv?.valor){try{localStorage.setItem('boi_cmv_meta',JSON.stringify(cmv.valor))}catch(e){}}
           }
         }catch(e){}
       })()
@@ -628,20 +654,22 @@ function AppInner() {
     }catch(e){ console.error('Erro ao salvar auditoria (catch):',e) }
   }
 
-  const addCustomCat=(name)=>{
+  const addCustomCat=async(name)=>{
     const n=name.trim()
     if(!n||CATS.includes(n)) return false
     const updated=[...customCats,n]
     setCustomCats(updated)
+    try{supabase.from('categorias_setores').upsert({id:'custom_cats',valor:updated})}catch(e2){}
     try{localStorage.setItem('boi_custom_cats',JSON.stringify(updated))}catch(e){}
     logAudit('CATEGORIA CRIADA',n,'')
     return true
   }
-  const addCustomSetor=(name)=>{
+  const addCustomSetor=async(name)=>{
     const n=name.trim()
     if(!n||SETORES.includes(n)) return false
     const updated=[...customSetores,n]
     setCustomSetores(updated)
+    try{supabase.from('categorias_setores').upsert({id:'custom_setores',valor:updated})}catch(e2){}
     try{localStorage.setItem('boi_custom_setores',JSON.stringify(updated))}catch(e){}
     SETOR_ICONS[n]='📍'
     logAudit('SETOR CRIADO',n,'')
@@ -1858,6 +1886,13 @@ function AppInner() {
     const updatedList=[entry,...danificadoList]
     setDanificadoList(updatedList)
     try{localStorage.setItem('boi_danificados',JSON.stringify(updatedList))}catch(e){}
+    try{await supabase.from('danificados').insert({
+      id:entry.id,product_id:entry.productId,product_name:entry.productName,
+      product_unit:entry.productUnit,qty:entry.qty,custo:entry.custo,
+      motivo:entry.motivo,obs:entry.obs,user_name:entry.user_name,
+      setor:entry.setor,turno:entry.turno,status:'pendente',
+      created_at:entry.created_at
+    })}catch(e2){}
     logAudit('DANIFICADO REGISTRADO',product.name,`${qty} ${product.unit} · ${danificadoForm.motivo} · pendente de troca com fornecedor`)
     setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''})
     setDanificadoSearch('')
@@ -3466,7 +3501,7 @@ function AppInner() {
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,background:C.white,borderRadius:12,padding:'8px 14px',boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>
                 <span style={{fontSize:12,fontWeight:700,color:C.grayDark}}>Meta CMV:</span>
-                <input type="number" value={cmvMeta} onChange={e=>{setCmvMeta(+e.target.value);localStorage.setItem('boi_cmv_meta',e.target.value)}} style={{width:60,background:C.gray,border:'none',borderRadius:6,padding:'4px 8px',fontSize:13,fontWeight:800,color:C.text,textAlign:'center'}} />
+                <input type="number" value={cmvMeta} onChange={e=>{setCmvMeta(+e.target.value);localStorage.setItem('boi_cmv_meta',e.target.value);try{supabase.from('categorias_setores').upsert({id:'cmv_meta',valor:+e.target.value})}catch(ex){}}} style={{width:60,background:C.gray,border:'none',borderRadius:6,padding:'4px 8px',fontSize:13,fontWeight:800,color:C.text,textAlign:'center'}} />
                 <span style={{fontSize:12,fontWeight:700,color:C.grayDark}}>%</span>
               </div>
             </div>
@@ -4325,6 +4360,7 @@ function AppInner() {
                             const updated=danificadoList.map((x,j)=>j===i?{...x,status:'trocado',trocado_em:new Date().toISOString(),trocado_por:user.name}:x)
                             setDanificadoList(updated)
                             try{localStorage.setItem('boi_danificados',JSON.stringify(updated))}catch(e){}
+                            try{supabase.from('danificados').update({status:'trocado',trocado_em:new Date().toISOString(),trocado_por:user.name}).eq('id',d.id)}catch(e2){}
                             logAudit('DANIFICADO TROCADO',d.productName||d.product_name,`${d.qty} ${d.productUnit||d.product_unit} reposto pelo fornecedor`)
                             showToast('✓ Marcado como trocado!')
                           }} style={{...S.btnGray,padding:'4px 10px',fontSize:11,marginTop:4,color:'#16a34a',fontWeight:700}}>✅ Marcar trocado</button>}
