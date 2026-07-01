@@ -382,7 +382,7 @@ function AppInner() {
   const [dashModal,setDashModal] = useState(null)
   const [dashModalData,setDashModalData] = useState(null)
   const [relModal,setRelModal] = useState(null)
-  const [relPeriodo,setRelPeriodo] = useState('hoje')
+  const [relPeriodo,setRelPeriodo] = useState('30dias')
   const [relTurno,setRelTurno] = useState('todos')
   const [relSetor,setRelSetor] = useState('todos')
   const [relTipo,setRelTipo] = useState('todos')
