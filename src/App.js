@@ -1916,7 +1916,23 @@ function AppInner() {
       status:'pendente',
       created_at:new Date().toISOString()
     }
-    // Salva no Supabase
+    // Salva no Supabase tabela danificados
+    const{error:eDano}=await supabase.from('danificados').insert({
+      product_id:entry.productId,
+      product_name:entry.productName,
+      product_unit:entry.productUnit,
+      qty:entry.qty,
+      custo:entry.custo,
+      motivo:entry.motivo,
+      obs:entry.obs,
+      user_name:entry.user_name,
+      setor:entry.setor,
+      turno:entry.turno,
+      status:'pendente',
+      created_at:entry.created_at
+    })
+    if(eDano) showToast('Aviso: erro ao salvar na nuvem: '+eDano.message,'warn')
+    // Registra também em movimentos
     try{
       await supabase.from('movimentos').insert({
         product_id:pid,type:'danificado',quantity:qty,
@@ -1928,13 +1944,6 @@ function AppInner() {
     const updatedList=[entry,...danificadoList]
     setDanificadoList(updatedList)
     try{localStorage.setItem('boi_danificados',JSON.stringify(updatedList))}catch(e){}
-    try{await supabase.from('danificados').insert({
-      id:entry.id,product_id:entry.productId,product_name:entry.productName,
-      product_unit:entry.productUnit,qty:entry.qty,custo:entry.custo,
-      motivo:entry.motivo,obs:entry.obs,user_name:entry.user_name,
-      setor:entry.setor,turno:entry.turno,status:'pendente',
-      created_at:entry.created_at
-    })}catch(e2){}
     logAudit('DANIFICADO REGISTRADO',product.name,`${qty} ${product.unit} · ${danificadoForm.motivo} · pendente de troca com fornecedor`)
     setDanificadoForm({productId:'',qty:'',motivo:'Embalagem rasgada/amassada',obs:''})
     setDanificadoSearch('')
