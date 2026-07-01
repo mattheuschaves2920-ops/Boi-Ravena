@@ -532,12 +532,22 @@ function AppInner() {
       ;(async()=>{
         // Migrar danificados do localStorage para Supabase
         try{
-          const{data:existentes}=await supabase.from('danificados').select('id').limit(1)
-          if(existentes&&existentes.length===0){
+          const{data:danosSup}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
+          if(danosSup&&danosSup.length>0){
+            // Normaliza campos para padrão do app
+            const normalized=danosSup.map(d=>({
+              ...d,
+              productId:d.product_id,
+              productName:d.product_name,
+              productUnit:d.product_unit,
+            }))
+            setDanificadoList(normalized)
+            try{localStorage.setItem('boi_danificados',JSON.stringify(normalized))}catch(e){}
+          } else {
+            // Se Supabase vazio, tenta migrar do localStorage
             const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
             if(local.length>0){
               const rows=local.map(d=>({
-                id:d.id||Date.now()+Math.random(),
                 product_id:d.productId||d.product_id||'',
                 product_name:d.productName||d.product_name||'',
                 product_unit:d.productUnit||d.product_unit||'',
@@ -545,14 +555,12 @@ function AppInner() {
                 motivo:d.motivo||'',obs:d.obs||'',
                 user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
                 status:d.status||'pendente',
-                trocado_em:d.trocado_em||null,trocado_por:d.trocado_por||null,
                 created_at:d.created_at||new Date().toISOString()
               }))
               await supabase.from('danificados').insert(rows)
-              console.log('Migração danificados: '+rows.length+' registros')
             }
           }
-        }catch(e){console.error('Erro migração danificados:',e)}
+        }catch(e){console.error('Erro danificados:',e)}
         // Migrar cats customizadas
         try{
           const localCats=JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')
