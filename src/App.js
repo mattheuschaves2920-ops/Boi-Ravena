@@ -2115,8 +2115,8 @@ function AppInner() {
     return true
   })
   const custoRel = relMovsFiltrados.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
-  const ontemStr2 = (()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]})()
-  const custoOntem2 = movements.filter(m=>m.created_at?.startsWith(ontemStr2)&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+  const ontemStr2 = (()=>{const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()
+  const custoOntem2 = movements.filter(m=>toLocalDate(m.created_at)===ontemStr2&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const varCustoRel = custoOntem2>0?((custoRel-custoOntem2)/custoOntem2*100):0
   const movsPorHoraRel = Array(24).fill(0).map((_,h)=>({hora:`${h}h`,movs:movements.filter(m=>new Date(m.created_at).getHours()===h&&toLocalDate(m.created_at)===todayStr()).length}))
   const horaPicoRel = movsPorHoraRel.reduce((a,b)=>b.movs>a.movs?b:a,{hora:'—',movs:0})
@@ -2276,6 +2276,7 @@ function AppInner() {
             </div>
             {(()=>{
               const todayMovs=movements.filter(m=>toLocalDate(m.created_at)===todayStr()&&m.type!=='auditoria')
+              const entradas=todayMovs.filter(m=>m.type==='entrada')
               const saidas=todayMovs.filter(m=>m.type==='saida')
               const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
               const lowProds=products.filter(p=>p.quantity<=p.min_stock)
@@ -2318,8 +2319,8 @@ function AppInner() {
             const zeroProds=products.filter(p=>p.quantity<=0)
             const em7=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
             const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7&&p.quantity>0)
-            const ontemStr=new Date(Date.now()-86400000).toISOString().split('T')[0]
-            const custoOntem=movements.filter(m=>m.created_at?.startsWith(ontemStr)&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const ontemDate=(()=>{const d=new Date(Date.now()-86400000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()
+            const custoOntem=movements.filter(m=>toLocalDate(m.created_at)===ontemDate&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
             const diff=custoHoje-custoOntem
             const semanas7=new Date(Date.now()-7*86400000).toISOString()
             const movidosIds=new Set(movements.filter(m=>m.created_at>semanas7).map(m=>m.product_id))
