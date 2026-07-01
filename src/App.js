@@ -531,36 +531,7 @@ function AppInner() {
       // MIGRAÇÃO ONE-TIME: localStorage → Supabase
       ;(async()=>{
         // Migrar danificados do localStorage para Supabase
-        try{
-          const{data:danosSup}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
-          if(danosSup&&danosSup.length>0){
-            // Normaliza campos para padrão do app
-            const normalized=danosSup.map(d=>({
-              ...d,
-              productId:d.product_id,
-              productName:d.product_name,
-              productUnit:d.product_unit,
-            }))
-            setDanificadoList(normalized)
-            try{localStorage.setItem('boi_danificados',JSON.stringify(normalized))}catch(e){}
-          } else {
-            // Se Supabase vazio, tenta migrar do localStorage
-            const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
-            if(local.length>0){
-              const rows=local.map(d=>({
-                product_id:d.productId||d.product_id||'',
-                product_name:d.productName||d.product_name||'',
-                product_unit:d.productUnit||d.product_unit||'',
-                qty:d.qty||0,custo:d.custo||0,
-                motivo:d.motivo||'',obs:d.obs||'',
-                user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
-                status:d.status||'pendente',
-                created_at:d.created_at||new Date().toISOString()
-              }))
-              await supabase.from('danificados').insert(rows)
-            }
-          }
-        }catch(e){console.error('Erro danificados:',e)}
+        // danificados carregados no bloco principal abaixo
         // Migrar cats customizadas
         try{
           const localCats=JSON.parse(localStorage.getItem('boi_custom_cats')||'[]')
@@ -599,8 +570,32 @@ function AppInner() {
         }catch(e){}
         try{
           const{data:danos}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
-          if(danos&&danos.length>0){setDanificadoList(danos);try{localStorage.setItem('boi_danificados',JSON.stringify(danos))}catch(e){}}
-        }catch(e){}
+          if(danos){
+            if(danos.length>0){
+              const normalized=danos.map(d=>({...d,productId:d.product_id,productName:d.product_name,productUnit:d.product_unit}))
+              setDanificadoList(normalized)
+              try{localStorage.setItem('boi_danificados',JSON.stringify(normalized))}catch(e){}
+            } else {
+              // Supabase vazio — migra do localStorage se houver
+              const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
+              if(local.length>0){
+                const rows=local.map(d=>({
+                  product_id:d.productId||d.product_id||'',
+                  product_name:d.productName||d.product_name||'',
+                  product_unit:d.productUnit||d.product_unit||'',
+                  qty:d.qty||0,custo:d.custo||0,
+                  motivo:d.motivo||'',obs:d.obs||'',
+                  user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
+                  status:d.status||'pendente',
+                  created_at:d.created_at||new Date().toISOString()
+                }))
+                await supabase.from('danificados').insert(rows)
+                const normalized=rows.map((d,i)=>({...d,id:i,productId:d.product_id,productName:d.product_name,productUnit:d.product_unit}))
+                setDanificadoList(normalized)
+              }
+            }
+          }
+        }catch(e){console.error('Erro danificados:',e)}
         try{
           const{data:pdvCfg}=await supabase.from('pdv_config').select('*')
           if(pdvCfg){
