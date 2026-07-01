@@ -570,31 +570,33 @@ function AppInner() {
         }catch(e){}
         try{
           const{data:danos}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
-          if(danos){
-            if(danos.length>0){
+          if(danos&&danos.length>0){
               const normalized=danos.map(d=>({...d,productId:d.product_id,productName:d.product_name,productUnit:d.product_unit}))
               setDanificadoList(normalized)
               try{localStorage.setItem('boi_danificados',JSON.stringify(normalized))}catch(e){}
             } else {
-              // Supabase vazio — migra do localStorage se houver
-              const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
-              if(local.length>0){
-                const rows=local.map(d=>({
-                  product_id:d.productId||d.product_id||'',
-                  product_name:d.productName||d.product_name||'',
-                  product_unit:d.productUnit||d.product_unit||'',
-                  qty:d.qty||0,custo:d.custo||0,
-                  motivo:d.motivo||'',obs:d.obs||'',
-                  user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
-                  status:d.status||'pendente',
-                  created_at:d.created_at||new Date().toISOString()
-                }))
-                await supabase.from('danificados').insert(rows)
-                const normalized=rows.map((d,i)=>({...d,id:i,productId:d.product_id,productName:d.product_name,productUnit:d.product_unit}))
-                setDanificadoList(normalized)
-              }
+              // Supabase vazio — tenta carregar localStorage como fallback
+              try{
+                const local=JSON.parse(localStorage.getItem('boi_danificados')||'[]')
+                if(local.length>0){
+                  setDanificadoList(local)
+                  // Migra para Supabase
+                  const rows=local.map(d=>({
+                    product_id:d.productId||d.product_id||'',
+                    product_name:d.productName||d.product_name||'',
+                    product_unit:d.productUnit||d.product_unit||'',
+                    qty:d.qty||0,custo:d.custo||0,
+                    motivo:d.motivo||'',obs:d.obs||'',
+                    user_name:d.user_name||'',setor:d.setor||'',turno:d.turno||'',
+                    status:d.status||'pendente',
+                    created_at:d.created_at||new Date().toISOString()
+                  }))
+                  supabase.from('danificados').insert(rows).then(({error})=>{
+                    if(!error) console.log('Danificados migrados:',rows.length)
+                  })
+                }
+              }catch(e){}
             }
-          }
         }catch(e){console.error('Erro danificados:',e)}
         try{
           const{data:pdvCfg}=await supabase.from('pdv_config').select('*')
@@ -2088,8 +2090,8 @@ function AppInner() {
   const custoCatArr=Object.entries(custoCat).sort((a,b)=>b[1]-a[1])
   const maxCustoCat=custoCatArr[0]?.[1]||1
   // COMPARATIVO DIA ANTERIOR
-  const ontem=new Date();ontem.setDate(ontem.getDate()-1);const ontemStr=ontem.toISOString().split('T')[0]
-  const custoOntem=movements.filter(m=>m.created_at?.startsWith(ontemStr)&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
+  const ontem=new Date();ontem.setDate(ontem.getDate()-1);const ontemStr=ontem.getFullYear()+'-'+String(ontem.getMonth()+1).padStart(2,'0')+'-'+String(ontem.getDate()).padStart(2,'0')
+  const custoOntem=movements.filter(m=>toLocalDate(m.created_at)===ontemStr&&m.type==='saida').reduce((s,m)=>s+m.quantity*(m.cost_unit||0),0)
   const varCusto=custoOntem>0?((custoDia-custoOntem)/custoOntem*100):0
 
   // EXPORTAR CSV
