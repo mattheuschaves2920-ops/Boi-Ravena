@@ -2948,19 +2948,19 @@ function AppInner() {
             const valorEstoque=relProds.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
 
             const relatorios=[
-              {id:'movimentos',icon:'🔄',title:'Movimentos',sub:`${entradas.length} entradas · ${saidas.length} saídas · ${fmtCur(custoTotal)}`},
-              {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:`Total: ${fmtCur(custoTotal)}`},
-              {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:`Top itens do período`},
-              {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:`${relProds.length} produtos · ${fmtCur(valorEstoque)}`},
-              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:`${products.filter(p=>p.expiry&&p.expiry<=new Date(Date.now()+30*86400000).toISOString().split('T')[0]).length} produtos nos próx. 30 dias`},
-              {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:`Custo: ${fmtCur(custoTotal)}`},
-              {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:`${desperdicioList?.length||0} registros`},
+              {id:'movimentos',icon:'🔄',title:'Movimentos',sub:(entradas?.length||0)+' entradas · '+(saidas?.length||0)+' saídas · '+fmtCur(custoTotal||0)},
+              {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:'Total: '+fmtCur(custoTotal||0)},
+              {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:'Top itens do período'},
+              {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:(relProds?.length||0)+' produtos · '+fmtCur(valorEstoque||0)},
+              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:products.filter(p=>p.expiry&&p.expiry<=new Date(Date.now()+30*86400000).toISOString().split('T')[0]).length+' produtos nos próx. 30 dias'},
+              {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:'Custo: '+fmtCur(custoTotal||0)},
+              {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:(desperdicioList?.length||0)+' registros'},
               {id:'turnos_rel',icon:'🕐',title:'Comparativo de turnos',sub:'Consumo e custo por turno'},
               {id:'historico_prod',icon:'🔍',title:'Histórico de produto',sub:'Busque um produto específico'},
-              {id:'energia_rel',icon:'⚡',title:'Energia CEMIG',sub:`${energiaLeituras?.length||0} leituras registradas`},
-              {id:'atividade_usuario',icon:'🧑‍💼',title:'Atividade por usuário',sub:`${new Set(relMovs.map(m=>m.user_name)).size} usuários ativos`},
+              {id:'energia_rel',icon:'⚡',title:'Energia CEMIG',sub:(energiaLeituras?.length||0)+' leituras registradas'},
+              {id:'atividade_usuario',icon:'🧑‍💼',title:'Atividade por usuário',sub:new Set((relMovs||[]).map(m=>m.user_name)).size+' usuários ativos'},
               {id:'giro_estoque',icon:'📊',title:'Giro de estoque',sub:'Velocidade de saída dos produtos'},
-              {id:'danificados_rel',icon:'⚠️',title:'Itens danificados',sub:`${danificadoList?.length||0} registros`},
+              {id:'danificados_rel',icon:'⚠️',title:'Itens danificados',sub:(danificadoList?.length||0)+' registros'},
               {id:'sem_mov_rel',icon:'🧊',title:'Produtos sem movimentação',sub:'Itens parados no período'},
             ]
 
