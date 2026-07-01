@@ -2373,8 +2373,8 @@ function AppInner() {
                   <p style={{fontWeight:800,fontSize:13,margin:0}}>🔄 Últimas movimentações</p>
                   <span style={{fontSize:11,color:C.red,fontWeight:700}}>ver todas →</span>
                 </div>
-                {todayMovs.length===0?<p style={{fontSize:12,color:C.grayDark,textAlign:'center'}}>Nenhuma movimentação hoje</p>:
-                todayMovs.slice(0,3).map((m,i)=>{
+                {todayMov.filter(m=>m.type!=='auditoria').length===0?<p style={{fontSize:12,color:C.grayDark,textAlign:'center'}}>Nenhuma movimentação hoje</p>:
+                todayMov.filter(m=>m.type!=='auditoria').slice(0,3).map((m,i)=>{
                   const p=products.find(x=>x.id===m.product_id)
                   const isDano=m.type==='danificado'
                   const cor=isDano?'#F97316':m.type==='entrada'?'#22c55e':C.red
@@ -2424,9 +2424,9 @@ function AppInner() {
                   <span style={{fontSize:11,color:C.red,fontWeight:700}}>detalhes →</span>
                 </div>
                 {TURNOS.map(t=>{
-                  const movs=todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
+                  const movs=todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id&&(m.type==='entrada'||m.type==='saida'))
                   const custo=movs.filter(m=>m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-                  const maxMovs=Math.max(...TURNOS.map(tt=>todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===tt.id).length),1)
+                  const maxMovs=Math.max(...TURNOS.map(tt=>todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===tt.id&&(m.type==='entrada'||m.type==='saida')).length),1)
                   return(
                     <div key={t.id} style={{marginBottom:8}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
@@ -2679,7 +2679,7 @@ function AppInner() {
                     ))}
 
                     {dashModal==='turnos'&&TURNOS.map(t=>{
-                      const movs=todayMovs.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id)
+                      const movs=todayMov.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id&&(m.type==='entrada'||m.type==='saida'))
                       const ent=movs.filter(m=>m.type==='entrada'),sai=movs.filter(m=>m.type==='saida')
                       const custo=sai.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
                       return(<div key={t.id} style={{...S.card,padding:14,marginBottom:8}}>
@@ -2692,7 +2692,7 @@ function AppInner() {
                       </div>)
                     })}
 
-                    {dashModal==='ultimas_movs'&&todayMovs.map((m,i)=>{
+                    {dashModal==='ultimas_movs'&&todayMov.filter(m=>m.type!=='auditoria').map((m,i)=>{
                       const p=products.find(x=>x.id===m.product_id)
                       return(<div key={i} style={{...S.input,padding:'10px 12px'}}>
                         <div style={{display:'flex',justifyContent:'space-between'}}><p style={{fontWeight:800,fontSize:13,margin:0}}>{p?.name||'Produto'}</p><span style={{color:m.type==='entrada'?'#22c55e':C.red,fontWeight:800}}>{m.type==='entrada'?'+':'-'}{m.quantity} {p?.unit}</span></div>
