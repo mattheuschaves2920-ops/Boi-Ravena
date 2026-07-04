@@ -2221,12 +2221,21 @@ function AppInner() {
     const w=window.open('','_blank')
     if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
     const hoje=todayStr()
-    const dataLabel=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
     const horaLabel=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
-    const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
-    const totalVendido=vendasHoje.reduce((s,v)=>s+(v.total||0),0)
+    // Usar o mesmo período selecionado na aba Vendas
+    const getRelRange=()=>{
+      if(vendaDataFiltro) return[vendaDataFiltro,vendaDataFiltro]
+      if(vendaPeriodoFiltro==='ontem'){const d=new Date(Date.now()-86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,ds]}
+      if(vendaPeriodoFiltro==='7dias'){const d=new Date(Date.now()-6*86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,hoje]}
+      if(vendaPeriodoFiltro==='30dias'){const d=new Date(Date.now()-29*86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,hoje]}
+      return[hoje,hoje]
+    }
+    const [rStart,rEnd]=getRelRange()
+    const dataLabel=vendaDataFiltro?new Date(vendaDataFiltro+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):vendaPeriodoFiltro==='hoje'?new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):vendaPeriodoFiltro==='ontem'?'Ontem — '+new Date(Date.now()-86400000).toLocaleDateString('pt-BR',{day:'2-digit',month:'long'}):vendaPeriodoFiltro==='7dias'?'Últimos 7 dias':vendaPeriodoFiltro==='30dias'?'Últimos 30 dias':'Hoje'
     const SETORES_CMV=['Cozinha','Churrasco']
-    const saidasCMV=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&SETORES_CMV.includes(m.setor))
+    const vendasHoje=vendas.filter(v=>{const d=toLocalDate(v.created_at);return d>=rStart&&d<=rEnd})
+    const totalVendido=vendasHoje.reduce((s,v)=>s+(v.total||0),0)
+    const saidasCMV=movements.filter(m=>{const d=toLocalDate(m.created_at);return d>=rStart&&d<=rEnd&&m.type==='saida'&&SETORES_CMV.includes(m.setor)})
     const custoTotal=saidasCMV.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
     const lucroBruto=totalVendido-custoTotal
     const cmvPct=totalVendido>0?((custoTotal/totalVendido)*100).toFixed(1):0
