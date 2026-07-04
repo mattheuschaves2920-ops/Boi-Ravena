@@ -428,6 +428,10 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
+  const [vendas,setVendas] = useState([])
+  const [vendaForm,setVendaForm] = useState({item:'',categoria:'Carnes',quantidade:'',preco_unit:'',turno:getTurnoAtual()})
+  const [vendaTurnoFiltro,setVendaTurnoFiltro] = useState('todos')
+  const [cmvMeta2,setCmvMeta2] = useState(35)
   const [alertaSemMov,setAlertaSemMov] = useState(false)
   const [prodsSemMov,setProdsSemMov] = useState([])
 
@@ -567,6 +571,10 @@ function AppInner() {
             if(ec?.valor)setEnergiaConfig(ec.valor)
             if(ea?.valor)setEnergiaAlerta(ea.valor)
           }
+        }catch(e){}
+        try{
+          const{data:vendasData}=await supabase.from('vendas').select('*').order('created_at',{ascending:false}).limit(500)
+          if(vendasData&&vendasData.length>0) setVendas(vendasData)
         }catch(e){}
         try{
           const{data:danos}=await supabase.from('danificados').select('*').order('created_at',{ascending:false})
@@ -1898,6 +1906,30 @@ function AppInner() {
     showToast(`✓ +${totalUn} ${product.unit} adicionado ao estoque!`)
   }
 
+  const handleVenda=async()=>{
+    const qty=parseFloat(vendaForm.quantidade)
+    const preco=parseFloat(vendaForm.preco_unit)
+    if(!vendaForm.item.trim()) return showToast('Informe o item vendido','err')
+    if(!qty||qty<=0) return showToast('Informe a quantidade','err')
+    if(!preco||preco<=0) return showToast('Informe o preço unitário','err')
+    const total=+(qty*preco).toFixed(2)
+    const novaVenda={item:vendaForm.item.trim(),categoria:vendaForm.categoria,quantidade:qty,preco_unit:preco,total,turno:vendaForm.turno,user_name:user.name,created_at:new Date().toISOString()}
+    const{data,error}=await supabase.from('vendas').insert(novaVenda).select().single()
+    if(error) return showToast('Erro ao salvar: '+error.message,'err')
+    setVendas(prev=>[{...novaVenda,id:data?.id},...prev])
+    logAudit('VENDA LANÇADA',vendaForm.item,`${qty} × R$${preco} = R$${total} · ${vendaForm.categoria}`)
+    setVendaForm(f=>({...f,item:'',quantidade:'',preco_unit:''}))
+    showToast('✓ Venda de R$'+total.toFixed(2)+' registrada!')
+  }
+  const deleteVenda=async(v)=>{
+    if(!canAdmin) return showToast('Apenas administradores podem excluir vendas','err')
+    if(!window.confirm('Excluir esta venda?')) return
+    const{error}=await supabase.from('vendas').delete().eq('id',v.id)
+    if(error) return showToast('Erro ao excluir','err')
+    setVendas(prev=>prev.filter(x=>x.id!==v.id))
+    logAudit('VENDA EXCLUÍDA',v.item,'R$'+v.total)
+    showToast('✓ Venda excluída!')
+  }
   const handleDanificado=async()=>{
     const pid=danificadoForm.productId
     if(!pid) return showToast('Selecione um produto','err')
@@ -2225,8 +2257,7 @@ function AppInner() {
     {key:'estoque',label:'Estoque',icon:'📦'},
     {key:'movimentos',label:'Movimentos',icon:'🔄'},
     {key:'relatorios',label:'Relatórios',icon:'📊'},
-    {key:'cmv',label:'CMV',icon:'📈'},
-    ...(canManage?[{key:'cardapio',label:'Cardápio',icon:'🍽️'}]:[]),
+    {key:'vendas',label:'Vendas',icon:'💰'},
     ...(canAdmin?[{key:'usuarios',label:'Usuários',icon:'👥'}]:[]),
     ...(canAdmin?[{key:'auditoria',label:'Auditoria',icon:'🔍'}]:[]),
     {key:'desperdicio',label:'Desperdício',icon:'🗑️'},
@@ -3536,7 +3567,173 @@ function AppInner() {
               )}
             </>)
           })()}
-        </>}                {tab==='cmv' ? (()=>{
+        </>}                {tab==='vendas'&&(()=>{
+          const hoje=todayStr()
+          const CATS_VENDA=['Carnes','Marmitex / Quentinha','Bebidas','Acompanhamentos','Outros']
+          const CAT_ICONS={'Carnes':'🔥','Marmitex / Quentinha':'🥡','Bebidas':'🍺','Acompanhamentos':'🥗','Outros':'🍽️'}
+          const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
+          const vendasFiltradas=vendaTurnoFiltro==='todos'?vendasHoje:vendasHoje.filter(v=>v.turno===vendaTurnoFiltro)
+          const totalVendido=vendasFiltradas.reduce((s,v)=>s+(v.total||0),0)
+          const custoEstoque=todayMov.filter(m=>m.type==='saida'&&(vendaTurnoFiltro==='todos'||(m.turno||getTurnoFromDate(m.created_at))===vendaTurnoFiltro)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+          const lucroBruto=totalVendido-custoEstoque
+          const cmvPct=totalVendido>0?+((custoEstoque/totalVendido)*100).toFixed(1):0
+          const semaforo=cmvPct<=cmvMeta2?'verde':cmvPct<=cmvMeta2*1.1?'amarelo':'vermelho'
+          const semaforoCor=semaforo==='verde'?'#22c55e':semaforo==='amarelo'?'#f59e0b':'#EA1D2C'
+          const ticketMedio=vendasFiltradas.length>0?totalVendido/vendasFiltradas.length:0
+          const hist7=Array.from({length:7},(_,i)=>{
+            const d=new Date(Date.now()-i*86400000)
+            const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+            const vDia=vendas.filter(v=>toLocalDate(v.created_at)===ds)
+            const vendidoDia=vDia.reduce((s,v)=>s+(v.total||0),0)
+            const custoDia=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const cmvDia=vendidoDia>0?+((custoDia/vendidoDia)*100).toFixed(1):0
+            return{ds,vendido:vendidoDia,custo:custoDia,cmv:cmvDia,label:i===0?'Hoje':i===1?'Ontem':d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}
+          })
+          const qtyPreview=parseFloat(vendaForm.quantidade)||0
+          const precoPreview=parseFloat(vendaForm.preco_unit)||0
+          const totalPreview=+(qtyPreview*precoPreview).toFixed(2)
+          return(<>
+            <div style={{background:'linear-gradient(135deg,#EA1D2C,#c0001f)',borderRadius:14,padding:'14px 16px',marginBottom:12,color:'white'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  <p style={{fontSize:11,opacity:0.85,margin:0}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+                  <p style={{fontSize:18,fontWeight:900,margin:'4px 0 0'}}>💰 Vendas do Dia</p>
+                </div>
+                <div style={{background:'rgba(255,255,255,0.2)',borderRadius:10,padding:'6px 12px',textAlign:'center',cursor:'pointer'}} onClick={()=>{const nova=window.prompt('Meta CMV (%):',cmvMeta2);if(nova&&!isNaN(nova)){setCmvMeta2(+nova);try{supabase.from('categorias_setores').upsert({id:'cmv_meta2',valor:+nova})}catch(e){}}}}>
+                  <p style={{fontSize:10,opacity:0.85,margin:0}}>Meta CMV</p>
+                  <p style={{fontSize:18,fontWeight:900,margin:0}}>{cmvMeta2}%</p>
+                </div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
+              {[{id:'todos',icon:'📅',label:'Dia todo'},...TURNOS].map(t=>(
+                <button key={t.id} onClick={()=>setVendaTurnoFiltro(t.id)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:vendaTurnoFiltro===t.id?C.red:'#F0EDE8',color:vendaTurnoFiltro===t.id?'white':'#666'}}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+            <div style={{background:`linear-gradient(135deg,${semaforoCor},${semaforoCor}cc)`,borderRadius:12,padding:'14px 16px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{color:'white'}}>
+                <p style={{fontSize:12,fontWeight:700,margin:0,opacity:0.9}}>CMV {vendaTurnoFiltro==='todos'?'do dia':'do turno'}</p>
+                <p style={{fontSize:11,margin:'3px 0 0',opacity:0.75}}>{semaforo==='verde'?'✅ Dentro da meta':'⚠️ '+(semaforo==='amarelo'?'Atenção':'Acima da meta')+' ('+cmvMeta2+'%)'}</p>
+              </div>
+              <p style={{fontSize:40,fontWeight:900,color:'white',margin:0,lineHeight:1}}>{totalVendido>0?cmvPct+'%':'—'}</p>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              {[
+                {l:'Total Vendido',v:fmtCur(totalVendido),c:'#22c55e',sub:vendasFiltradas.length+' itens'},
+                {l:'Custo Estoque',v:fmtCur(custoEstoque),c:C.red,sub:'saídas do dia'},
+                {l:'Lucro Bruto',v:fmtCur(lucroBruto),c:'#1D4ED8',sub:totalVendido>0?(100-cmvPct).toFixed(1)+'% margem':'—'},
+                {l:'Ticket Médio',v:fmtCur(ticketMedio),c:C.text,sub:'por venda'},
+              ].map(k=>(
+                <div key={k.l} style={{...S.card,padding:12}}>
+                  <p style={{fontSize:10,color:C.grayDark,fontWeight:700,margin:0,textTransform:'uppercase'}}>{k.l}</p>
+                  <p style={{fontSize:16,fontWeight:900,margin:'3px 0 2px',color:k.c}}>{k.v}</p>
+                  <p style={{fontSize:10,color:C.grayDark,margin:0}}>{k.sub}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{...S.card,marginBottom:12}}>
+              <p style={{fontWeight:800,fontSize:14,marginBottom:12}}>➕ Lançar Venda</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>ITEM VENDIDO</label>
+                  <input placeholder="Ex: Elviseve, Marmitex, Churrasco..." value={vendaForm.item} onChange={e=>setVendaForm(f=>({...f,item:e.target.value}))} style={S.input} />
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>CATEGORIA</label>
+                  <select value={vendaForm.categoria} onChange={e=>setVendaForm(f=>({...f,categoria:e.target.value}))} style={S.input}>
+                    {CATS_VENDA.map(c=><option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
+                  </select>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>QUANTIDADE</label>
+                    <input type="number" min="0.001" step="0.001" placeholder="0" value={vendaForm.quantidade} onChange={e=>setVendaForm(f=>({...f,quantidade:e.target.value}))} style={S.input} />
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>PREÇO UNIT. (R$)</label>
+                    <input type="number" min="0.01" step="0.01" placeholder="0,00" value={vendaForm.preco_unit} onChange={e=>setVendaForm(f=>({...f,preco_unit:e.target.value}))} style={S.input} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>TURNO</label>
+                  <select value={vendaForm.turno} onChange={e=>setVendaForm(f=>({...f,turno:e.target.value}))} style={S.input}>
+                    {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
+                  </select>
+                </div>
+                {vendaForm.quantidade&&vendaForm.preco_unit&&(
+                  <div style={{background:'#f0fdf4',borderRadius:10,padding:10,textAlign:'center'}}>
+                    <p style={{fontSize:11,color:'#888',margin:0}}>Total do item</p>
+                    <p style={{fontSize:22,fontWeight:900,color:'#22c55e',margin:'4px 0 0'}}>{fmtCur(totalPreview)}</p>
+                  </div>
+                )}
+                <button onClick={handleVenda} style={{...S.btnRed,padding:12,fontSize:14,fontWeight:800}}>✅ Adicionar venda</button>
+              </div>
+            </div>
+            {vendasFiltradas.length>0&&(
+              <div style={{...S.card,marginBottom:12}}>
+                <p style={{fontWeight:800,fontSize:14,marginBottom:12}}>📊 Por categoria</p>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  {CATS_VENDA.map(cat=>{
+                    const catTotal=vendasFiltradas.filter(v=>v.categoria===cat).reduce((s,v)=>s+(v.total||0),0)
+                    if(catTotal===0) return null
+                    const pct=totalVendido>0?((catTotal/totalVendido)*100).toFixed(1):0
+                    return(
+                      <div key={cat} style={{background:'#F9F9F9',borderRadius:10,padding:'10px 12px',borderLeft:`3px solid ${cat==='Carnes'?'#F97316':cat==='Bebidas'?'#3B82F6':cat==='Marmitex / Quentinha'?'#8B5CF6':'#22c55e'}`}}>
+                        <p style={{fontSize:10,fontWeight:800,color:C.grayDark,margin:0}}>{CAT_ICONS[cat]} {cat.toUpperCase()}</p>
+                        <p style={{fontSize:15,fontWeight:900,margin:'4px 0 2px'}}>{fmtCur(catTotal)}</p>
+                        <p style={{fontSize:10,color:C.grayDark,margin:0}}>{pct}% do total</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <div style={{...S.card,marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <p style={{fontWeight:800,fontSize:14,margin:0}}>🛒 Vendas lançadas</p>
+                <span style={{background:'#f0fdf4',color:'#22c55e',padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:800}}>{fmtCur(totalVendido)}</span>
+              </div>
+              {vendasFiltradas.length===0?(
+                <p style={{textAlign:'center',color:C.grayDark,padding:'16px 0',fontSize:13}}>Nenhuma venda lançada {vendaTurnoFiltro==='todos'?'hoje':'neste turno'}</p>
+              ):(
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {vendasFiltradas.map((v,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 12px',background:'#F0FFF6',borderRadius:10,borderLeft:'3px solid #22c55e'}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{fontWeight:700,fontSize:13,margin:0}}>{v.item}</p>
+                        <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{CAT_ICONS[v.categoria]||'🍽️'} {v.categoria} · {v.quantidade} × {fmtCur(v.preco_unit)} · {v.turno}</p>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
+                        <p style={{fontWeight:900,color:'#22c55e',margin:0}}>{fmtCur(v.total)}</p>
+                        {canAdmin&&<button onClick={()=>deleteVenda(v)} style={{...S.btnGray,padding:'3px 8px',fontSize:10,marginTop:4}}>🗑️</button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{...S.card,marginBottom:12}}>
+              <p style={{fontWeight:800,fontSize:14,marginBottom:12}}>📅 Histórico (7 dias)</p>
+              {hist7.map((d,i)=>{
+                const corCmv=d.cmv===0?C.grayDark:d.cmv<=cmvMeta2?'#22c55e':d.cmv<=cmvMeta2*1.1?'#f59e0b':'#EA1D2C'
+                const bgCmv=d.cmv===0?'#F5F5F5':d.cmv<=cmvMeta2?'#f0fdf4':d.cmv<=cmvMeta2*1.1?'#fff7ed':'#fef2f2'
+                return(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 0',borderBottom:i<6?`1px solid ${C.grayMid}`:'none'}}>
+                    <div>
+                      <p style={{fontWeight:700,fontSize:13,margin:0}}>{d.label}</p>
+                      <p style={{fontSize:11,color:C.grayDark,margin:'2px 0 0'}}>{d.vendido>0?fmtCur(d.vendido)+' vendido · '+fmtCur(d.custo)+' custo':'Sem vendas'}</p>
+                    </div>
+                    <span style={{background:bgCmv,color:corCmv,padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:800}}>{d.cmv>0?d.cmv+'%':'—'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>)
+        })()}
+
+        {tab==='cmv' ? (()=>{
           const {custoTotal,categoriasTotais,movsFiltrados}=getCmvData(cmvPeriodo)
           const totalReceita=cardapio.reduce((s,c)=>{
             const movsC=movsFiltrados.filter(m=>{const p=products.find(x=>x.id===m.product_id);return p&&p.category===c.categoria})
