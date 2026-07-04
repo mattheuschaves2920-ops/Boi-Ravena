@@ -2205,7 +2205,14 @@ function AppInner() {
   const previsaoComp=calcPrevisao()
   const criticosComp=previsaoComp.filter(p=>p.urgencia==='critico')
   const urgentesComp=previsaoComp.filter(p=>p.urgencia==='urgente')
-  const paraReporComp=previsaoComp.filter(p=>p.precisaRepor)
+  const paraReporComp=previsaoComp.filter(p=>{
+    if(!p.precisaRepor) return false
+    if(prevFiltroSetor!=='todos'&&p.setor!==prevFiltroSetor) return false
+    if(prevFiltroCategoria!=='todos'&&p.category!==prevFiltroCategoria) return false
+    if(prevFiltroStatus==='critico'&&p.urgencia!=='critico') return false
+    if(prevFiltroStatus==='urgente'&&p.urgencia!=='urgente'&&p.urgencia!=='critico') return false
+    return true
+  })
   const custoTotalReporComp=paraReporComp.reduce((s,p)=>s+p.custoRepor,0)
 
   const gerarPedido=()=>{
