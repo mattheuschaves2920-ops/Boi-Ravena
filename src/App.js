@@ -2215,6 +2215,159 @@ function AppInner() {
   })
   const custoTotalReporComp=paraReporComp.reduce((s,p)=>s+p.custoRepor,0)
 
+  const gerarRelatorioCompleto=()=>{
+    const w=window.open('','_blank')
+    if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
+    const hoje=todayStr()
+    const dataLabel=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
+    const horaLabel=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
+    // Vendas do dia
+    const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
+    const totalVendido=vendasHoje.reduce((s,v)=>s+(v.total||0),0)
+    // Custo Cozinha+Churrasco
+    const SETORES_CMV=['Cozinha','Churrasco']
+    const saidasCMV=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&SETORES_CMV.includes(m.setor))
+    const custoTotal=saidasCMV.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+    const lucroBruto=totalVendido-custoTotal
+    const cmvPct=totalVendido>0?((custoTotal/totalVendido)*100).toFixed(1):0
+    const margem=totalVendido>0?((lucroBruto/totalVendido)*100).toFixed(1):0
+    const semCorBg=+cmvPct<=cmvMeta2?'#f59e0b,#d97706':+cmvPct<=cmvMeta2*1.1?'#f59e0b,#d97706':'#EA1D2C,#c0001f'
+    const semStatus=+cmvPct<=cmvMeta2?'✅ Dentro da meta':+cmvPct<=cmvMeta2*1.1?'⚠️ Atenção — próximo da meta':'🚨 Acima da meta'
+    // Categorias
+    const CATS_VENDA=['Carnes','Marmitex / Quentinha','Bebidas','Acompanhamentos','Outros']
+    const CAT_ICONS_R={'Carnes':'🔥','Marmitex / Quentinha':'🥡','Bebidas':'🍺','Acompanhamentos':'🥗','Outros':'🍽️'}
+    const CAT_COLORS={'Carnes':'#F97316','Marmitex / Quentinha':'#8B5CF6','Bebidas':'#3B82F6','Acompanhamentos':'#22c55e','Outros':'#888'}
+    // Ranking itens
+    const rankMap={}
+    vendasHoje.forEach(v=>{
+      if(!rankMap[v.item]) rankMap[v.item]={item:v.item,categoria:v.categoria,qty:0,total:0}
+      rankMap[v.item].qty+=v.quantidade||0
+      rankMap[v.item].total+=v.total||0
+    })
+    const ranking=Object.values(rankMap).sort((a,b)=>b.total-a.total).slice(0,10)
+    // Turnos
+    const turnosData=TURNOS.map(t=>{
+      const vT=vendasHoje.filter(v=>v.turno===t.id)
+      const vTot=vT.reduce((s,v)=>s+(v.total||0),0)
+      const cT=saidasCMV.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+      const cmv=vTot>0?((cT/vTot)*100).toFixed(1):0
+      return{...t,vendido:vTot,custo:cT,cmv}
+    }).filter(t=>t.vendido>0)
+    // Alertas
+    const produtosZerados=products.filter(p=>p.quantity<=0)
+    const produtosBaixos=products.filter(p=>p.quantity>0&&p.quantity<=p.min_stock)
+    const em3=new Date(Date.now()+3*86400000).toISOString().split('T')[0]
+    const vencendo3=products.filter(p=>p.expiry&&p.expiry<=em3&&p.quantity>0)
+    const danPendentes=danificadoList.filter(d=>!d.status||d.status==='pendente')
+    const despHoje=desperdicioList.filter(d=>toLocalDate(d.created_at)===hoje)
+    const custoDespHoje=despHoje.reduce((s,d)=>s+(d.custo||0),0)
+    // Saídas todas (para tabela custo)
+    const saidasHoje=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&SETORES_CMV.includes(m.setor))
+    const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório — Boi de Minas</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1A1A1A;background:#f5f5f5}
+.page{max-width:800px;margin:20px auto;background:white;box-shadow:0 4px 20px rgba(0,0,0,0.1)}
+.capa{background:linear-gradient(135deg,#EA1D2C,#8B0000);padding:40px;color:white}
+.section{padding:28px 40px;border-bottom:1px solid #f0f0f0}
+.section:last-child{border:none}
+.section-header{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.section-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.section-title{font-size:16px;font-weight:900}
+.section-sub{font-size:12px;color:#888;margin-top:2px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi-card{border-radius:12px;padding:16px;text-align:center}
+table{width:100%;border-collapse:collapse}
+th{background:#f8f8f8;padding:10px 14px;text-align:left;font-size:11px;font-weight:800;color:#888;text-transform:uppercase;border-bottom:2px solid #eee}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f5f5f5}
+.td-right{text-align:right;font-weight:700}
+.td-center{text-align:center}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.semaforo{border-radius:14px;padding:20px 24px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;color:white}
+.alerta-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;margin-bottom:8px}
+.meta-bar{background:#f0f0f0;border-radius:8px;height:12px;overflow:hidden;margin:10px 0}
+.cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cat-card{border-radius:10px;padding:14px;color:white}
+.turno-card{border-radius:10px;padding:14px;background:#f8f8f8;border-left:4px solid}
+.rodape{background:#1A1A1A;padding:20px 40px;color:white;display:flex;justify-content:space-between;align-items:center}
+@media print{body{background:white}.page{box-shadow:none;margin:0}.no-print{display:none}}
+</style></head><body>
+<div class="no-print" style="max-width:800px;margin:16px auto 0;display:flex;justify-content:flex-end">
+<button onclick="window.print()" style="background:#EA1D2C;color:white;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></div>
+<div class="page">
+<div class="capa">
+<div style="font-size:48px;margin-bottom:12px">🐂</div>
+<div style="font-size:28px;font-weight:900;margin-bottom:6px">Boi de Minas Churrascaria</div>
+<div style="font-size:14px;opacity:0.85">Relatório Gerencial Completo</div>
+<div style="margin-top:24px;background:rgba(255,255,255,0.15);border-radius:12px;padding:14px 18px;display:inline-block">
+<p style="font-size:13px;opacity:0.85;margin-bottom:4px">Período</p>
+<h2 style="font-size:18px;font-weight:900">${dataLabel}</h2></div>
+<div style="display:flex;gap:16px;margin-top:20px">
+<div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:10px 16px"><p style="font-size:10px;opacity:0.8">Gerado em</p><p style="font-size:13px;font-weight:700">${new Date().toLocaleDateString('pt-BR')} às ${horaLabel}</p></div>
+<div style="background:rgba(255,255,255,0.12);border-radius:10px;padding:10px 16px"><p style="font-size:10px;opacity:0.8">Responsável</p><p style="font-size:13px;font-weight:700">${user.name}</p></div>
+</div></div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#fef2f2">💰</div><div><div class="section-title">1. Resumo Financeiro</div><div class="section-sub">Visão geral do dia</div></div></div>
+<div class="semaforo" style="background:linear-gradient(135deg,${semCorBg})">
+<div><p style="font-size:14px;font-weight:700;opacity:0.9">CMV do dia</p><p style="font-size:12px;opacity:0.75;margin-top:4px">${semStatus} (meta: ${cmvMeta2}%)</p><p style="font-size:11px;opacity:0.7;margin-top:8px">Custo ${fmtCur(custoTotal)} ÷ Vendas ${fmtCur(totalVendido)}</p></div>
+<div style="text-align:right"><div style="font-size:52px;font-weight:900;line-height:1">${totalVendido>0?cmvPct+'%':'—'}</div><p style="font-size:12px;opacity:0.85;margin-top:4px">Meta: ${cmvMeta2}%</p></div></div>
+<div class="kpi-grid">
+<div class="kpi-card" style="background:#f0fdf4"><div style="font-size:22px;margin-bottom:8px">📈</div><div style="font-size:22px;font-weight:900;color:#22c55e;margin-bottom:4px">${fmtCur(totalVendido)}</div><div style="font-size:11px;font-weight:700;color:#16a34a;text-transform:uppercase">Total Vendido</div></div>
+<div class="kpi-card" style="background:#fef2f2"><div style="font-size:22px;margin-bottom:8px">💸</div><div style="font-size:22px;font-weight:900;color:#EA1D2C;margin-bottom:4px">${fmtCur(custoTotal)}</div><div style="font-size:11px;font-weight:700;color:#EA1D2C;text-transform:uppercase">Custo (Coz+Chur)</div></div>
+<div class="kpi-card" style="background:#eff6ff"><div style="font-size:22px;margin-bottom:8px">💵</div><div style="font-size:22px;font-weight:900;color:#1D4ED8;margin-bottom:4px">${fmtCur(lucroBruto)}</div><div style="font-size:11px;font-weight:700;color:#1D4ED8;text-transform:uppercase">Lucro Bruto</div></div>
+<div class="kpi-card" style="background:#fff7ed"><div style="font-size:22px;margin-bottom:8px">🎯</div><div style="font-size:22px;font-weight:900;color:#f59e0b;margin-bottom:4px">${margem}%</div><div style="font-size:11px;font-weight:700;color:#f59e0b;text-transform:uppercase">Margem Bruta</div></div>
+</div></div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#eff6ff">🎯</div><div><div class="section-title">2. Meta do Dia</div><div class="section-sub">Progresso em relação à meta</div></div></div>
+<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px;font-weight:700">Meta: ${fmtCur(cmvMeta2*10)}</span><span style="font-size:13px;font-weight:900;color:#22c55e">${fmtCur(totalVendido)} (${cmvMeta2>0?Math.min(100,+(totalVendido/(cmvMeta2*10)*100).toFixed(1)):0}%)</span></div>
+<div class="meta-bar"><div style="height:100%;border-radius:8px;background:linear-gradient(90deg,#22c55e,#16a34a);width:${cmvMeta2>0?Math.min(100,+(totalVendido/(cmvMeta2*10)*100).toFixed(1)):0}%"></div></div>
+</div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#fff7ed">🛒</div><div><div class="section-title">3. Vendas por Categoria</div><div class="section-sub">Distribuição do faturamento</div></div></div>
+<div class="cat-grid">
+${CATS_VENDA.map(cat=>{const tot=vendasHoje.filter(v=>v.categoria===cat).reduce((s,v)=>s+(v.total||0),0);const pct=totalVendido>0?((tot/totalVendido)*100).toFixed(1):0;if(tot===0)return '';return `<div class="cat-card" style="background:${CAT_COLORS[cat]}"><p style="font-size:11px;font-weight:800;opacity:0.9">${CAT_ICONS_R[cat]||'🍽️'} ${cat.toUpperCase()}</p><p style="font-size:20px;font-weight:900;margin:8px 0 4px">${fmtCur(tot)}</p><p style="font-size:11px;opacity:0.85">${pct}% do total</p></div>`}).join('')}
+</div></div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#fef9c3">🏆</div><div><div class="section-title">4. Itens Mais Vendidos</div><div class="section-sub">Ranking do dia</div></div></div>
+${ranking.length>0?`<table><thead><tr><th>#</th><th>Item</th><th>Categoria</th><th class="td-right">Total</th></tr></thead><tbody>
+${ranking.map((r,i)=>`<tr><td style="font-weight:900">${i+1}</td><td style="font-weight:700">${r.item}</td><td><span class="tag" style="background:#f8f8f8;color:#555">${CAT_ICONS_R[r.categoria]||'🍽️'} ${r.categoria}</span></td><td class="td-right" style="color:#22c55e">${fmtCur(r.total)}</td></tr>`).join('')}
+</tbody><tfoot><tr style="background:#f8f8f8"><td colspan="3" style="padding:12px 14px;font-weight:900">TOTAL GERAL</td><td class="td-right" style="padding:12px 14px;font-weight:900;font-size:16px;color:#22c55e">${fmtCur(totalVendido)}</td></tr></tfoot></table>`:'<p style="text-align:center;color:#888;padding:20px">Nenhuma venda lançada hoje</p>'}
+</div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#fef2f2">📦</div><div><div class="section-title">5. Custo do Estoque</div><div class="section-sub">Saídas dos setores Cozinha e Churrasco</div></div></div>
+${saidasHoje.length>0?`<table><thead><tr><th>Produto</th><th>Setor</th><th class="td-center">Qtd</th><th class="td-right">Custo Unit.</th><th class="td-right">Total</th></tr></thead><tbody>
+${saidasHoje.map(m=>{const p=products.find(x=>x.id===m.product_id);return`<tr><td style="font-weight:700">${p?.name||'—'}</td><td><span class="tag" style="background:#f8f8f8;color:#555">${m.setor}</span></td><td class="td-center">${m.quantity} ${p?.unit||''}</td><td class="td-right">${fmtCur(m.cost_unit||0)}</td><td class="td-right" style="color:#EA1D2C">${fmtCur((m.quantity||0)*(m.cost_unit||0))}</td></tr>`}).join('')}
+</tbody><tfoot><tr style="background:#fef2f2"><td colspan="4" style="padding:12px 14px;font-weight:900">TOTAL CUSTO</td><td class="td-right" style="padding:12px 14px;font-weight:900;font-size:16px;color:#EA1D2C">${fmtCur(custoTotal)}</td></tr></tfoot></table>`:'<p style="text-align:center;color:#888;padding:20px">Nenhuma saída registrada nos setores CMV hoje</p>'}
+</div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#f0fdf4">🕐</div><div><div class="section-title">6. CMV por Turno</div><div class="section-sub">Desempenho de cada turno</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(${Math.min(turnosData.length||1,3)},1fr);gap:10px">
+${turnosData.length>0?turnosData.map(t=>{const cor=+t.cmv<=cmvMeta2?'#22c55e':+t.cmv<=cmvMeta2*1.1?'#f59e0b':'#EA1D2C';return`<div class="turno-card" style="border-color:${cor}"><p style="font-size:11px;font-weight:800;color:#888">${t.icon} ${t.label.toUpperCase()}</p><p style="font-size:20px;font-weight:900;color:${cor};margin:8px 0 4px">${t.cmv}%</p><p style="font-size:11px;color:#888">${fmtCur(t.vendido)} vendido</p><p style="font-size:11px;color:#888">${fmtCur(t.custo)} custo</p></div>`}).join(''):'<p style="color:#888;padding:16px">Nenhuma venda com turno definido</p>'}
+</div></div>
+
+<div class="section">
+<div class="section-header"><div class="section-icon" style="background:#fef2f2">🚨</div><div><div class="section-title">7. Alertas</div><div class="section-sub">Pontos que precisam de atenção</div></div></div>
+${produtosZerados.length>0?`<div class="alerta-item" style="background:#fef2f2"><span style="font-size:22px">🚨</span><div><p style="font-weight:800;font-size:13px;color:#EA1D2C">Estoque Zerado — ${produtosZerados.length} produto(s)</p><p style="font-size:11px;color:#888;margin-top:2px">${produtosZerados.slice(0,5).map(p=>p.name).join(' · ')}</p></div></div>`:''}
+${produtosBaixos.length>0?`<div class="alerta-item" style="background:#fff7ed"><span style="font-size:22px">⚠️</span><div><p style="font-weight:800;font-size:13px;color:#F97316">Estoque Baixo — ${produtosBaixos.length} produto(s)</p><p style="font-size:11px;color:#888;margin-top:2px">${produtosBaixos.slice(0,5).map(p=>p.name).join(' · ')}</p></div></div>`:''}
+${vencendo3.length>0?`<div class="alerta-item" style="background:#fff7ed"><span style="font-size:22px">⏰</span><div><p style="font-weight:800;font-size:13px;color:#F97316">Vencimento Próximo — ${vencendo3.length} produto(s)</p><p style="font-size:11px;color:#888;margin-top:2px">${vencendo3.slice(0,5).map(p=>p.name).join(' · ')}</p></div></div>`:''}
+${danPendentes.length>0?`<div class="alerta-item" style="background:#fff7ed"><span style="font-size:22px">⚠️</span><div><p style="font-weight:800;font-size:13px;color:#F97316">Danificados Pendentes — ${danPendentes.length} item(s)</p><p style="font-size:11px;color:#888;margin-top:2px">Aguardando troca com fornecedor · ${fmtCur(danPendentes.reduce((s,d)=>s+(d.custo||0),0))}</p></div></div>`:''}
+<div class="alerta-item" style="background:${custoDespHoje>0?'#fff7ed':'#f0fdf4'}"><span style="font-size:22px">${custoDespHoje>0?'🗑️':'✅'}</span><div><p style="font-weight:800;font-size:13px;color:${custoDespHoje>0?'#F97316':'#22c55e'}">Desperdício do dia</p><p style="font-size:11px;color:#888;margin-top:2px">${custoDespHoje>0?fmtCur(custoDespHoje)+' em desperdício registrado':'Nenhum desperdício registrado hoje'}</p></div></div>
+${produtosZerados.length===0&&produtosBaixos.length===0&&vencendo3.length===0&&danPendentes.length===0&&custoDespHoje===0?'<div class="alerta-item" style="background:#f0fdf4"><span style="font-size:22px">✅</span><div><p style="font-weight:800;font-size:13px;color:#22c55e">Tudo em ordem!</p><p style="font-size:11px;color:#888;margin-top:2px">Nenhum alerta crítico para hoje.</p></div></div>':''}
+</div>
+
+<div class="rodape"><div><p style="font-size:13px;font-weight:700">🐂 Boi de Minas Churrascaria</p><p style="font-size:11px;opacity:0.6;margin-top:2px">Sistema de Gestão — boi-ravena.vercel.app</p></div><div style="text-align:right"><p style="font-size:11px;opacity:0.6">Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${horaLabel}</p><p style="font-size:11px;opacity:0.6;margin-top:2px">por ${user.name}</p></div></div>
+</div></body></html>`
+    w.document.write(html)
+    w.document.close()
+    logAudit('RELATÓRIO GERADO','Relatório Completo',dataLabel)
+  }
+
   const gerarPedido=()=>{
     const w=window.open('','_blank')
     if(!w){showToast('Permita pop-ups para gerar PDF','err');return}
@@ -3728,6 +3881,8 @@ function AppInner() {
                 </div>
               )}
             </div>
+            <button onClick={gerarRelatorioCompleto} style={{...S.btnRed,width:'100%',padding:13,fontSize:14,fontWeight:800,marginBottom:12}}>📄 Gerar Relatório Completo (PDF)</button>
+
             <div style={{...S.card,marginBottom:12}}>
               <p style={{fontWeight:800,fontSize:14,marginBottom:12}}>📅 Histórico (7 dias)</p>
               {hist7.map((d,i)=>{
@@ -4239,6 +4394,7 @@ function AppInner() {
               <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
             </div>
             <div style={{display:'flex',gap:8}}>
+              <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#EA1D2C',fontWeight:700}}>📄 Relatório</button>
               <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
               <button onClick={installPWA} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.blue,fontWeight:700}}>📱 Instalar App</button>
             </div>
