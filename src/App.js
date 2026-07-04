@@ -429,7 +429,7 @@ function AppInner() {
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
   const [vendas,setVendas] = useState([])
-  const [vendaForm,setVendaForm] = useState({item:'',categoria:'Carnes',quantidade:'',preco_unit:'',turno:getTurnoAtual()})
+  const [vendaForm,setVendaForm] = useState({item:'',categoria:'Carnes',quantidade:'',preco_unit:'',turno:getTurnoAtual(),dataMov:''})
   const [vendaTurnoFiltro,setVendaTurnoFiltro] = useState('todos')
   const [cmvMeta2,setCmvMeta2] = useState(35)
   const [alertaSemMov,setAlertaSemMov] = useState(false)
@@ -1913,12 +1913,13 @@ function AppInner() {
     if(!qty||qty<=0) return showToast('Informe a quantidade','err')
     if(!preco||preco<=0) return showToast('Informe o preço unitário','err')
     const total=+(qty*preco).toFixed(2)
-    const novaVenda={item:vendaForm.item.trim(),categoria:vendaForm.categoria,quantidade:qty,preco_unit:preco,total,turno:vendaForm.turno,user_name:user.name,created_at:new Date().toISOString()}
+    const dataFinalVenda=vendaForm.dataMov?new Date(vendaForm.dataMov+'T'+new Date().toTimeString().slice(0,8)).toISOString():new Date().toISOString()
+    const novaVenda={item:vendaForm.item.trim(),categoria:vendaForm.categoria,quantidade:qty,preco_unit:preco,total,turno:vendaForm.turno,user_name:user.name,created_at:dataFinalVenda}
     const{data,error}=await supabase.from('vendas').insert(novaVenda).select().single()
     if(error) return showToast('Erro ao salvar: '+error.message,'err')
     setVendas(prev=>[{...novaVenda,id:data?.id},...prev])
     logAudit('VENDA LANÇADA',vendaForm.item,`${qty} × R$${preco} = R$${total} · ${vendaForm.categoria}`)
-    setVendaForm(f=>({...f,item:'',quantidade:'',preco_unit:''}))
+    setVendaForm(f=>({...f,item:'',quantidade:'',preco_unit:'',dataMov:''}))
     showToast('✓ Venda de R$'+total.toFixed(2)+' registrada!')
   }
   const deleteVenda=async(v)=>{
@@ -3661,6 +3662,11 @@ function AppInner() {
                   <select value={vendaForm.turno} onChange={e=>setVendaForm(f=>({...f,turno:e.target.value}))} style={S.input}>
                     {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>DATA (vazio = hoje)</label>
+                  <input type="date" max={todayStr()} value={vendaForm.dataMov} onChange={e=>setVendaForm(f=>({...f,dataMov:e.target.value}))} style={S.input} />
+                  {vendaForm.dataMov&&<p style={{fontSize:11,color:'#1D4ED8',marginTop:4,fontWeight:700}}>📅 Lançamento retroativo</p>}
                 </div>
                 {vendaForm.quantidade&&vendaForm.preco_unit&&(
                   <div style={{background:'#f0fdf4',borderRadius:10,padding:10,textAlign:'center'}}>
