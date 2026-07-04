@@ -432,6 +432,8 @@ function AppInner() {
   const [vendaForm,setVendaForm] = useState({item:'',categoria:'Carnes',quantidade:'',preco_unit:'',turno:getTurnoAtual(),dataMov:''})
   const [vendaTurnoFiltro,setVendaTurnoFiltro] = useState('todos')
   const [cmvMeta2,setCmvMeta2] = useState(35)
+  const [vendaDataFiltro,setVendaDataFiltro] = useState('')
+  const [vendaPeriodoFiltro,setVendaPeriodoFiltro] = useState('hoje')
   const [alertaSemMov,setAlertaSemMov] = useState(false)
   const [prodsSemMov,setProdsSemMov] = useState([])
 
@@ -3687,11 +3689,22 @@ ${turnosData.length>0?`<div class="section">
           const hoje=todayStr()
           const CATS_VENDA=['Carnes','Marmitex / Quentinha','Bebidas','Acompanhamentos','Outros']
           const CAT_ICONS={'Carnes':'🔥','Marmitex / Quentinha':'🥡','Bebidas':'🍺','Acompanhamentos':'🥗','Outros':'🍽️'}
-          const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
-          const vendasFiltradas=vendaTurnoFiltro==='todos'?vendasHoje:vendasHoje.filter(v=>v.turno===vendaTurnoFiltro)
+          const SETORES_CMV_V=['Cozinha','Churrasco']
+          const getVendaRange=()=>{
+            if(vendaDataFiltro) return[vendaDataFiltro,vendaDataFiltro]
+            if(vendaPeriodoFiltro==='hoje') return[hoje,hoje]
+            if(vendaPeriodoFiltro==='ontem'){const d=new Date(Date.now()-86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,ds]}
+            if(vendaPeriodoFiltro==='7dias'){const d=new Date(Date.now()-6*86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,hoje]}
+            if(vendaPeriodoFiltro==='30dias'){const d=new Date(Date.now()-29*86400000);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return[ds,hoje]}
+            return[hoje,hoje]
+          }
+          const [vStart,vEnd]=getVendaRange()
+          const periodoLabel=vendaDataFiltro?new Date(vendaDataFiltro+'T12:00:00').toLocaleDateString('pt-BR'):vendaPeriodoFiltro==='hoje'?'Hoje':vendaPeriodoFiltro==='ontem'?'Ontem':vendaPeriodoFiltro==='7dias'?'Últimos 7 dias':'Últimos 30 dias'
+          const vendasPeriodo=vendas.filter(v=>{const d=toLocalDate(v.created_at);return d>=vStart&&d<=vEnd})
+          const vendasFiltradas=vendaTurnoFiltro==='todos'?vendasPeriodo:vendasPeriodo.filter(v=>v.turno===vendaTurnoFiltro)
           const totalVendido=vendasFiltradas.reduce((s,v)=>s+(v.total||0),0)
-          const SETORES_CMV=['Cozinha','Churrasco']
-          const custoEstoque=todayMov.filter(m=>m.type==='saida'&&SETORES_CMV.includes(m.setor)&&(vendaTurnoFiltro==='todos'||(m.turno||getTurnoFromDate(m.created_at))===vendaTurnoFiltro)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+          const movsPeriodo=movements.filter(m=>{const d=toLocalDate(m.created_at);return d>=vStart&&d<=vEnd})
+          const custoEstoque=movsPeriodo.filter(m=>m.type==='saida'&&SETORES_CMV_V.includes(m.setor)&&(vendaTurnoFiltro==='todos'||(m.turno||getTurnoFromDate(m.created_at))===vendaTurnoFiltro)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
           const lucroBruto=totalVendido-custoEstoque
           const cmvPct=totalVendido>0?+((custoEstoque/totalVendido)*100).toFixed(1):0
           const semaforo=cmvPct<=cmvMeta2?'verde':cmvPct<=cmvMeta2*1.1?'amarelo':'vermelho'
@@ -3713,7 +3726,7 @@ ${turnosData.length>0?`<div class="section">
             <div style={{background:'linear-gradient(135deg,#EA1D2C,#c0001f)',borderRadius:14,padding:'14px 16px',marginBottom:12,color:'white'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                 <div>
-                  <p style={{fontSize:11,opacity:0.85,margin:0}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+                  <p style={{fontSize:11,opacity:0.85,margin:0}}>{periodoLabel} · {new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long'})}</p>
                   <p style={{fontSize:18,fontWeight:900,margin:'4px 0 0'}}>💰 Vendas do Dia</p>
                 </div>
                 <div style={{background:'rgba(255,255,255,0.2)',borderRadius:10,padding:'6px 12px',textAlign:'center',cursor:'pointer'}} onClick={()=>{const nova=window.prompt('Meta CMV (%):',cmvMeta2);if(nova&&!isNaN(nova)){setCmvMeta2(+nova);try{supabase.from('categorias_setores').upsert({id:'cmv_meta2',valor:+nova})}catch(e){}}}}>
@@ -3722,6 +3735,21 @@ ${turnosData.length>0?`<div class="section">
                 </div>
               </div>
             </div>
+            {/* FILTRO PERÍODO */}
+            <div style={{...S.card,marginBottom:12,padding:12}}>
+              <p style={{fontSize:11,fontWeight:800,color:C.grayDark,marginBottom:10}}>📅 PERÍODO</p>
+              <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+                {[{id:'hoje',l:'Hoje'},{id:'ontem',l:'Ontem'},{id:'7dias',l:'7 dias'},{id:'30dias',l:'30 dias'}].map(p=>(
+                  <button key={p.id} onClick={()=>{setVendaPeriodoFiltro(p.id);setVendaDataFiltro('')}} style={{padding:'6px 14px',borderRadius:20,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:vendaPeriodoFiltro===p.id&&!vendaDataFiltro?C.red:'#F0EDE8',color:vendaPeriodoFiltro===p.id&&!vendaDataFiltro?'white':'#666'}}>{p.l}</button>
+                ))}
+              </div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <input type="date" max={todayStr()} value={vendaDataFiltro} onChange={e=>{setVendaDataFiltro(e.target.value);setVendaPeriodoFiltro('')}} style={{...S.input,flex:1}} />
+                {vendaDataFiltro&&<button onClick={()=>{setVendaDataFiltro('');setVendaPeriodoFiltro('hoje')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,flexShrink:0}}>✕</button>}
+              </div>
+              {vendaDataFiltro&&<p style={{fontSize:11,color:'#1D4ED8',marginTop:6,fontWeight:700}}>📅 Mostrando: {periodoLabel}</p>}
+            </div>
+
             <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto',paddingBottom:2}}>
               {[{id:'todos',icon:'📅',label:'Dia todo'},...TURNOS].map(t=>(
                 <button key={t.id} onClick={()=>setVendaTurnoFiltro(t.id)} style={{flexShrink:0,padding:'7px 14px',borderRadius:20,border:'none',fontWeight:700,fontSize:12,cursor:'pointer',background:vendaTurnoFiltro===t.id?C.red:'#F0EDE8',color:vendaTurnoFiltro===t.id?'white':'#666'}}>
