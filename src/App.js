@@ -3575,7 +3575,8 @@ function AppInner() {
           const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
           const vendasFiltradas=vendaTurnoFiltro==='todos'?vendasHoje:vendasHoje.filter(v=>v.turno===vendaTurnoFiltro)
           const totalVendido=vendasFiltradas.reduce((s,v)=>s+(v.total||0),0)
-          const custoEstoque=todayMov.filter(m=>m.type==='saida'&&(vendaTurnoFiltro==='todos'||(m.turno||getTurnoFromDate(m.created_at))===vendaTurnoFiltro)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+          const SETORES_CMV=['Cozinha','Churrasco']
+          const custoEstoque=todayMov.filter(m=>m.type==='saida'&&SETORES_CMV.includes(m.setor)&&(vendaTurnoFiltro==='todos'||(m.turno||getTurnoFromDate(m.created_at))===vendaTurnoFiltro)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
           const lucroBruto=totalVendido-custoEstoque
           const cmvPct=totalVendido>0?+((custoEstoque/totalVendido)*100).toFixed(1):0
           const semaforo=cmvPct<=cmvMeta2?'verde':cmvPct<=cmvMeta2*1.1?'amarelo':'vermelho'
@@ -3586,7 +3587,7 @@ function AppInner() {
             const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
             const vDia=vendas.filter(v=>toLocalDate(v.created_at)===ds)
             const vendidoDia=vDia.reduce((s,v)=>s+(v.total||0),0)
-            const custoDia=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const custoDia=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
             const cmvDia=vendidoDia>0?+((custoDia/vendidoDia)*100).toFixed(1):0
             return{ds,vendido:vendidoDia,custo:custoDia,cmv:cmvDia,label:i===0?'Hoje':i===1?'Ontem':d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})}
           })
