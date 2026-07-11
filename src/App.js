@@ -5467,7 +5467,7 @@ ${turnosData.length>0?`<div class="section">
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
                   <div>
                     <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
-                    <select value={entradaForm.setor} onChange={e=>setEntradaForm(f=>({...f,setor:e.target.value}))} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}</select>
+                    <select value={entradaForm.setor} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome do novo setor:');if(n&&addCustomSetor(n))setEntradaForm(f=>({...f,setor:n.trim()}))}else{setEntradaForm(f=>({...f,setor:e.target.value}))}}} style={S.input}>{SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}<option value="__new__">+ Criar novo setor...</option></select>
                   </div>
                   <div>
                     <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>FORNECEDOR (OPCIONAL)</label>
@@ -5546,8 +5546,9 @@ ${turnosData.length>0?`<div class="section">
               </div>
               <div>
                 <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
-                <select value={movForm.setor} onChange={e=>setMovForm(f=>({...f,setor:e.target.value}))} style={S.input}>
+                <select value={movForm.setor} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome do novo setor:');if(n&&addCustomSetor(n))setMovForm(f=>({...f,setor:n.trim()}))}else{setMovForm(f=>({...f,setor:e.target.value}))}}} style={S.input}>
                   {SETORES.map(s=><option key={s} value={s}>{SETOR_ICONS[s]} {s}</option>)}
+                  <option value="__new__">+ Criar novo setor...</option>
                 </select>
               </div>
             </div>
@@ -6429,8 +6430,9 @@ ${turnosData.length>0?`<div class="section">
                 </div>
                 <div>
                   <label style={{fontSize:11,fontWeight:800,color:C.grayDark,display:'block',marginBottom:5}}>SETOR</label>
-                  <select value={desperdicioForm.setor} onChange={e=>setDesperdicioForm(f=>({...f,setor:e.target.value}))} style={S.input}>
+                  <select value={desperdicioForm.setor} onChange={e=>{if(e.target.value==='__new__'){const n=window.prompt('Nome do novo setor:');if(n&&addCustomSetor(n))setDesperdicioForm(f=>({...f,setor:n.trim()}))}else{setDesperdicioForm(f=>({...f,setor:e.target.value}))}}} style={S.input}>
                     {SETORES.map(s=><option key={s}>{s}</option>)}
+                    <option value="__new__">+ Criar novo setor...</option>
                   </select>
                 </div>
               </div>
