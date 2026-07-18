@@ -530,7 +530,7 @@ function AppInner() {
       setLoading(true)
       const [{data:prods},{data:movs},{data:usrs}]=await Promise.all([
         supabase.from('produtos').select('*').order('name'),
-        supabase.from('movimentos').select('*').order('created_at',{ascending:false}).limit(1000),
+        supabase.from('movimentos').select('*').order('created_at',{ascending:false}).limit(5000),
         supabase.from('usuarios').select('name,email,role').order('created_at'),
       ])
       if(prods) setProducts(prods)
