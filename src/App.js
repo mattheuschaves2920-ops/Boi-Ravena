@@ -373,7 +373,7 @@ function AppInner() {
   const [loading,setLoading]   = useState(true)
   const [modal,setModal]       = useState(null)
   const [toast,setToast]       = useState(null)
-  const [filterDate,setFilterDate] = useState(todayStr())
+  const [filterDate,setFilterDate] = useState('')
   const [filterTurno,setFilterTurno] = useState('todos')
   const [filterSetor,setFilterSetor] = useState('todos')
   const [filterTipo,setFilterTipo] = useState('todos')
@@ -3089,12 +3089,13 @@ ${turnosData.length>0?`<div class="section">
 
           {(()=>{
             const getDateRange=()=>{
-              const hoje=new Date().toISOString().split('T')[0]
-              const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
+              const hoje=todayStr()
+              const ontemD=new Date();ontemD.setDate(ontemD.getDate()-1)
+              const ontem=ontemD.getFullYear()+'-'+String(ontemD.getMonth()+1).padStart(2,'0')+'-'+String(ontemD.getDate()).padStart(2,'0')
               if(relPeriodo==='hoje') return [hoje,hoje]
               if(relPeriodo==='ontem') return [ontem,ontem]
-              if(relPeriodo==='7dias') return [new Date(Date.now()-7*86400000).toISOString().split('T')[0],hoje]
-              if(relPeriodo==='30dias') return [new Date(Date.now()-30*86400000).toISOString().split('T')[0],hoje]
+              if(relPeriodo==='7dias'){const d=new Date();d.setDate(d.getDate()-6);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return [ds,hoje]}
+              if(relPeriodo==='30dias'){const d=new Date();d.setDate(d.getDate()-29);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return [ds,hoje]}
               if(relPeriodo==='mes') return [new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0],hoje]
               if(relPeriodo==='custom') return [relDataInicio||hoje,relDataFim||hoje]
               return [hoje,hoje]
@@ -3102,7 +3103,7 @@ ${turnosData.length>0?`<div class="section">
             const [dateStart,dateEnd]=getDateRange()
             const relMovs=movements.filter(m=>{
               if(!m.created_at) return false
-              const d=m.created_at.split('T')[0]
+              const d=toLocalDate(m.created_at)
               if(d<dateStart||d>dateEnd) return false
               if(m.type==='auditoria') return false
               if(relTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==relTurno) return false
