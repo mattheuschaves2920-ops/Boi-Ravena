@@ -152,7 +152,7 @@ function Login({ onLogin }) {
   const [pontoFoto2,setPontoFoto2]=useState(null)
   const [pontoStream2,setPontoStream2]=useState(null)
   const getPontoStatusL=(funcId)=>{
-    const regs=pontoRegistrosL.filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(new Date().toISOString().split('T')[0]))
+    const regs=pontoRegistrosL.filter(r=>r.funcionarioId===funcId&&r.created_at.startsWith(todayStr()))
     if(!regs.length)return{status:'ausente',label:'Ausente',color:'#999'}
     const u=regs[0]
     if(u.tipo==='entrada'||u.tipo==='retorno')return{status:'presente',label:'Presente',color:'#50A773'}
@@ -374,6 +374,7 @@ function AppInner() {
   const [modal,setModal]       = useState(null)
   const [toast,setToast]       = useState(null)
   const [filterDate,setFilterDate] = useState('')
+  const [filterMovTipo,setFilterMovTipo] = useState('todos')
   const [filterTurno,setFilterTurno] = useState('todos')
   const [filterSetor,setFilterSetor] = useState('todos')
   const [filterTipo,setFilterTipo] = useState('todos')
@@ -1289,7 +1290,7 @@ function AppInner() {
         funcionario_nome:reg.funcionarioNome,
         tipo:reg.tipo,
         hora:reg.hora,
-        data:reg.data||new Date().toISOString().split('T')[0],
+        data:reg.data||todayStr(),
         foto:reg.foto||null
       }).select().single()
       if(data){
@@ -1844,7 +1845,7 @@ function AppInner() {
     const days=[]
     for(let i=6;i>=0;i--){
       const d=new Date(); d.setDate(d.getDate()-i)
-      const ds=d.toISOString().split('T')[0]
+      const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
       const dm=movements.filter(m=>toLocalDate(m.created_at)===ds)
       days.push({ date:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}), fullDate:ds, entradas:dm.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0), saidas:dm.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0) })
     }
@@ -2252,7 +2253,7 @@ function AppInner() {
     const turnosData=TURNOS.map(t=>{const vT=vendasHoje.filter(v=>v.turno===t.id);const vTot=vT.reduce((s,v)=>s+(v.total||0),0);const cT=saidasCMV.filter(m=>(m.turno||getTurnoFromDate(m.created_at))===t.id).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0);const cmv=vTot>0?((cT/vTot)*100).toFixed(1):0;return{...t,vendido:vTot,custo:cT,cmv}}).filter(t=>t.vendido>0)
     const prodZerados=products.filter(p=>p.quantity<=0)
     const prodBaixos=products.filter(p=>p.quantity>0&&p.quantity<=p.min_stock)
-    const em3=new Date(Date.now()+3*86400000).toISOString().split('T')[0]
+    const em3=(()=>{const _d=new Date(Date.now()+3*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
     const venc3=products.filter(p=>p.expiry&&p.expiry<=em3&&p.quantity>0)
     const danPend=danificadoList.filter(d=>!d.status||d.status==='pendente')
     const despHoje=desperdicioList.filter(d=>toLocalDate(d.created_at)===hoje)
@@ -2450,9 +2451,12 @@ ${turnosData.length>0?`<div class="section">
               const todayMovs=movements.filter(m=>toLocalDate(m.created_at)===todayStr()&&m.type!=='auditoria')
               const entradas=todayMovs.filter(m=>m.type==='entrada')
               const saidas=todayMovs.filter(m=>m.type==='saida')
-              const custoHoje=saidas.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+              const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===todayStr())
+              const totalVendidoHoje=vendasHoje.reduce((s,v)=>s+(v.total||0),0)
+              const SETORES_CMV_D=['Cozinha','Churrasco']
+              const custoHoje=saidas.filter(m=>SETORES_CMV_D.includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
               const lowProds=products.filter(p=>p.quantity<=p.min_stock)
-              const em7=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
+              const em7=(()=>{const _d=new Date(Date.now()+7*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
               const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7&&p.quantity>0)
               const valorEstoque=products.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
               return(
@@ -2489,7 +2493,7 @@ ${turnosData.length>0?`<div class="section">
             const valorEstoque=products.reduce((s,p)=>s+(p.quantity||0)*(p.cost||0),0)
             const lowProds=products.filter(p=>p.quantity<=p.min_stock)
             const zeroProds=products.filter(p=>p.quantity<=0)
-            const em7=new Date(Date.now()+7*86400000).toISOString().split('T')[0]
+            const em7=(()=>{const _d=new Date(Date.now()+7*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
             const vencendo=products.filter(p=>p.expiry&&p.expiry<=em7&&p.quantity>0)
             const ontemDate=(()=>{const d=new Date(Date.now()-86400000);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()
             const custoOntem=movements.filter(m=>toLocalDate(m.created_at)===ontemDate&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
@@ -2527,9 +2531,9 @@ ${turnosData.length>0?`<div class="section">
               {/* KPI CARDS */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
                 {[
-                  {l:'Entradas hoje',v:entradas.length,sub:'↗ ver lista',c:'#22c55e',fn:()=>setDashModal('entradas')},
-                  {l:'Saídas hoje',v:saidas.length,sub:'↗ ver lista',c:C.red,fn:()=>setDashModal('saidas')},
-                  {l:'Custo do dia',v:fmtCur(custoHoje),sub:'↗ por categoria',c:C.text,fn:()=>setDashModal('custo')},
+                  {l:'Vendas hoje',v:fmtCur(totalVendidoHoje),sub:vendasHoje.length+' itens lançados',c:'#22c55e',fn:()=>setTab('vendas')},
+                  {l:'CMV do dia',v:totalVendidoHoje>0?((custoHoje/totalVendidoHoje)*100).toFixed(1)+'%':'—',sub:'meta: '+cmvMeta2+'%',c:totalVendidoHoje>0&&(custoHoje/totalVendidoHoje)*100>cmvMeta2?C.red:'#22c55e',fn:()=>setTab('vendas')},
+                  {l:'Custo do dia',v:fmtCur(custoHoje),sub:'Cozinha + Churrasco',c:C.text,fn:()=>setDashModal('custo')},
                   {l:'Valor estoque',v:'R$'+Math.round(valorEstoque/1000)+'k',sub:'↗ por setor',c:'#1D4ED8',fn:()=>setDashModal('estoque_valor')},
                 ].map(k=>(
                   <div key={k.l} onClick={k.fn} style={{background:C.gray,borderRadius:12,padding:12,cursor:'pointer'}}>
@@ -2650,7 +2654,7 @@ ${turnosData.length>0?`<div class="section">
                 const days=[]
                 for(let i=6;i>=0;i--){
                   const d=new Date();d.setDate(d.getDate()-i)
-                  const ds=d.toISOString().split('T')[0]
+                  const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
                   const dm=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type!=='auditoria')
                   days.push({label:d.toLocaleDateString('pt-BR',{weekday:'short'}).slice(0,3),ent:dm.filter(m=>m.type==='entrada').length,sai:dm.filter(m=>m.type==='saida').length,isToday:i===0})
                 }
@@ -2759,7 +2763,7 @@ ${turnosData.length>0?`<div class="section">
               {/* CEMIG */}
               {(()=>{
                 const ultima=energiaLeituras?.[0]
-                const semanaAtras=new Date(Date.now()-7*24*60*60*1000).toISOString().split('T')[0]
+                const semanaAtras=(()=>{const _d=new Date(Date.now()-7*24*60*60*1000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
                 if(ultima&&ultima.data>=semanaAtras) return null
                 return(
                   <div onClick={()=>setTab('energia')} style={{background:'#FEF3C7',border:'1.5px solid #FDE68A',borderRadius:12,padding:14,marginBottom:12,cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -2888,7 +2892,7 @@ ${turnosData.length>0?`<div class="section">
                       const dias=[]
                       for(let i=6;i>=0;i--){
                         const d=new Date();d.setDate(d.getDate()-i)
-                        const ds=d.toISOString().split('T')[0]
+                        const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
                         const c=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida').reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
                         dias.push({label:d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}),custo:c,isToday:i===0})
                       }
@@ -2997,6 +3001,12 @@ ${turnosData.length>0?`<div class="section">
           </div>
           <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
             <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{...S.input,width:'auto',flex:'none'}} />
+            <select value={filterMovTipo} onChange={e=>setFilterMovTipo(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
+              <option value="todos">Todos os tipos</option>
+              <option value="entrada">📥 Entrada</option>
+              <option value="saida">📤 Saída</option>
+              <option value="danificado">⚠️ Danificado</option>
+            </select>
             <select value={filterTurno} onChange={e=>setFilterTurno(e.target.value)} style={{...S.input,width:'auto',flex:'none'}}>
               <option value="todos">Todos os Turnos</option>
               {TURNOS.map(t=><option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
@@ -3012,9 +3022,10 @@ ${turnosData.length>0?`<div class="section">
                 <thead><tr style={{background:C.gray}}>{['Horário','Produto','Tipo','Qtd','Turno','Setor','Usuário'].map(h=><th key={h} style={{padding:'10px 12px',textAlign:'left',fontSize:10,fontWeight:800,color:C.grayDark}}>{h.toUpperCase()}</th>)}</tr></thead>
                 <tbody>
                   {movements.filter(m=>{
+                    if(m.type==='auditoria') return false
+                    if(filterMovTipo!=='todos'&&m.type!==filterMovTipo) return false
                     if(filterDate){
-                      const d=new Date(m.created_at)
-                      const localDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+                      const localDate=toLocalDate(m.created_at)
                       if(localDate!==filterDate) return false
                     }
                     if(filterTurno!=='todos'&&(m.turno||getTurnoFromDate(m.created_at))!==filterTurno) return false
@@ -3096,7 +3107,7 @@ ${turnosData.length>0?`<div class="section">
               if(relPeriodo==='ontem') return [ontem,ontem]
               if(relPeriodo==='7dias'){const d=new Date();d.setDate(d.getDate()-6);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return [ds,hoje]}
               if(relPeriodo==='30dias'){const d=new Date();d.setDate(d.getDate()-29);const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return [ds,hoje]}
-              if(relPeriodo==='mes') return [new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0],hoje]
+              if(relPeriodo==='mes') return [(()=>{const _d=new Date(new Date().getFullYear(),new Date().getMonth(),1);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-01'})(),hoje]
               if(relPeriodo==='custom') return [relDataInicio||hoje,relDataFim||hoje]
               return [hoje,hoje]
             }
@@ -3125,7 +3136,7 @@ ${turnosData.length>0?`<div class="section">
               {id:'custo_setor',icon:'💰',title:'Custo por setor e categoria',sub:'Total: '+fmtCur(custoTotal||0)},
               {id:'ranking',icon:'🏆',title:'Produtos mais consumidos',sub:'Top itens do período'},
               {id:'estoque_valor',icon:'📦',title:'Estoque atual com valor',sub:(relProds?.length||0)+' produtos · '+fmtCur(valorEstoque||0)},
-              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:products.filter(p=>p.expiry&&p.expiry<=new Date(Date.now()+30*86400000).toISOString().split('T')[0]).length+' produtos nos próx. 30 dias'},
+              {id:'vencimentos',icon:'📅',title:'Vencimentos',sub:products.filter(p=>p.expiry&&p.expiry<=(()=>{const _d=new Date(Date.now()+30*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()).length+' produtos nos próx. 30 dias'},
               {id:'cmv_rel',icon:'📈',title:'CMV — Custo da Mercadoria',sub:'Custo: '+fmtCur(custoTotal||0)},
               {id:'desperdicios_rel',icon:'🗑️',title:'Desperdícios',sub:(desperdicioList?.length||0)+' registros'},
               {id:'turnos_rel',icon:'🕐',title:'Comparativo de turnos',sub:'Consumo e custo por turno'},
@@ -3431,7 +3442,7 @@ ${turnosData.length>0?`<div class="section">
                         let current=new Date(dS)
                         const end=new Date(dE)
                         while(current<=end){
-                          const ds=current.toISOString().split('T')[0]
+                          const ds=current.getFullYear()+'-'+String(current.getMonth()+1).padStart(2,'0')+'-'+String(current.getDate()).padStart(2,'0')
                           const movsDia=saidas.filter(m=>toLocalDate(m.created_at)===ds)
                           const custo=movsDia.reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
                           if(custo>0) dias.push({ds,custo,qtd:movsDia.length})
@@ -4498,17 +4509,34 @@ ${turnosData.length>0?`<div class="section">
 
           {/* RESUMO DO DIA */}
           {(()=>{
-            const totalVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido,0),0)
-            const totalDiferenca=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+Math.abs(i.diferenca),0),0)
-            const custoVendido=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.vendido*(i.custo||0),0),0)
-            const totalReposicao=pdvContagens.reduce((s,c)=>s+c.items.reduce((s2,i)=>s2+i.reposicao,0),0)
-            return(
-              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10,marginBottom:14}}>
+            const hoje=todayStr()
+            const vendasDono=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
+            const totalVendidoDono=vendasDono.reduce((s,v)=>s+(v.total||0),0)
+            const custoDono=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const lucroDono=totalVendidoDono-custoDono
+            const cmvDono=totalVendidoDono>0?((custoDono/totalVendidoDono)*100).toFixed(1):0
+            const cmvCor=+cmvDono===0?C.grayDark:+cmvDono<=cmvMeta2?C.green:+cmvDono<=cmvMeta2*1.1?C.orange:C.red
+            // Histórico 7 dias
+            const hist7Dono=Array.from({length:7},(_,i)=>{
+              const d=new Date(Date.now()-i*86400000)
+              const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+              const vD=vendas.filter(v=>toLocalDate(v.created_at)===ds).reduce((s,v)=>s+(v.total||0),0)
+              const cD=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+              const cmvD=vD>0?((cD/vD)*100).toFixed(1):0
+              return{ds,label:i===0?'Hoje':i===1?'Ontem':d.toLocaleDateString('pt-BR',{weekday:'short'}),vendido:vD,custo:cD,cmv:cmvD}
+            })
+            // Ranking mais vendidos hoje
+            const rankDono={}
+            vendasDono.forEach(v=>{if(!rankDono[v.item])rankDono[v.item]={item:v.item,total:0};rankDono[v.item].total+=v.total||0})
+            const rankList=Object.values(rankDono).sort((a,b)=>b.total-a.total).slice(0,5)
+            return(<>
+              {/* FINANCEIRO */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
                 {[
-                  {label:'Vendido Hoje',val:totalVendido+' itens',color:C.green,icon:'✅',sub:fmtCur(custoVendido)+' em custo'},
-                  {label:'Diferenças',val:totalDiferenca,color:totalDiferenca>0?C.red:C.green,icon:totalDiferenca>0?'🚨':'✅',sub:totalDiferenca>0?'Verificar urgente':'Tudo conferido'},
-                  {label:'Pontos Ativos',val:pdvPontos.length,color:C.blue,icon:'🏪',sub:pdvAberturas.length+' aberturas hoje'},
-                  {label:'A Repor',val:totalReposicao+' itens',color:C.orange,icon:'🔄',sub:'Baseado nas contagens'},
+                  {label:'Vendido Hoje',val:fmtCur(totalVendidoDono),color:C.green,icon:'💰',sub:vendasDono.length+' itens lançados'},
+                  {label:'Custo',val:fmtCur(custoDono),color:C.red,icon:'💸',sub:'Cozinha + Churrasco'},
+                  {label:'Lucro Bruto',val:fmtCur(lucroDono),color:'#1D4ED8',icon:'💵',sub:totalVendidoDono>0?(100-+cmvDono).toFixed(1)+'% margem':'—'},
+                  {label:'CMV do dia',val:totalVendidoDono>0?cmvDono+'%':'—',color:cmvCor,icon:'📊',sub:'meta: '+cmvMeta2+'%'},
                 ].map(c=>(
                   <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
                     <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
@@ -4517,7 +4545,48 @@ ${turnosData.length>0?`<div class="section">
                   </div>
                 ))}
               </div>
-            )
+
+              {/* HISTÓRICO 7 DIAS */}
+              <div style={{...S.card,marginBottom:14}}>
+                <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 Vendas vs Custo (7 dias)</p>
+                <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,marginBottom:8}}>
+                  {hist7Dono.map((d,i)=>{
+                    const maxV=Math.max(...hist7Dono.map(x=>x.vendido),1)
+                    const hV=Math.round((d.vendido/maxV)*70)
+                    const hC=Math.round((d.custo/maxV)*70)
+                    return(
+                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                        <div style={{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72,gap:2}}>
+                          <div style={{width:'100%',height:hV,background:'#22c55e',borderRadius:'3px 3px 0 0',minHeight:2}}></div>
+                          <div style={{width:'100%',height:hC,background:'#EA1D2C',borderRadius:'3px 3px 0 0',minHeight:d.custo>0?2:0,marginTop:-hC}}></div>
+                        </div>
+                        <p style={{fontSize:9,color:C.grayDark,textAlign:'center'}}>{d.label}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{display:'flex',gap:12}}>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#22c55e',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Vendas</span></div>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#EA1D2C',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Custo</span></div>
+                </div>
+              </div>
+
+              {/* RANKING MAIS VENDIDOS */}
+              {rankList.length>0&&(
+                <div style={{...S.card,marginBottom:14}}>
+                  <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>🏆 Mais vendidos hoje</p>
+                  {rankList.map((r,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<rankList.length-1?`1px solid ${C.grayMid}`:'none'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{width:22,height:22,borderRadius:'50%',background:i===0?'#fef9c3':i===1?'#f1f5f9':'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:i===0?'#ca8a04':i===1?'#64748b':'#EA1D2C'}}>{i+1}</span>
+                        <p style={{fontSize:13,fontWeight:700,margin:0}}>{r.item}</p>
+                      </div>
+                      <p style={{fontWeight:900,color:C.green,margin:0}}>{fmtCur(r.total)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>)
           })()}
 
           {/* PONTOS DE VENDA */}
@@ -5156,8 +5225,8 @@ ${turnosData.length>0?`<div class="section">
                           if(filterAuditPeriodo!=='todos'){
                             const d=a.created_at?.split('T')[0]
                             const hoje=todayStr()
-                            const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
-                            const dias7=new Date(Date.now()-7*86400000).toISOString().split('T')[0]
+                            const ontem=(()=>{const _d=new Date(Date.now()-86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
+                            const dias7=(()=>{const _d=new Date(Date.now()-7*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
                             const mes=hoje.slice(0,7)
                             if(filterAuditPeriodo==='hoje'&&d!==hoje) return false
                             if(filterAuditPeriodo==='ontem'&&d!==ontem) return false
@@ -5191,8 +5260,8 @@ ${turnosData.length>0?`<div class="section">
                           if(filterAuditPeriodo!=='todos'){
                             const d=a.created_at?.split('T')[0]
                             const hoje=todayStr()
-                            const ontem=new Date(Date.now()-86400000).toISOString().split('T')[0]
-                            const dias7=new Date(Date.now()-7*86400000).toISOString().split('T')[0]
+                            const ontem=(()=>{const _d=new Date(Date.now()-86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
+                            const dias7=(()=>{const _d=new Date(Date.now()-7*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
                             const mes=hoje.slice(0,7)
                             if(filterAuditPeriodo==='hoje'&&d!==hoje) return false
                             if(filterAuditPeriodo==='ontem'&&d!==ontem) return false
