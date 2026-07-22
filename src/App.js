@@ -1826,6 +1826,10 @@ function AppInner() {
   const canAdmin  = user&&user.role==='admin'
 
   const todayMov   = movements.filter(m=>toLocalDate(m.created_at)===todayStr())
+  const vendasHoje  = vendas.filter(v=>toLocalDate(v.created_at)===todayStr())
+  const totalVendidoHoje = vendasHoje.reduce((s,v)=>s+(v.total||0),0)
+  const SETORES_CMV_D = ['Cozinha','Churrasco']
+  const custoHojeVendas = todayMov.filter(m=>m.type==='saida'&&SETORES_CMV_D.includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
   const totalCost  = products.reduce((s,p)=>s+p.quantity*p.cost,0)
   const lowStock   = products.filter(p=>p.quantity<=p.min_stock&&p.quantity>0)
   const semEstoque = products.filter(p=>p.quantity===0)
@@ -2451,9 +2455,6 @@ ${turnosData.length>0?`<div class="section">
               const todayMovs=movements.filter(m=>toLocalDate(m.created_at)===todayStr()&&m.type!=='auditoria')
               const entradas=todayMovs.filter(m=>m.type==='entrada')
               const saidas=todayMovs.filter(m=>m.type==='saida')
-              const vendasHoje=vendas.filter(v=>toLocalDate(v.created_at)===todayStr())
-              const totalVendidoHoje=vendasHoje.reduce((s,v)=>s+(v.total||0),0)
-              const SETORES_CMV_D=['Cozinha','Churrasco']
               const custoHoje=saidas.filter(m=>SETORES_CMV_D.includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
               const lowProds=products.filter(p=>p.quantity<=p.min_stock)
               const em7=(()=>{const _d=new Date(Date.now()+7*86400000);return _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0')})()
