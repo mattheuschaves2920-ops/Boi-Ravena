@@ -4852,7 +4852,7 @@ ${turnosData.length>0?`<div class="section">
 
           {/* DANIFICADOS PENDENTES DE TROCA */}
           {(()=>{
-            const pendentes=danificadoList.filter(d=>!d.status||d.status==='pendente')
+            const pendentes=danificadoList.filter(d=>!d.status||d.status==='pendente'||d.status==='parcial')
             if(pendentes.length===0) return null
             const custoPendente=pendentes.reduce((s,d)=>s+(d.custo||0),0)
             return(
@@ -4873,19 +4873,32 @@ ${turnosData.length>0?`<div class="section">
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
                         <div style={{flex:1}}>
                           <p style={{fontWeight:800,fontSize:13,margin:0}}>{d.productName||d.product_name}</p>
-                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>{d.qty} {d.productUnit||d.product_unit} · {d.motivo}</p>
+                          <p style={{fontSize:11,color:C.grayDark,margin:'3px 0 0'}}>
+                          {d.status==='parcial'
+                            ? <><span style={{color:'#F97316',fontWeight:700}}>⚠️ Pendente: {+(d.qty-(d.qty_trocada||0)).toFixed(3)} {d.productUnit||d.product_unit}</span> (trocado {d.qty_trocada||0} de {d.qty})</>
+                            : <>{d.qty} {d.productUnit||d.product_unit}</>
+                          } · {d.motivo}</p>
                           <p style={{fontSize:10,color:'#aaa',margin:'2px 0 0'}}>{new Date(d.created_at).toLocaleDateString('pt-BR')} · {d.user_name}</p>
                         </div>
                         <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
                           <p style={{fontWeight:800,fontSize:13,color:'#F97316',margin:0}}>{fmtCur(d.custo||0)}</p>
-                          {canAdmin&&<button onClick={()=>{
-                            if(!window.confirm('Marcar como trocado pelo fornecedor?')) return
-                            const updated=danificadoList.map((x,j)=>j===i?{...x,status:'trocado',trocado_em:new Date().toISOString(),trocado_por:user.name}:x)
+                          {canAdmin&&<button onClick={async()=>{
+                            const qtyDisp=d.qty-(d.qty_trocada||0)
+                            const input=window.prompt(`Quantidade trocada pelo fornecedor (máx: ${qtyDisp} ${d.productUnit||d.product_unit||''}):`,qtyDisp)
+                            if(input===null) return
+                            const qtTrocada=parseFloat(input)
+                            if(isNaN(qtTrocada)||qtTrocada<=0) return showToast('Quantidade inválida','err')
+                            if(qtTrocada>qtyDisp) return showToast('Quantidade maior que o pendente','err')
+                            const novaQtyTrocada=(d.qty_trocada||0)+qtTrocada
+                            const novoStatus=novaQtyTrocada>=d.qty?'trocado':'parcial'
+                            const saldoPendente=+(d.qty-novaQtyTrocada).toFixed(3)
+                            const updated=danificadoList.map((x,j)=>j===i?{...x,status:novoStatus,qty_trocada:novaQtyTrocada,trocado_em:new Date().toISOString(),trocado_por:user.name}:x)
                             setDanificadoList(updated)
                             try{localStorage.setItem('boi_danificados',JSON.stringify(updated))}catch(e){}
-                            try{supabase.from('danificados').update({status:'trocado',trocado_em:new Date().toISOString(),trocado_por:user.name}).eq('id',d.id)}catch(e2){}
-                            logAudit('DANIFICADO TROCADO',d.productName||d.product_name,`${d.qty} ${d.productUnit||d.product_unit} reposto pelo fornecedor`)
-                            showToast('✓ Marcado como trocado!')
+                            try{await supabase.from('danificados').update({status:novoStatus,qty_trocada:novaQtyTrocada,trocado_em:new Date().toISOString(),trocado_por:user.name}).eq('id',d.id)}catch(e2){}
+                            logAudit('DANIFICADO TROCADO',d.productName||d.product_name,`${qtTrocada} ${d.productUnit||d.product_unit} reposto · saldo pendente: ${saldoPendente}`)
+                            showToast(`✓ ${qtTrocada} ${d.productUnit||d.product_unit||''} marcado como trocado!`)
+                            if(novoStatus==='parcial') showToast(`⚠️ Saldo pendente: ${saldoPendente} ${d.productUnit||d.product_unit||''}`)
                           }} style={{...S.btnGray,padding:'4px 10px',fontSize:11,marginTop:4,color:'#16a34a',fontWeight:700}}>✅ Marcar trocado</button>}
                         </div>
                       </div>
