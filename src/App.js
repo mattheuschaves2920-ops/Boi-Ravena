@@ -429,6 +429,10 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
+  const [lembreteCompras,setLembreteCompras] = useState(false)
+  const [lembreteVisto,setLembreteVisto] = useState(()=>{
+    try{return localStorage.getItem('boi_lembrete_visto')===new Date().toLocaleDateString('pt-BR')}catch(e){return false}
+  })
   const [vendas,setVendas] = useState([])
   const [vendaForm,setVendaForm] = useState({item:'',categoria:'Carnes',quantidade:'',preco_unit:'',turno:getTurnoAtual(),dataMov:''})
   const [vendaTurnoFiltro,setVendaTurnoFiltro] = useState('todos')
@@ -1541,6 +1545,30 @@ function AppInner() {
     if(!jaRegistrou) setTimeout(()=>showToast('⚡ Lembrete: registre a leitura CEMIG desta semana!','warn'),3000)
   },[energiaLeituras])
 
+  const tocarAlertaCemig=()=>{
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)()
+      const tocar=(freq,inicio,dur,vol=0.3)=>{
+        const osc=ctx.createOscillator()
+        const gain=ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.frequency.value=freq
+        osc.type='sine'
+        gain.gain.setValueAtTime(vol,ctx.currentTime+inicio)
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+inicio+dur)
+        osc.start(ctx.currentTime+inicio)
+        osc.stop(ctx.currentTime+inicio+dur)
+      }
+      // Padrão de alerta: 3 bips crescentes
+      tocar(440,0,0.15)
+      tocar(550,0.2,0.15)
+      tocar(660,0.4,0.3,0.5)
+      tocar(660,0.8,0.15)
+      tocar(660,1.0,0.3,0.5)
+    }catch(e){console.log('Audio não suportado')}
+  }
+
   const verificarAlertaEnergia=()=>{
     if(!energiaAlerta.ativo) return false
     const hoje=new Date()
@@ -2091,6 +2119,18 @@ function AppInner() {
     setMovements(prev=>prev.filter(x=>x.id!==m.id))
     logAudit('MOVIMENTO EXCLUÍDO',p?.name||'—',`${tipoLabel} de ${m.quantity} ${p?.unit||''} revertida · estoque ajustado`)
     showToast(`✓ ${tipoLabel.charAt(0).toUpperCase()+tipoLabel.slice(1)} excluída e estoque revertido!`)
+  }
+
+  const verificarLembreteCompras=()=>{
+    const hoje=new Date()
+    if(hoje.getDay()!==1) return // Só segunda-feira (1)
+    const dataHoje=hoje.toLocaleDateString('pt-BR')
+    try{
+      const visto=localStorage.getItem('boi_lembrete_visto')
+      if(visto===dataHoje) return // Já mostrou hoje
+    }catch(e){}
+    setLembreteCompras(true)
+    try{localStorage.setItem('boi_lembrete_visto',dataHoje)}catch(e){}
   }
 
   const verificarSemMovimentacao=()=>{
@@ -5044,7 +5084,10 @@ ${turnosData.length>0?`<div class="section">
         {/* ══ ENERGIA / CEMIG ══ */}
         {tab==='energia'&&<>
           {/* ALERTA SEMANAL */}
-          {verificarAlertaEnergia()&&(
+          {verificarAlertaEnergia()&&(()=>{
+            // Toca som ao exibir alerta
+            setTimeout(()=>tocarAlertaCemig(),500)
+            return(
             <div style={{...S.card,background:'#FFF8E1',border:`2px solid #F59E0B`,marginBottom:14,padding:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <span style={{fontSize:28}}>⚡</span>
@@ -5055,7 +5098,7 @@ ${turnosData.length>0?`<div class="section">
               </div>
               <button onClick={()=>setEnergiaModal(true)} style={{...S.btnRed,background:'#F59E0B',padding:'10px 16px',fontSize:13,whiteSpace:'nowrap'}}>📝 Registrar</button>
             </div>
-          )}
+            )})()}
 
           {/* HEADER */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
@@ -5741,6 +5784,104 @@ ${turnosData.length>0?`<div class="section">
           </div>
         </Overlay>
       )}
+
+      {/* MODAL LEMBRETE DE COMPRAS */}
+      {lembreteCompras&&(()=>{
+        const CAT_ICONS_L={'Carnes':'🔥','Aves':'🐔','Peixes':'🐟','Hortifruti':'🥗','Bebidas':'🍺','Laticínios':'🧀','Grãos e Secos':'🌾','Limpeza':'🧹','Higiene':'🧴','Descartáveis':'🛍️','Temperos':'🧂','Outros':'📦'}
+        const CAT_COLORS_L={'Carnes':'#EA1D2C','Aves':'#F97316','Peixes':'#3B82F6','Hortifruti':'#22c55e','Bebidas':'#3B82F6','Laticínios':'#f59e0b','Grãos e Secos':'#ca8a04','Limpeza':'#8B5CF6','Higiene':'#06b6d4','Descartáveis':'#8B5CF6','Temperos':'#F97316','Outros':'#888'}
+        // Group products by category — zerados and baixo estoque
+        const cats={}
+        products.forEach(p=>{
+          const isZerado=p.quantity<=0
+          const isBaixo=p.quantity>0&&p.min_stock>0&&p.quantity<=p.min_stock
+          if(!isZerado&&!isBaixo) return
+          const cat=p.category||'Outros'
+          if(!cats[cat]) cats[cat]={zerados:[],baixos:[]}
+          if(isZerado) cats[cat].zerados.push(p)
+          else cats[cat].baixos.push(p)
+        })
+        const catList=Object.entries(cats).sort((a,b)=>b[1].zerados.length-a[1].zerados.length)
+        const totalUrgentes=catList.reduce((s,[,c])=>s+c.zerados.length,0)
+        const totalBaixos=catList.reduce((s,[,c])=>s+c.baixos.length,0)
+        return(
+          <Overlay onClose={()=>setLembreteCompras(false)}>
+            <MHead title="🛒 Lista de Compras" onClose={()=>setLembreteCompras(false)} />
+            <div style={{padding:'0 0 16px'}}>
+              {/* BANNER */}
+              <div style={{background:'#1A1A1A',padding:'14px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <div>
+                  <p style={{color:'white',fontWeight:900,fontSize:15,margin:0}}>Segunda-feira</p>
+                  <p style={{color:'#888',fontSize:11,margin:'3px 0 0'}}>{new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}</p>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  {totalUrgentes>0&&<span style={{background:'#EA1D2C',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white',display:'block'}}>{totalUrgentes} zerados</span>}
+                  {totalBaixos>0&&<span style={{background:'#F97316',borderRadius:20,padding:'4px 12px',fontSize:11,fontWeight:800,color:'white',display:'block',marginTop:4}}>{totalBaixos} baixos</span>}
+                </div>
+              </div>
+              {/* CATEGORIAS */}
+              <div style={{padding:'0 16px',display:'flex',flexDirection:'column',gap:10,maxHeight:460,overflowY:'auto'}}>
+                {catList.length===0?(
+                  <div style={{textAlign:'center',padding:'32px 0'}}>
+                    <p style={{fontSize:32,marginBottom:8}}>✅</p>
+                    <p style={{fontWeight:800,fontSize:15,marginBottom:4}}>Estoque em dia!</p>
+                    <p style={{fontSize:12,color:'#888'}}>Nenhum produto zerado ou abaixo do mínimo</p>
+                  </div>
+                ):catList.map(([cat,itens])=>{
+                  const cor=CAT_COLORS_L[cat]||'#888'
+                  const icon=CAT_ICONS_L[cat]||'📦'
+                  const todos=[...itens.zerados,...itens.baixos]
+                  return(
+                    <div key={cat} style={{background:'white',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.07)'}}>
+                      <div style={{padding:'11px 14px',background:`${cor}11`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontSize:18}}>{icon}</span>
+                          <span style={{fontWeight:800,fontSize:14}}>{cat}</span>
+                        </div>
+                        <span style={{background:itens.zerados.length>0?'#fef2f2':'#fff7ed',color:itens.zerados.length>0?'#EA1D2C':'#F97316',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:20}}>
+                          {itens.zerados.length>0?itens.zerados.length+' zerado(s)':itens.baixos.length+' baixo(s)'}
+                        </span>
+                      </div>
+                      <div style={{padding:'8px 14px'}}>
+                        {todos.map((p,i)=>(
+                          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<todos.length-1?'1px solid #F8F8F8':'none'}}>
+                            <div>
+                              <p style={{fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
+                              <p style={{fontSize:11,color:'#888',margin:'2px 0 0'}}>Estoque: {p.quantity} {p.unit} · Mín: {p.min_stock||0} {p.unit}</p>
+                            </div>
+                            <span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:10,background:p.quantity<=0?'#fef2f2':'#fff7ed',color:p.quantity<=0?'#EA1D2C':'#F97316',flexShrink:0,marginLeft:8}}>
+                              {p.quantity<=0?'🚨 Zerado':'⚠️ Baixo'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:'flex',gap:8,padding:'10px 14px',background:'#FAFAFA'}}>
+                        <button onClick={()=>{
+                          const nl='%0A'
+                          const lista=todos.map(p=>'• '+p.name+': '+(p.quantity<=0?'ZERADO':'baixo ('+p.quantity+' '+p.unit+')')).join(nl)
+                          const data=new Date().toLocaleDateString('pt-BR')
+                          const header='%F0%9F%9B%92 *'+cat+'* %E2%80%94 Lista de compras'
+                          const msg=header+nl+data+nl+nl+lista+nl+nl+'_Enviado pelo app Boi de Minas_'
+                          window.open('https://wa.me/?text='+msg,'_blank')
+                        }} style={{flex:1,background:'#25D366',color:'white',border:'none',borderRadius:10,padding:9,fontSize:12,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
+                        <button onClick={()=>{
+                          const w=window.open('','_blank')
+                          const rows=todos.map(p=>`<tr><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;font-weight:600">${p.name}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">${p.quantity} ${p.unit}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">${p.min_stock||0} ${p.unit}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:${p.quantity<=0?'#EA1D2C':'#F97316'};font-weight:700">${p.quantity<=0?'🚨 Zerado':'⚠️ Baixo'}</td></tr>`).join('')
+                          w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compras — ${cat}</title></head><body style="font-family:sans-serif;padding:24px;max-width:600px;margin:0 auto"><h1 style="color:#1A1A1A;margin-bottom:4px">${icon} ${cat}</h1><p style="color:#888;margin-bottom:20px">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8f8f8"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">PRODUTO</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">ESTOQUE</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">MÍNIMO</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">STATUS</th></tr></thead><tbody>${rows}</tbody></table><button onclick="window.print()" style="margin-top:20px;background:#EA1D2C;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimir / PDF</button></body></html>`)
+                          w.document.close()
+                        }} style={{flex:1,background:'#F0EDE8',color:'#555',border:'none',borderRadius:10,padding:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 PDF</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {/* BOTÃO FECHAR */}
+              <div style={{padding:'12px 16px 0'}}>
+                <button onClick={()=>setLembreteCompras(false)} style={{width:'100%',background:'#F0EDE8',color:'#555',border:'none',borderRadius:12,padding:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>✕ Fechar</button>
+              </div>
+            </div>
+          </Overlay>
+        )
+      })()}
 
       {/* MODAL HISTÓRICO DO PRODUTO */}
       {histProd&&(
