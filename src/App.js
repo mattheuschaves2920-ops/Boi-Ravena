@@ -4447,6 +4447,7 @@ ${turnosData.length>0?`<div class="section">
             </div>
             <div style={{display:'flex',gap:8}}>
               <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#EA1D2C',fontWeight:700}}>📄 Relatório</button>
+              <button onClick={()=>setLembreteCompras(true)} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#22c55e',fontWeight:700}}>🛒 Compras</button>
               <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
               <button onClick={installPWA} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.blue,fontWeight:700}}>📱 Instalar App</button>
             </div>
