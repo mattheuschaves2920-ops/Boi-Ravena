@@ -630,8 +630,14 @@ function AppInner() {
             const cats=catsCfg.find(r=>r.id==='custom_cats')
             const sets=catsCfg.find(r=>r.id==='custom_setores')
             const cmv=catsCfg.find(r=>r.id==='cmv_meta')
-            if(cats?.valor){try{localStorage.setItem('boi_custom_cats',JSON.stringify(cats.valor))}catch(e){}}
-            if(sets?.valor){try{localStorage.setItem('boi_custom_setores',JSON.stringify(sets.valor))}catch(e){}}
+            if(cats?.valor){
+              try{localStorage.setItem('boi_custom_cats',JSON.stringify(cats.valor))}catch(e){}
+              if(Array.isArray(cats.valor)) setCustomCats(cats.valor)
+            }
+            if(sets?.valor){
+              try{localStorage.setItem('boi_custom_setores',JSON.stringify(sets.valor))}catch(e){}
+              if(Array.isArray(sets.valor)) setCustomSetores(sets.valor)
+            }
             if(cmv?.valor){try{localStorage.setItem('boi_cmv_meta',JSON.stringify(cmv.valor))}catch(e){}}
           }
         }catch(e){}
@@ -2031,13 +2037,14 @@ function AppInner() {
     if(!product) return
     const newQty=+(movForm.type==='entrada'?product.quantity+qty:product.quantity-qty).toFixed(3)
     const dataFinalIso=movForm.dataMov?new Date(movForm.dataMov+'T'+new Date().toTimeString().slice(0,8)).toISOString():new Date().toISOString()
-    const[{error:e1},{error:e2}]=await Promise.all([
+    const novoMov={product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:dataFinalIso}
+    const[{error:e1},{data:movInserido,error:e2}]=await Promise.all([
       supabase.from('produtos').update({quantity:newQty}).eq('id',pid),
-      supabase.from('movimentos').insert({product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:dataFinalIso}),
+      supabase.from('movimentos').insert(novoMov).select().single(),
     ])
     if(e1||e2) return showToast('Erro ao salvar: '+(e1?.message||e2?.message||'desconhecido'),'err')
     setProducts(prev=>prev.map(p=>p.id===pid?{...p,quantity:newQty}:p))
-    setMovements(prev=>[{product_id:pid,type:movForm.type,quantity:qty,note:movForm.note,user_name:user.name,cost_unit:product.cost,setor:movForm.setor,turno:movForm.turno,created_at:dataFinalIso},...prev])
+    setMovements(prev=>[{...novoMov,id:movInserido?.id||Date.now()},...prev])
     logAudit(movForm.type==='entrada'?'ENTRADA':'SAÍDA',product.name,`${qty} ${product.unit} · ${movForm.setor}${movForm.note?' · '+movForm.note:''}${movForm.dataMov?' · retroativo '+movForm.dataMov:''}`)
     setMovForm(f=>({...f,productId:'',qty:'',note:'',dataMov:''})); setModal(null)
     showToast(movForm.type==='entrada'?`✓ +${qty} ${product.unit} em ${movForm.setor}!`:`✓ -${qty} ${product.unit} em ${movForm.setor}!`)
@@ -5909,7 +5916,7 @@ ${turnosData.length>0?`<div class="section">
             {/* HISTÓRICO */}
             <p style={{fontSize:12,fontWeight:800,color:C.grayDark,marginBottom:10}}>HISTÓRICO DE MOVIMENTAÇÕES</p>
             {(()=>{
-              const hist=movements.filter(m=>m.product_id===histProd.id&&m.type!=='auditoria').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50)
+              const hist=movements.filter(m=>String(m.product_id)===String(histProd.id)&&m.type!=='auditoria').sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50)
               if(hist.length===0) return <p style={{textAlign:'center',color:C.grayDark,padding:'20px 0',fontSize:13}}>Nenhum movimento registrado</p>
               const totalEntradas=hist.filter(m=>m.type==='entrada').reduce((s,m)=>s+m.quantity,0)
               const totalSaidas=hist.filter(m=>m.type==='saida').reduce((s,m)=>s+m.quantity,0)
