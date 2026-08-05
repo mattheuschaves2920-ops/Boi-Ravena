@@ -4445,11 +4445,11 @@ ${turnosData.length>0?`<div class="section">
               <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
               <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
             </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#EA1D2C',fontWeight:700}}>📄 Relatório</button>
-              <button onClick={()=>setLembreteCompras(true)} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#22c55e',fontWeight:700}}>🛒 Compras</button>
-              <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
-              <button onClick={installPWA} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:C.blue,fontWeight:700}}>📱 Instalar App</button>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:'#EA1D2C',fontWeight:700,textAlign:'center'}}>📄 Relatório</button>
+              <button onClick={()=>setLembreteCompras(true)} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:'#22c55e',fontWeight:700,textAlign:'center'}}>🛒 Compras</button>
+              <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:'#6f42c1',fontWeight:700,textAlign:'center'}}>💾 Backup</button>
+              <button onClick={installPWA} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:C.blue,fontWeight:700,textAlign:'center'}}>📱 Instalar</button>
             </div>
           </div>
           {(alertasComp.length>0||vencendoComp.length>0||criticosComp.length>0||custoDesHojeComp>0)&&(
