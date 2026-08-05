@@ -5797,7 +5797,6 @@ ${turnosData.length>0?`<div class="section">
       {lembreteCompras&&(()=>{
         const CAT_ICONS_L={'Carnes':'🔥','Aves':'🐔','Peixes':'🐟','Hortifruti':'🥗','Bebidas':'🍺','Laticínios':'🧀','Grãos e Secos':'🌾','Limpeza':'🧹','Higiene':'🧴','Descartáveis':'🛍️','Temperos':'🧂','Outros':'📦'}
         const CAT_COLORS_L={'Carnes':'#EA1D2C','Aves':'#F97316','Peixes':'#3B82F6','Hortifruti':'#22c55e','Bebidas':'#3B82F6','Laticínios':'#f59e0b','Grãos e Secos':'#ca8a04','Limpeza':'#8B5CF6','Higiene':'#06b6d4','Descartáveis':'#8B5CF6','Temperos':'#F97316','Outros':'#888'}
-        // Group products by category — zerados and baixo estoque
         const cats={}
         products.forEach(p=>{
           const isZerado=p.quantity<=0
@@ -5814,78 +5813,72 @@ ${turnosData.length>0?`<div class="section">
         return(
           <Overlay onClose={()=>setLembreteCompras(false)}>
             <MHead title="🛒 Lista de Compras" onClose={()=>setLembreteCompras(false)} />
-            <div style={{padding:'0 0 16px'}}>
+            <div style={{padding:'12px 16px 16px',display:'flex',flexDirection:'column',gap:12}}>
               {/* BANNER */}
-              <div style={{background:'#1A1A1A',padding:'14px 20px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <div style={{background:'#1A1A1A',borderRadius:12,padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <div>
-                  <p style={{color:'white',fontWeight:900,fontSize:15,margin:0}}>Segunda-feira</p>
-                  <p style={{color:'#888',fontSize:11,margin:'3px 0 0'}}>{new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}</p>
+                  <p style={{color:'white',fontWeight:900,fontSize:14,margin:0}}>📅 {new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long'})}</p>
+                  <p style={{color:'#888',fontSize:11,margin:'3px 0 0'}}>{totalUrgentes} zerados · {totalBaixos} baixos</p>
                 </div>
-                <div style={{textAlign:'right'}}>
-                  {totalUrgentes>0&&<span style={{background:'#EA1D2C',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white',display:'block'}}>{totalUrgentes} zerados</span>}
-                  {totalBaixos>0&&<span style={{background:'#F97316',borderRadius:20,padding:'4px 12px',fontSize:11,fontWeight:800,color:'white',display:'block',marginTop:4}}>{totalBaixos} baixos</span>}
-                </div>
+                {totalUrgentes>0&&<span style={{background:'#EA1D2C',borderRadius:20,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white'}}>{totalUrgentes} urgentes</span>}
               </div>
               {/* CATEGORIAS */}
-              <div style={{padding:'0 16px',display:'flex',flexDirection:'column',gap:10,maxHeight:460,overflowY:'auto'}}>
-                {catList.length===0?(
-                  <div style={{textAlign:'center',padding:'32px 0'}}>
-                    <p style={{fontSize:32,marginBottom:8}}>✅</p>
-                    <p style={{fontWeight:800,fontSize:15,marginBottom:4}}>Estoque em dia!</p>
-                    <p style={{fontSize:12,color:'#888'}}>Nenhum produto zerado ou abaixo do mínimo</p>
-                  </div>
-                ):catList.map(([cat,itens])=>{
-                  const cor=CAT_COLORS_L[cat]||'#888'
-                  const icon=CAT_ICONS_L[cat]||'📦'
-                  const todos=[...itens.zerados,...itens.baixos]
-                  return(
-                    <div key={cat} style={{background:'white',borderRadius:14,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,0.07)'}}>
-                      <div style={{padding:'11px 14px',background:`${cor}11`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <span style={{fontSize:18}}>{icon}</span>
-                          <span style={{fontWeight:800,fontSize:14}}>{cat}</span>
-                        </div>
-                        <span style={{background:itens.zerados.length>0?'#fef2f2':'#fff7ed',color:itens.zerados.length>0?'#EA1D2C':'#F97316',fontSize:10,fontWeight:700,padding:'3px 10px',borderRadius:20}}>
-                          {itens.zerados.length>0?itens.zerados.length+' zerado(s)':itens.baixos.length+' baixo(s)'}
-                        </span>
+              {catList.length===0?(
+                <div style={{textAlign:'center',padding:'24px 0'}}>
+                  <p style={{fontSize:32,marginBottom:8}}>✅</p>
+                  <p style={{fontWeight:800,fontSize:14,marginBottom:4}}>Estoque em dia!</p>
+                  <p style={{fontSize:12,color:'#888'}}>Nenhum produto zerado ou abaixo do mínimo</p>
+                </div>
+              ):catList.map(([cat,itens])=>{
+                const cor=CAT_COLORS_L[cat]||'#888'
+                const icon=CAT_ICONS_L[cat]||'📦'
+                const todos=[...itens.zerados,...itens.baixos]
+                return(
+                  <div key={cat} style={{background:'white',borderRadius:12,border:'1px solid #F0EDE8',overflow:'hidden'}}>
+                    {/* CABEÇALHO CATEGORIA */}
+                    <div style={{padding:'10px 14px',background:`${cor}15`,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={{fontSize:16}}>{icon}</span>
+                        <span style={{fontWeight:800,fontSize:13}}>{cat}</span>
                       </div>
-                      <div style={{padding:'8px 14px'}}>
-                        {todos.map((p,i)=>(
-                          <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<todos.length-1?'1px solid #F8F8F8':'none'}}>
-                            <div>
-                              <p style={{fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
-                              <p style={{fontSize:11,color:'#888',margin:'2px 0 0'}}>Estoque: {p.quantity} {p.unit} · Mín: {p.min_stock||0} {p.unit}</p>
-                            </div>
-                            <span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:10,background:p.quantity<=0?'#fef2f2':'#fff7ed',color:p.quantity<=0?'#EA1D2C':'#F97316',flexShrink:0,marginLeft:8}}>
-                              {p.quantity<=0?'🚨 Zerado':'⚠️ Baixo'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{display:'flex',gap:8,padding:'10px 14px',background:'#FAFAFA'}}>
-                        <button onClick={()=>{
-                          const nl='%0A'
-                          const lista=todos.map(p=>'• '+p.name+': '+(p.quantity<=0?'ZERADO':'baixo ('+p.quantity+' '+p.unit+')')).join(nl)
-                          const data=new Date().toLocaleDateString('pt-BR')
-                          const header='%F0%9F%9B%92 *'+cat+'* %E2%80%94 Lista de compras'
-                          const msg=header+nl+data+nl+nl+lista+nl+nl+'_Enviado pelo app Boi de Minas_'
-                          window.open('https://wa.me/?text='+msg,'_blank')
-                        }} style={{flex:1,background:'#25D366',color:'white',border:'none',borderRadius:10,padding:9,fontSize:12,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
-                        <button onClick={()=>{
-                          const w=window.open('','_blank')
-                          const rows=todos.map(p=>`<tr><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;font-weight:600">${p.name}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">${p.quantity} ${p.unit}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">${p.min_stock||0} ${p.unit}</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:${p.quantity<=0?'#EA1D2C':'#F97316'};font-weight:700">${p.quantity<=0?'🚨 Zerado':'⚠️ Baixo'}</td></tr>`).join('')
-                          w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compras — ${cat}</title></head><body style="font-family:sans-serif;padding:24px;max-width:600px;margin:0 auto"><h1 style="color:#1A1A1A;margin-bottom:4px">${icon} ${cat}</h1><p style="color:#888;margin-bottom:20px">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8f8f8"><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">PRODUTO</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">ESTOQUE</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">MÍNIMO</th><th style="padding:8px 12px;text-align:left;font-size:11px;color:#888">STATUS</th></tr></thead><tbody>${rows}</tbody></table><button onclick="window.print()" style="margin-top:20px;background:#EA1D2C;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Imprimir / PDF</button></body></html>`)
-                          w.document.close()
-                        }} style={{flex:1,background:'#F0EDE8',color:'#555',border:'none',borderRadius:10,padding:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 PDF</button>
-                      </div>
+                      <span style={{background:itens.zerados.length>0?'#fef2f2':'#fff7ed',color:itens.zerados.length>0?'#EA1D2C':'#F97316',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:20}}>
+                        {itens.zerados.length>0?itens.zerados.length+' zerado(s)':itens.baixos.length+' baixo(s)'}
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
-              {/* BOTÃO FECHAR */}
-              <div style={{padding:'12px 16px 0'}}>
-                <button onClick={()=>setLembreteCompras(false)} style={{width:'100%',background:'#F0EDE8',color:'#555',border:'none',borderRadius:12,padding:12,fontSize:13,fontWeight:700,cursor:'pointer'}}>✕ Fechar</button>
-              </div>
+                    {/* PRODUTOS */}
+                    <div style={{padding:'8px 14px'}}>
+                      {todos.map((p,i)=>(
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 0',borderBottom:i<todos.length-1?'1px solid #F8F8F8':'none'}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
+                            <p style={{fontSize:11,color:'#888',margin:'2px 0 0'}}>Estoque: {p.quantity} {p.unit} · Mín: {p.min_stock||0} {p.unit}</p>
+                          </div>
+                          <span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:10,background:p.quantity<=0?'#fef2f2':'#fff7ed',color:p.quantity<=0?'#EA1D2C':'#F97316',flexShrink:0,marginLeft:8}}>
+                            {p.quantity<=0?'🚨 Zerado':'⚠️ Baixo'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* BOTÕES */}
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,padding:'10px 14px',background:'#FAFAFA'}}>
+                      <button onClick={()=>{
+                        const nl='%0A'
+                        const lista=todos.map(p=>'• '+p.name+': '+(p.quantity<=0?'ZERADO':'baixo ('+p.quantity+' '+p.unit+')')).join(nl)
+                        const data=new Date().toLocaleDateString('pt-BR')
+                        const msg='%F0%9F%9B%92 *'+cat+'* %E2%80%94 Lista de compras'+nl+data+nl+nl+lista+nl+nl+'_Enviado pelo app Boi de Minas_'
+                        window.open('https://wa.me/?text='+msg,'_blank')
+                      }} style={{background:'#25D366',color:'white',border:'none',borderRadius:10,padding:'9px 8px',fontSize:12,fontWeight:800,cursor:'pointer'}}>📱 WhatsApp</button>
+                      <button onClick={()=>{
+                        const w=window.open('','_blank')
+                        const rows=todos.map(p=>'<tr><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;font-weight:600">'+p.name+'</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">'+p.quantity+' '+p.unit+'</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:#888">'+(p.min_stock||0)+' '+p.unit+'</td><td style="padding:8px 12px;border-bottom:1px solid #f5f5f5;color:'+(p.quantity<=0?'#EA1D2C':'#F97316')+';font-weight:700">'+(p.quantity<=0?'🚨 Zerado':'⚠️ Baixo')+'</td></tr>').join('')
+                        w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Compras '+cat+'</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:24px;max-width:600px;margin:0 auto}h1{margin-bottom:4px}p{color:#888;margin-bottom:20px;font-size:13px}table{width:100%;border-collapse:collapse}th{background:#f8f8f8;padding:8px 12px;text-align:left;font-size:11px;color:#888;font-weight:700;text-transform:uppercase}td{font-size:13px}button{margin-top:20px;background:#EA1D2C;color:white;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer}@media print{button{display:none}}</style></head><body><h1>'+icon+' '+cat+'</h1><p>'+new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})+'</p><table><thead><tr><th>Produto</th><th>Estoque</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table><button onclick="window.print()">🖨️ Imprimir / PDF</button></body></html>')
+                        w.document.close()
+                      }} style={{background:'#F0EDE8',color:'#555',border:'none',borderRadius:10,padding:'9px 8px',fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 PDF</button>
+                    </div>
+                  </div>
+                )
+              })}
+              <button onClick={()=>setLembreteCompras(false)} style={{background:'#F0EDE8',color:'#555',border:'none',borderRadius:12,padding:12,fontSize:13,fontWeight:700,cursor:'pointer',width:'100%'}}>✕ Fechar</button>
             </div>
           </Overlay>
         )
