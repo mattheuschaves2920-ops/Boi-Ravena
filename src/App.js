@@ -4445,7 +4445,7 @@ ${turnosData.length>0?`<div class="section">
               <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
               <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
             </div>
-            <div style={{display:'flex',gap:8}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
               <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#EA1D2C',fontWeight:700}}>📄 Relatório</button>
               <button onClick={()=>setLembreteCompras(true)} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#22c55e',fontWeight:700}}>🛒 Compras</button>
               <button onClick={exportBackup} style={{...S.btnGray,padding:'10px 16px',fontSize:12,color:'#6f42c1',fontWeight:700}}>💾 Backup</button>
