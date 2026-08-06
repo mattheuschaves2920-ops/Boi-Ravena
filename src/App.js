@@ -4452,6 +4452,86 @@ ${turnosData.length>0?`<div class="section">
               <button onClick={installPWA} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:C.blue,fontWeight:700,textAlign:'center'}}>📱 Instalar</button>
             </div>
           </div>
+
+          {/* RESUMO DO DIA */}
+          {(()=>{
+            const hoje=todayStr()
+            const vendasDono=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
+            const totalVendidoDono=vendasDono.reduce((s,v)=>s+(v.total||0),0)
+            const custoDono=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+            const lucroDono=totalVendidoDono-custoDono
+            const cmvDono=totalVendidoDono>0?((custoDono/totalVendidoDono)*100).toFixed(1):0
+            const cmvCor=+cmvDono===0?C.grayDark:+cmvDono<=cmvMeta2?C.green:+cmvDono<=cmvMeta2*1.1?C.orange:C.red
+            const hist7Dono=Array.from({length:7},(_,i)=>{
+              const d=new Date(Date.now()-i*86400000)
+              const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+              const vD=vendas.filter(v=>toLocalDate(v.created_at)===ds).reduce((s,v)=>s+(v.total||0),0)
+              const cD=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
+              const cmvD=vD>0?((cD/vD)*100).toFixed(1):0
+              return{ds,label:i===0?'Hoje':i===1?'Ontem':d.toLocaleDateString('pt-BR',{weekday:'short'}),vendido:vD,custo:cD,cmv:cmvD}
+            })
+            const rankDono={}
+            vendasDono.forEach(v=>{if(!rankDono[v.item])rankDono[v.item]={item:v.item,total:0};rankDono[v.item].total+=v.total||0})
+            const rankList=Object.values(rankDono).sort((a,b)=>b.total-a.total).slice(0,5)
+            return(<>
+              {/* FINANCEIRO */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
+                {[
+                  {label:'Vendido Hoje',val:fmtCur(totalVendidoDono),color:C.green,icon:'💰',sub:vendasDono.length+' itens lançados'},
+                  {label:'Custo',val:fmtCur(custoDono),color:C.red,icon:'💸',sub:'Cozinha + Churrasco'},
+                  {label:'Lucro Bruto',val:fmtCur(lucroDono),color:'#1D4ED8',icon:'💵',sub:totalVendidoDono>0?(100-+cmvDono).toFixed(1)+'% margem':'—'},
+                  {label:'CMV do dia',val:totalVendidoDono>0?cmvDono+'%':'—',color:cmvCor,icon:'📊',sub:'meta: '+cmvMeta2+'%'},
+                ].map(c=>(
+                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
+                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
+                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
+                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* HISTÓRICO 7 DIAS */}
+              <div style={{...S.card,marginBottom:14}}>
+                <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 Vendas vs Custo (7 dias)</p>
+                <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,marginBottom:8}}>
+                  {hist7Dono.map((d,i)=>{
+                    const maxV=Math.max(...hist7Dono.map(x=>x.vendido),1)
+                    const hV=Math.round((d.vendido/maxV)*70)
+                    const hC=Math.round((d.custo/maxV)*70)
+                    return(
+                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                        <div style={{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72,gap:2}}>
+                          <div style={{width:'100%',height:hV,background:'#22c55e',borderRadius:'3px 3px 0 0',minHeight:2}}></div>
+                          <div style={{width:'100%',height:hC,background:'#EA1D2C',borderRadius:'3px 3px 0 0',minHeight:d.custo>0?2:0,marginTop:-hC}}></div>
+                        </div>
+                        <p style={{fontSize:9,color:C.grayDark,textAlign:'center'}}>{d.label}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{display:'flex',gap:12}}>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#22c55e',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Vendas</span></div>
+                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#EA1D2C',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Custo</span></div>
+                </div>
+              </div>
+
+              {/* RANKING MAIS VENDIDOS */}
+              {rankList.length>0&&(
+                <div style={{...S.card,marginBottom:14}}>
+                  <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>🏆 Mais vendidos hoje</p>
+                  {rankList.map((r,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<rankList.length-1?`1px solid ${C.grayMid}`:'none'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{width:22,height:22,borderRadius:'50%',background:i===0?'#fef9c3':i===1?'#f1f5f9':'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:i===0?'#ca8a04':i===1?'#64748b':'#EA1D2C'}}>{i+1}</span>
+                        <p style={{fontSize:13,fontWeight:700,margin:0}}>{r.item}</p>
+                      </div>
+                      <p style={{fontWeight:900,color:C.green,margin:0}}>{fmtCur(r.total)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>)
+          })()}
           {(alertasComp.length>0||vencendoComp.length>0||criticosComp.length>0||custoDesHojeComp>0)&&(
             <div style={{...S.card,background:C.redLight,border:`2px solid ${C.red}`,marginBottom:14,padding:16}}>
               <p style={{fontSize:13,fontWeight:900,color:C.red,marginBottom:10}}>🚨 ALERTAS CRÍTICOS</p>
@@ -4556,88 +4636,7 @@ ${turnosData.length>0?`<div class="section">
             <button onClick={()=>{setPdvEditPonto(null);setPdvPontoForm({name:'',setor:SETORES[0],descricao:''});setPdvModal('ponto')}} style={{...S.btnRed,padding:'10px 18px',fontSize:13}}>+ Novo Ponto de Venda</button>
           </div>
 
-          {/* RESUMO DO DIA */}
-          {(()=>{
-            const hoje=todayStr()
-            const vendasDono=vendas.filter(v=>toLocalDate(v.created_at)===hoje)
-            const totalVendidoDono=vendasDono.reduce((s,v)=>s+(v.total||0),0)
-            const custoDono=movements.filter(m=>toLocalDate(m.created_at)===hoje&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-            const lucroDono=totalVendidoDono-custoDono
-            const cmvDono=totalVendidoDono>0?((custoDono/totalVendidoDono)*100).toFixed(1):0
-            const cmvCor=+cmvDono===0?C.grayDark:+cmvDono<=cmvMeta2?C.green:+cmvDono<=cmvMeta2*1.1?C.orange:C.red
-            // Histórico 7 dias
-            const hist7Dono=Array.from({length:7},(_,i)=>{
-              const d=new Date(Date.now()-i*86400000)
-              const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
-              const vD=vendas.filter(v=>toLocalDate(v.created_at)===ds).reduce((s,v)=>s+(v.total||0),0)
-              const cD=movements.filter(m=>toLocalDate(m.created_at)===ds&&m.type==='saida'&&['Cozinha','Churrasco'].includes(m.setor)).reduce((s,m)=>s+(m.quantity||0)*(m.cost_unit||0),0)
-              const cmvD=vD>0?((cD/vD)*100).toFixed(1):0
-              return{ds,label:i===0?'Hoje':i===1?'Ontem':d.toLocaleDateString('pt-BR',{weekday:'short'}),vendido:vD,custo:cD,cmv:cmvD}
-            })
-            // Ranking mais vendidos hoje
-            const rankDono={}
-            vendasDono.forEach(v=>{if(!rankDono[v.item])rankDono[v.item]={item:v.item,total:0};rankDono[v.item].total+=v.total||0})
-            const rankList=Object.values(rankDono).sort((a,b)=>b.total-a.total).slice(0,5)
-            return(<>
-              {/* FINANCEIRO */}
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-                {[
-                  {label:'Vendido Hoje',val:fmtCur(totalVendidoDono),color:C.green,icon:'💰',sub:vendasDono.length+' itens lançados'},
-                  {label:'Custo',val:fmtCur(custoDono),color:C.red,icon:'💸',sub:'Cozinha + Churrasco'},
-                  {label:'Lucro Bruto',val:fmtCur(lucroDono),color:'#1D4ED8',icon:'💵',sub:totalVendidoDono>0?(100-+cmvDono).toFixed(1)+'% margem':'—'},
-                  {label:'CMV do dia',val:totalVendidoDono>0?cmvDono+'%':'—',color:cmvCor,icon:'📊',sub:'meta: '+cmvMeta2+'%'},
-                ].map(c=>(
-                  <div key={c.label} style={{...S.card,border:`1.5px solid ${c.color}33`,padding:14}}>
-                    <div style={{fontSize:10,fontWeight:800,color:c.color,marginBottom:5}}>{c.icon} {c.label.toUpperCase()}</div>
-                    <div style={{fontWeight:900,fontSize:20,color:c.color,lineHeight:1}}>{c.val}</div>
-                    <div style={{fontSize:10,color:C.grayDark,marginTop:5,fontWeight:600}}>{c.sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* HISTÓRICO 7 DIAS */}
-              <div style={{...S.card,marginBottom:14}}>
-                <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 Vendas vs Custo (7 dias)</p>
-                <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,marginBottom:8}}>
-                  {hist7Dono.map((d,i)=>{
-                    const maxV=Math.max(...hist7Dono.map(x=>x.vendido),1)
-                    const hV=Math.round((d.vendido/maxV)*70)
-                    const hC=Math.round((d.custo/maxV)*70)
-                    return(
-                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                        <div style={{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72,gap:2}}>
-                          <div style={{width:'100%',height:hV,background:'#22c55e',borderRadius:'3px 3px 0 0',minHeight:2}}></div>
-                          <div style={{width:'100%',height:hC,background:'#EA1D2C',borderRadius:'3px 3px 0 0',minHeight:d.custo>0?2:0,marginTop:-hC}}></div>
-                        </div>
-                        <p style={{fontSize:9,color:C.grayDark,textAlign:'center'}}>{d.label}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div style={{display:'flex',gap:12}}>
-                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#22c55e',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Vendas</span></div>
-                  <div style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,background:'#EA1D2C',borderRadius:2}}></div><span style={{fontSize:10,color:C.grayDark}}>Custo</span></div>
-                </div>
-              </div>
-
-              {/* RANKING MAIS VENDIDOS */}
-              {rankList.length>0&&(
-                <div style={{...S.card,marginBottom:14}}>
-                  <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>🏆 Mais vendidos hoje</p>
-                  {rankList.map((r,i)=>(
-                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:i<rankList.length-1?`1px solid ${C.grayMid}`:'none'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10}}>
-                        <span style={{width:22,height:22,borderRadius:'50%',background:i===0?'#fef9c3':i===1?'#f1f5f9':'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:i===0?'#ca8a04':i===1?'#64748b':'#EA1D2C'}}>{i+1}</span>
-                        <p style={{fontSize:13,fontWeight:700,margin:0}}>{r.item}</p>
-                      </div>
-                      <p style={{fontWeight:900,color:C.green,margin:0}}>{fmtCur(r.total)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>)
-          })()}
-
+          
           {/* PONTOS DE VENDA */}
           {pdvPontos.length===0
             ? <div style={{...S.card,textAlign:'center',padding:40,border:`2px dashed ${C.grayMid}`}}>
