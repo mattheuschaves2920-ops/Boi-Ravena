@@ -4440,10 +4440,10 @@ ${turnosData.length>0?`<div class="section">
             </button>
           </div>
 
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-            <div>
-              <p style={{fontWeight:900,fontSize:18}}>👑 Painel do Dono</p>
-              <p style={{fontSize:12,color:C.grayDark}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
+          <div style={{...S.card,marginBottom:14,padding:14}}>
+            <div style={{marginBottom:12}}>
+              <p style={{fontWeight:900,fontSize:18,margin:0}}>👑 Painel do Dono</p>
+              <p style={{fontSize:12,color:C.grayDark,margin:'3px 0 0'}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</p>
             </div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               <button onClick={gerarRelatorioCompleto} style={{...S.btnGray,padding:'10px 8px',fontSize:12,color:'#EA1D2C',fontWeight:700,textAlign:'center'}}>📄 Relatório</button>
