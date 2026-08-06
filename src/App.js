@@ -4493,18 +4493,18 @@ ${turnosData.length>0?`<div class="section">
               {/* HISTÓRICO 7 DIAS */}
               <div style={{...S.card,marginBottom:14}}>
                 <p style={{fontWeight:800,fontSize:13,marginBottom:12}}>📊 Vendas vs Custo (7 dias)</p>
-                <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'flex-end',gap:4,height:90,marginBottom:8}}>
                   {hist7Dono.map((d,i)=>{
                     const maxV=Math.max(...hist7Dono.map(x=>x.vendido),1)
-                    const hV=Math.round((d.vendido/maxV)*70)
-                    const hC=Math.round((d.custo/maxV)*70)
+                    const hV=Math.max(Math.round((d.vendido/maxV)*65),d.vendido>0?3:0)
+                    const hC=Math.max(Math.round((d.custo/maxV)*65),d.custo>0?3:0)
                     return(
-                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                        <div style={{width:'100%',display:'flex',flexDirection:'column',justifyContent:'flex-end',height:72,gap:2}}>
-                          <div style={{width:'100%',height:hV,background:'#22c55e',borderRadius:'3px 3px 0 0',minHeight:2}}></div>
-                          <div style={{width:'100%',height:hC,background:'#EA1D2C',borderRadius:'3px 3px 0 0',minHeight:d.custo>0?2:0,marginTop:-hC}}></div>
+                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,height:90,justifyContent:'flex-end'}}>
+                        <div style={{width:'100%',display:'flex',flexDirection:'row',alignItems:'flex-end',gap:1,height:70,justifyContent:'center'}}>
+                          <div style={{flex:1,height:hV,background:'#22c55e',borderRadius:'3px 3px 0 0'}}></div>
+                          <div style={{flex:1,height:hC,background:'#EA1D2C',borderRadius:'3px 3px 0 0'}}></div>
                         </div>
-                        <p style={{fontSize:9,color:C.grayDark,textAlign:'center'}}>{d.label}</p>
+                        <p style={{fontSize:9,color:C.grayDark,textAlign:'center',marginTop:3}}>{d.label}</p>
                       </div>
                     )
                   })}
