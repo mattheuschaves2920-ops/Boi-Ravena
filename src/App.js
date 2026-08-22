@@ -168,7 +168,7 @@ function Login({ onLogin }) {
     const reg={id:Date.now(),funcionarioId:func.id,funcionarioNome:func.nome,funcionarioCargo:func.cargo,tipo:pontoTipo2,created_at:new Date().toISOString(),validacao:pontoVal,foto:pontoVal==='foto'?pontoFoto2:null}
     const updated=[reg,...pontoRegistrosL]
     setPontoRegistrosL(updated)
-    try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated))}catch(e){}
+    try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated));saveConfig('ponto_registros',updated)}catch(e){}
     if(pontoStream2){pontoStream2.getTracks().forEach(t=>t.stop());setPontoStream2(null)}
     setPontoPin2('');setPontoFoto2(null);setPontoSel(null);setPontoTipo2('entrada')
     const labels={entrada:'Entrada',intervalo:'Intervalo',retorno:'Retorno',saida:'Saída'}
@@ -639,6 +639,48 @@ function AppInner() {
               if(Array.isArray(sets.valor)) setCustomSetores(sets.valor)
             }
             if(cmv?.valor){try{localStorage.setItem('boi_cmv_meta',JSON.stringify(cmv.valor))}catch(e){}}
+            // Carregar configs adicionais do Supabase
+            try{
+              const ids=['pdv_pontos','pdv_contagens','pdv_aberturas',
+                         'ponto_funcionarios','ponto_registros','inventarios',
+                         'whatsapp_num','energia_alerta','energia_config']
+              const{data:cfgs}=await supabase.from('configuracoes_app').select('id,valor').in('id',ids)
+              if(cfgs&&cfgs.length>0){
+                const m=Object.fromEntries(cfgs.map(r=>[r.id,r.valor]))
+                if(m.pdv_pontos&&Array.isArray(m.pdv_pontos)){
+                  setPdvPontos(m.pdv_pontos)
+                  try{localStorage.setItem('boi_pdv_pontos',JSON.stringify(m.pdv_pontos))}catch(e){}
+                }
+                if(m.pdv_contagens&&Array.isArray(m.pdv_contagens)){
+                  setPdvContagens(m.pdv_contagens)
+                  try{localStorage.setItem('boi_pdv_contagens',JSON.stringify(m.pdv_contagens))}catch(e){}
+                }
+                if(m.pdv_aberturas&&Array.isArray(m.pdv_aberturas)){
+                  setPdvAberturas(m.pdv_aberturas)
+                  try{localStorage.setItem('boi_pdv_aberturas',JSON.stringify(m.pdv_aberturas))}catch(e){}
+                }
+                if(m.ponto_funcionarios&&Array.isArray(m.ponto_funcionarios)){
+                  setPontoFuncionarios(m.ponto_funcionarios)
+                  try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(m.ponto_funcionarios))}catch(e){}
+                }
+                if(m.ponto_registros&&Array.isArray(m.ponto_registros)){
+                  setPontoRegistros(m.ponto_registros)
+                  try{localStorage.setItem('boi_ponto_registros',JSON.stringify(m.ponto_registros))}catch(e){}
+                }
+                if(m.whatsapp_num){
+                  setWhatsappNum(m.whatsapp_num)
+                  try{localStorage.setItem('boi_whatsapp_num',m.whatsapp_num)}catch(e){}
+                }
+                if(m.energia_alerta){
+                  setEnergiaAlerta(m.energia_alerta)
+                  try{localStorage.setItem('boi_energia_alerta',JSON.stringify(m.energia_alerta))}catch(e){}
+                }
+                if(m.energia_config){
+                  setEnergiaConfig(m.energia_config)
+                  try{localStorage.setItem('boi_energia_config',JSON.stringify(m.energia_config))}catch(e){}
+                }
+              }
+            }catch(e){ console.error('Erro ao carregar configs:',e) }
           }
         }catch(e){}
       })()
@@ -732,6 +774,19 @@ function AppInner() {
     logAudit('CATEGORIA CRIADA',n,'')
     return true
   }
+  // ── HELPERS SUPABASE CONFIG ──
+  const saveConfig=async(id, valor)=>{
+    try{
+      await supabase.from('configuracoes_app').upsert({id, valor, updated_at:new Date().toISOString()})
+    }catch(e){ console.error('saveConfig error:',e) }
+  }
+  const loadConfig=async(id, fallback=null)=>{
+    try{
+      const{data}=await supabase.from('configuracoes_app').select('valor').eq('id',id).single()
+      return data?.valor??fallback
+    }catch(e){ return fallback }
+  }
+
   const addCustomSetor=async(name)=>{
     const n=name.trim()
     if(!n||SETORES.includes(n)) return false
@@ -969,7 +1024,7 @@ function AppInner() {
       logAudit('PDV CRIADO',pdvPontoForm.name,pdvPontoForm.setor)
     }
     setPdvPontos(updated)
-    localStorage.setItem('boi_pdv_pontos',JSON.stringify(updated))
+    localStorage.setItem('boi_pdv_pontos',JSON.stringify(updated));saveConfig('pdv_pontos',updated)
     setPdvPontoForm({name:'',setor:SETORES[0],descricao:''})
     setPdvEditPonto(null)
     setPdvModal(null)
@@ -1009,7 +1064,7 @@ function AppInner() {
     // Save locally
     const existing=JSON.parse(localStorage.getItem('boi_pdv_aberturas')||'[]')
     const updated=[abertura,...existing]
-    localStorage.setItem('boi_pdv_aberturas',JSON.stringify(updated))
+    localStorage.setItem('boi_pdv_aberturas',JSON.stringify(updated));saveConfig('pdv_aberturas',updated)
     setPdvAberturas(prev=>[abertura,...prev])
 
     // Register as saida in estoque for each item
@@ -1078,7 +1133,7 @@ function AppInner() {
 
     const existing=JSON.parse(localStorage.getItem('boi_pdv_contagens')||'[]')
     const updated=[contagem,...existing]
-    localStorage.setItem('boi_pdv_contagens',JSON.stringify(updated))
+    localStorage.setItem('boi_pdv_contagens',JSON.stringify(updated));saveConfig('pdv_contagens',updated)
     setPdvContagens(prev=>[contagem,...prev])
 
     const diferencas=contagem.items.filter(i=>i.diferenca!==0)
@@ -1273,7 +1328,7 @@ function AppInner() {
       if(data){
         const updated=[...pontoFuncionarios,{...func,id:data.id}]
         setPontoFuncionarios(updated)
-        try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(updated))}catch(e){}
+        try{localStorage.setItem('boi_ponto_funcionarios',JSON.stringify(updated));saveConfig('ponto_funcionarios',updated)}catch(e){}
         return data
       }
     }catch(e){}
@@ -1306,7 +1361,7 @@ function AppInner() {
       if(data){
         const updated=[data,...pontoRegistros]
         setPontoRegistros(updated)
-        try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated))}catch(e){}
+        try{localStorage.setItem('boi_ponto_registros',JSON.stringify(updated));saveConfig('ponto_registros',updated)}catch(e){}
         return data
       }
     }catch(e){}
@@ -1492,7 +1547,7 @@ function AppInner() {
 
   const saveEnergiaAlerta=async(cfg)=>{
     setEnergiaAlerta(cfg)
-    try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg))}catch(e){}
+    try{localStorage.setItem('boi_energia_alerta',JSON.stringify(cfg));saveConfig('energia_alerta',energiaAlerta)}catch(e){}
     try{
       const{error}=await supabase.from('configuracoes').upsert({id:'energia_alerta',valor:cfg},{onConflict:'id'})
       if(error)console.error('Erro ao salvar alerta energia:',error)
@@ -1501,7 +1556,7 @@ function AppInner() {
 
   const saveEnergiaConfig=async(cfg)=>{
     setEnergiaConfig(cfg)
-    try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg))}catch(e){}
+    try{localStorage.setItem('boi_energia_config',JSON.stringify(cfg));saveConfig('energia_config',energiaConfig)}catch(e){}
     try{
       const{error}=await supabase.from('configuracoes').upsert({id:'energia_config',valor:cfg},{onConflict:'id'})
       if(error){console.error('Erro ao salvar config energia:',error);showToast('Erro ao salvar na nuvem (salvo localmente)','warn')}
@@ -4701,7 +4756,7 @@ ${turnosData.length>0?`<div class="section">
                             </>
                         }
                         {canAdmin&&<button onClick={()=>{setPdvEditPonto(idx);setPdvPontoForm({name:ponto.name,setor:ponto.setor,descricao:ponto.descricao||''});setPdvModal('ponto')}} style={{...S.btnGray,padding:'8px 12px',fontSize:12}}>✏️</button>}
-                        <button onClick={()=>{if(window.confirm('Excluir '+ponto.name+'?')){const upd=pdvPontos.filter((_,i)=>i!==idx);setPdvPontos(upd);localStorage.setItem('boi_pdv_pontos',JSON.stringify(upd));showToast('✓ Ponto excluído!')}}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,color:C.red}}>🗑️</button>
+                        <button onClick={()=>{if(window.confirm('Excluir '+ponto.name+'?')){const upd=pdvPontos.filter((_,i)=>i!==idx);setPdvPontos(upd);localStorage.setItem('boi_pdv_pontos',JSON.stringify(upd));saveConfig('pdv_pontos',upd);showToast('✓ Ponto excluído!')}}} style={{...S.btnGray,padding:'8px 12px',fontSize:12,color:C.red}}>🗑️</button>
                       </div>
 
                       {/* RESULTADO DA CONTAGEM */}
@@ -6602,7 +6657,7 @@ ${turnosData.length>0?`<div class="section">
             </div>
             <div style={{display:'flex',gap:8}}>
               <button style={{...S.btnRed,flex:1,background:'#25D366'}} onClick={()=>{
-                try{localStorage.setItem('boi_whatsapp_num',whatsappNum)}catch(e){}
+                try{localStorage.setItem('boi_whatsapp_num',whatsappNum);saveConfig('whatsapp_num',whatsappNum)}catch(e){}
                 setWhatsappModal(false);showToast('✓ Número salvo!')
               }}>💾 Salvar</button>
               <button style={{...S.btnGray,flex:1}} onClick={()=>setWhatsappModal(false)}>Cancelar</button>
