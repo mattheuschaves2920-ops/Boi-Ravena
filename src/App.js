@@ -429,6 +429,7 @@ function AppInner() {
   const [recalcDate,setRecalcDate] = useState('')
   const [prevExpanded,setPrevExpanded] = useState(null)
   const [histProd,setHistProd] = useState(null)
+  const [editDanificado,setEditDanificado] = useState(null)
   const [lembreteCompras,setLembreteCompras] = useState(false)
   const [lembreteVisto,setLembreteVisto] = useState(()=>{
     try{return localStorage.getItem('boi_lembrete_visto')===new Date().toLocaleDateString('pt-BR')}catch(e){return false}
@@ -2027,6 +2028,33 @@ function AppInner() {
     logAudit('VENDA EXCLUÍDA',v.item,'R$'+v.total)
     showToast('✓ Venda excluída!')
   }
+  const deleteDanificado=async(d)=>{
+    if(!canAdmin) return showToast('Apenas administradores podem excluir','err')
+    if(!window.confirm('Excluir este registro de danificado?')) return
+    const{error}=await supabase.from('danificados').delete().eq('id',d.id)
+    if(error) return showToast('Erro ao excluir: '+error.message,'err')
+    setDanificadoList(prev=>prev.filter(x=>x.id!==d.id))
+    try{localStorage.setItem('boi_danificados',JSON.stringify(danificadoList.filter(x=>x.id!==d.id)))}catch(e){}
+    logAudit('DANIFICADO EXCLUÍDO',d.productName||d.product_name,fmtCur(d.custo||0))
+    showToast('✓ Danificado excluído!')
+  }
+
+  const saveEditDanificado=async()=>{
+    if(!editDanificado) return
+    const qty=parseFloat(editDanificado.qty)
+    if(!qty||qty<=0) return showToast('Quantidade inválida','err')
+    const custo=+(qty*(editDanificado.cost_unit||0)).toFixed(2)
+    const updates={qty,motivo:editDanificado.motivo,obs:editDanificado.obs,custo}
+    const{error}=await supabase.from('danificados').update(updates).eq('id',editDanificado.id)
+    if(error) return showToast('Erro ao salvar: '+error.message,'err')
+    const updated=danificadoList.map(x=>x.id===editDanificado.id?{...x,...updates}:x)
+    setDanificadoList(updated)
+    try{localStorage.setItem('boi_danificados',JSON.stringify(updated))}catch(e){}
+    logAudit('DANIFICADO EDITADO',editDanificado.productName||editDanificado.product_name,`${qty} ${editDanificado.productUnit||editDanificado.product_unit}`)
+    showToast('✓ Danificado atualizado!')
+    setEditDanificado(null)
+  }
+
   const handleDanificado=async()=>{
     const pid=danificadoForm.productId
     if(!pid) return showToast('Selecione um produto','err')
@@ -4984,6 +5012,10 @@ ${turnosData.length>0?`<div class="section">
                         </div>
                         <div style={{textAlign:'right',flexShrink:0,marginLeft:8}}>
                           <p style={{fontWeight:800,fontSize:13,color:'#F97316',margin:0}}>{fmtCur(d.custo||0)}</p>
+                          <div style={{display:'flex',gap:6,marginTop:4,justifyContent:'flex-end'}}>
+                            {canAdmin&&<button onClick={()=>setEditDanificado({...d,cost_unit:(d.custo||0)/(d.qty||1)})} style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:'#1D4ED8',fontWeight:700}}>✏️ Editar</button>}
+                            {canAdmin&&<button onClick={()=>deleteDanificado(d)} style={{...S.btnGray,padding:'4px 10px',fontSize:11,color:'#EA1D2C',fontWeight:700}}>🗑️ Excluir</button>}
+                          </div>
                           {canAdmin&&<button onClick={async()=>{
                             const qtyDisp=d.qty-(d.qty_trocada||0)
                             const input=window.prompt(`Quantidade trocada pelo fornecedor (máx: ${qtyDisp} ${d.productUnit||d.product_unit||''}):`,qtyDisp)
@@ -5843,6 +5875,39 @@ ${turnosData.length>0?`<div class="section">
           <div style={{padding:'0 16px 20px',display:'flex',flexDirection:'column',gap:8}}>
             <button onClick={()=>{setAlertaSemMov(false);setTab('relatorios')}} style={{background:'#F97316',color:'white',border:'none',borderRadius:12,padding:13,fontSize:14,fontWeight:800,cursor:'pointer',width:'100%'}}>📋 Ver no relatório</button>
             <button onClick={()=>setAlertaSemMov(false)} style={{background:'#F5F5F5',color:'#555',border:'none',borderRadius:12,padding:11,fontSize:13,fontWeight:700,cursor:'pointer',width:'100%'}}>✕ Dispensar</button>
+          </div>
+        </Overlay>
+      )}
+
+      {/* MODAL EDITAR DANIFICADO */}
+      {editDanificado&&(
+        <Overlay onClose={()=>setEditDanificado(null)}>
+          <MHead title="✏️ Editar Danificado" onClose={()=>setEditDanificado(null)} />
+          <div style={{padding:'12px 16px 16px',display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{...S.card,padding:14,background:'#FFF7ED',border:'1.5px solid #F97316'}}>
+              <p style={{fontWeight:800,fontSize:14,margin:0}}>{editDanificado.productName||editDanificado.product_name}</p>
+              <p style={{fontSize:11,color:'#888',margin:'3px 0 0'}}>Registrado em {new Date(editDanificado.created_at).toLocaleDateString('pt-BR')}</p>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>QUANTIDADE DANIFICADA</label>
+              <input type="number" min="0.001" step="0.001" value={editDanificado.qty}
+                onChange={e=>setEditDanificado(f=>({...f,qty:e.target.value}))}
+                style={S.input} />
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>MOTIVO</label>
+              <input value={editDanificado.motivo||''} placeholder="Motivo do dano..."
+                onChange={e=>setEditDanificado(f=>({...f,motivo:e.target.value}))}
+                style={S.input} />
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:800,color:C.grayDark,display:'block',marginBottom:4}}>OBSERVAÇÃO</label>
+              <input value={editDanificado.obs||''} placeholder="Observação..."
+                onChange={e=>setEditDanificado(f=>({...f,obs:e.target.value}))}
+                style={S.input} />
+            </div>
+            <button onClick={saveEditDanificado} style={{...S.btnRed,padding:13,fontSize:14,fontWeight:800}}>✅ Salvar alterações</button>
+            <button onClick={()=>setEditDanificado(null)} style={{...S.btnGray,padding:12,fontSize:13}}>Cancelar</button>
           </div>
         </Overlay>
       )}
